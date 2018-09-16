@@ -1,0 +1,8 @@
+[package]
+name = "jp"
+version = "0.1.0"
+authors = ["Joe Neeman <joeneeman@gmail.com>"]
+
+[dependencies]
+    diff = { path = "../diff" }
+    libjp = { path = "../libjp" }

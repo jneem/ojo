@@ -1,0 +1,9 @@
+[package]
+name = "diff"
+version = "0.1.0"
+authors = ["Joe Neeman <joeneeman@gmail.com>"]
+
+[dependencies]
+
+[dev-dependencies]
+proptest = "0.8"
