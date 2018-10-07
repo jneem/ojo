@@ -1,6 +1,6 @@
 use serde_yaml;
-use std::{self, fmt, io};
 use std::path::PathBuf;
+use std::{self, fmt, io};
 
 #[derive(Debug)]
 pub enum Error {
@@ -17,14 +17,18 @@ impl fmt::Display for Error {
         match self {
             Error::Io(e) => e.fmt(f),
             Error::Serde(e) => e.fmt(f),
-            Error::RepoNotFound(p) =>
-                write!(f, "I could not find a repository tracking this path: {:?}", p),
-            Error::RepoExists(p) =>
-                write!(f, "There is already a repository tracking this path: {:?}", p),
-            Error::NoParent(p) =>
-                write!(f, "I could not find the parent directory of: {:?}", p),
-            Error::NoFilename(p) =>
-                write!(f, "This path didn't end in a filename: {:?}", p),
+            Error::RepoNotFound(p) => write!(
+                f,
+                "I could not find a repository tracking this path: {:?}",
+                p
+            ),
+            Error::RepoExists(p) => write!(
+                f,
+                "There is already a repository tracking this path: {:?}",
+                p
+            ),
+            Error::NoParent(p) => write!(f, "I could not find the parent directory of: {:?}", p),
+            Error::NoFilename(p) => write!(f, "This path didn't end in a filename: {:?}", p),
         }
     }
 }

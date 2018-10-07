@@ -1,9 +1,9 @@
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 
-use ::LineId;
-use graph::GraphRef;
 use graph::dfs::{Dfs, Status, Visit};
+use graph::GraphRef;
+use LineId;
 
 struct NodeState {
     on_stack: bool,
@@ -39,7 +39,9 @@ impl<'a, G: GraphRef<'a> + ?Sized + 'a> Tarjan<'a, G> {
                     let index = self.node_states[&u].index;
 
                     if let Some(p) = parent {
-                        self.node_states.entry(p).and_modify(|s| s.lowlink = min(s.lowlink, lowlink));
+                        self.node_states
+                            .entry(p)
+                            .and_modify(|s| s.lowlink = min(s.lowlink, lowlink));
                     }
 
                     if lowlink == index {
@@ -58,33 +60,34 @@ impl<'a, G: GraphRef<'a> + ?Sized + 'a> Tarjan<'a, G> {
                         }
                         ret.push(scc);
                     }
-                },
+                }
                 Visit::Root(u) => {
                     self.stack.push(u.clone());
                     self.node_states.insert(u, NodeState::new(self.next_index));
                     self.next_index += 1;
-                },
+                }
                 Visit::Edge { src, dst, status } => {
                     if status == Status::New {
                         // The DFS is about to recurse on the destination node, so we'll update our
                         // state to reflect that.
                         self.stack.push(dst.clone());
-                        self.node_states.insert(dst, NodeState::new(self.next_index));
+                        self.node_states
+                            .insert(dst, NodeState::new(self.next_index));
                         self.next_index += 1;
                     } else if self.node_states[&dst].on_stack {
                         // The fact that dst is on the stack implies that there is a path from dst
                         // to src.
                         let index = self.node_states[&dst].index;
-                        self.node_states.entry(src).and_modify(|s| s.lowlink = min(s.lowlink, index));
+                        self.node_states
+                            .entry(src)
+                            .and_modify(|s| s.lowlink = min(s.lowlink, index));
                     }
-                },
+                }
             }
         }
 
         ret.reverse();
-        Decomposition {
-            sccs: ret,
-        }
+        Decomposition { sccs: ret }
     }
 }
 
@@ -111,8 +114,8 @@ impl Decomposition {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ::graph::GraphRef;
-    use ::graph::tests::{graph, ids};
+    use graph::tests::{graph, ids};
+    use graph::GraphRef;
 
     macro_rules! tarjan_test {
         ($name:ident, $graph:expr, $expected:expr) => {
@@ -120,15 +123,19 @@ mod tests {
             fn $name() {
                 let g = graph($graph);
                 let d = g.tarjan();
-                let expected: Vec<_> = $expected.into_iter()
+                let expected: Vec<_> = $expected
+                    .into_iter()
                     .map(|scc| ids(scc).into_iter().collect::<HashSet<_>>())
                     .collect();
                 assert_eq!(d.sccs, expected);
             }
-        }
+        };
     }
 
-    tarjan_test!(triangle, "0-1, 1-2, 2-0", [ [0, 1, 2] ]);
-    tarjan_test!(two_triangles, "0-1, 1-2, 2-0, 2-3, 3-4, 4-5, 5-3", [ [0, 1, 2], [3, 4, 5] ]);
+    tarjan_test!(triangle, "0-1, 1-2, 2-0", [[0, 1, 2]]);
+    tarjan_test!(
+        two_triangles,
+        "0-1, 1-2, 2-0, 2-3, 3-4, 4-5, 5-3",
+        [[0, 1, 2], [3, 4, 5]]
+    );
 }
-

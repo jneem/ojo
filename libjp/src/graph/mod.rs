@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 
-use ::LineId;
+use LineId;
 
 pub mod dfs;
 pub mod tarjan;
@@ -50,9 +50,9 @@ impl Digle {
 }
 
 pub trait GraphRef<'a>: Copy + 'a {
-    type NodesIter: Iterator<Item=&'a LineId>;
-    type OutNeighborsIter: Iterator<Item=&'a LineId>;
-    type InNeighborsIter: Iterator<Item=&'a LineId>;
+    type NodesIter: Iterator<Item = &'a LineId>;
+    type OutNeighborsIter: Iterator<Item = &'a LineId>;
+    type InNeighborsIter: Iterator<Item = &'a LineId>;
 
     fn nodes(self) -> Self::NodesIter;
     fn out_neighbors(self, u: &LineId) -> Self::OutNeighborsIter;
@@ -77,7 +77,11 @@ pub trait GraphRef<'a>: Copy + 'a {
         // topological sort each time we retreat from it.
         for visit in self.dfs() {
             match visit {
-                Visit::Edge { src: _, ref dst, status } => {
+                Visit::Edge {
+                    src: _,
+                    ref dst,
+                    status,
+                } => {
                     if visiting.contains(dst) {
                         // We found a cycle in the graph, so there is no topological sort.
                         return None;
@@ -138,9 +142,9 @@ impl<'a> GraphRef<'a> for &'a Digle {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use ::{LineId, PatchId};
     use super::{Digle, DigleNode, GraphRef};
+    use std::collections::HashMap;
+    use {LineId, PatchId};
 
     #[derive(Clone, Debug)]
     pub struct Node {
@@ -182,7 +186,7 @@ mod tests {
         for e in s.split(',') {
             let dash_idx = e.find('-').unwrap();
             let u: usize = e[..dash_idx].trim().parse().unwrap();
-            let v: usize = e[(dash_idx+1)..].trim().parse().unwrap();
+            let v: usize = e[(dash_idx + 1)..].trim().parse().unwrap();
             let w = ::std::cmp::max(u, v);
 
             if w >= ret.nodes.len() {
@@ -190,7 +194,8 @@ mod tests {
                     next: Vec::new(),
                     prev: Vec::new(),
                 };
-                ret.ids.extend((ret.ids.len()..(w + 1)).map(|x| id(x as u64)));
+                ret.ids
+                    .extend((ret.ids.len()..(w + 1)).map(|x| id(x as u64)));
                 ret.nodes.resize(w + 1, empty_node);
                 assert!(ret.ids.len() == ret.nodes.len());
             }
@@ -203,7 +208,10 @@ mod tests {
     }
 
     pub fn id(n: u64) -> LineId {
-        LineId { patch: PatchId::cur(), line: n }
+        LineId {
+            patch: PatchId::cur(),
+            line: n,
+        }
     }
 
     // Given an array of numbers, creates a matching vec of LineIds.
@@ -220,7 +228,7 @@ mod tests {
                 let expected = $expected.map(|nums: Vec<u64>| ids(&nums));
                 assert_eq!(top_sort, expected);
             }
-        }
+        };
     }
 
     macro_rules! linear_order_test {
@@ -232,7 +240,7 @@ mod tests {
                 let expected = $expected.map(|nums: Vec<u64>| ids(&nums));
                 assert_eq!(order, expected);
             }
-        }
+        };
     }
 
     top_sort_test!(top_sort_chain, "0-1, 1-3, 3-2", Some(vec![0, 1, 3, 2]));
@@ -240,9 +248,16 @@ mod tests {
     top_sort_test!(top_sort_tree, "0-2, 2-3, 1-3", Some(vec![1, 0, 2, 3]));
 
     linear_order_test!(linear_order_chain, "0-1, 1-3, 3-2", Some(vec![0, 1, 3, 2]));
-    linear_order_test!(linear_order_chain_with_extra, "0-1, 1-3, 3-2, 0-2", Some(vec![0, 1, 3, 2]));
-    linear_order_test!(linear_order_chain_with_extra2, "0-1, 0-2, 1-3, 3-2", Some(vec![0, 1, 3, 2]));
+    linear_order_test!(
+        linear_order_chain_with_extra,
+        "0-1, 1-3, 3-2, 0-2",
+        Some(vec![0, 1, 3, 2])
+    );
+    linear_order_test!(
+        linear_order_chain_with_extra2,
+        "0-1, 0-2, 1-3, 3-2",
+        Some(vec![0, 1, 3, 2])
+    );
     linear_order_test!(linear_order_cycle, "0-1, 1-2, 2-3, 3-1", None);
     linear_order_test!(linear_order_tree, "0-2, 2-3, 1-3", None);
 }
-

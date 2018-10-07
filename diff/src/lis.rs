@@ -51,7 +51,7 @@ use std::usize;
 // was placed in its stack, and we look at the top of the stack to its left (which, in the example
 // above, was a 5). Then we repeat: at the time the 5 was placed, the top of the stack to its left
 // held a 4. That is, 4 5 7 is an LIS of the original sequence.
-// 
+//
 // In order to translate this into a more efficient algorithm, we make two observations.
 //
 // 1. We don't need to record the entire history of the process; instead, we just keep track of the
@@ -119,11 +119,15 @@ mod tests {
                 let lis = longest_increasing_subsequence(seq);
                 assert_eq!(lis.as_slice(), expected);
             }
-        }
+        };
     }
 
     lis_test!(lis_test_empty, [], []);
-    lis_test!(lis_test_ordered, [0, 1, 2, 3, 4, 5, 6], [0, 1, 2, 3, 4, 5, 6]);
+    lis_test!(
+        lis_test_ordered,
+        [0, 1, 2, 3, 4, 5, 6],
+        [0, 1, 2, 3, 4, 5, 6]
+    );
     lis_test!(lis_test_reversed, [6, 5, 4, 3, 2, 1, 0], [6]);
 
     proptest! {

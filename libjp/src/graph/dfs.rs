@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
-use ::LineId;
 use graph::GraphRef;
+use LineId;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Status {
@@ -88,10 +88,17 @@ impl<'a, G: GraphRef<'a> + ?Sized> Iterator for Dfs<'a, G> {
                     self.visited.insert(next.clone());
                     Status::New
                 };
-                Some(Visit::Edge { src: cur, dst: next.clone(), status: status })
+                Some(Visit::Edge {
+                    src: cur,
+                    dst: next.clone(),
+                    status: status,
+                })
             } else {
                 self.stack.pop();
-                Some(Visit::Retreat { u: cur, parent: self.cur_node() })
+                Some(Visit::Retreat {
+                    u: cur,
+                    parent: self.cur_node(),
+                })
             }
         } else if let Some(next_root) = self.next_root() {
             self.stack.push(StackFrame::new(self.g, next_root.clone()));
@@ -105,10 +112,10 @@ impl<'a, G: GraphRef<'a> + ?Sized> Iterator for Dfs<'a, G> {
 
 #[cfg(test)]
 mod tests {
-    use super::Visit::*;
     use super::Status::*;
-    use ::graph::GraphRef;
-    use ::graph::tests::{graph, id, ids};
+    use super::Visit::*;
+    use graph::tests::{graph, id, ids};
+    use graph::GraphRef;
 
     macro_rules! dfs_test {
         ($name:ident, $graph:expr, $expected:expr) => {
@@ -118,28 +125,80 @@ mod tests {
                 let dfs: Vec<_> = g.dfs().collect();
                 assert_eq!(dfs, $expected);
             }
-        }
+        };
     }
 
-    dfs_test!(visit_order, "0-1, 0-3, 0-2", vec![
-              Root(id(0)),
-              Edge { src: id(0), dst: id(1), status: New },
-              Retreat { u: id(1), parent: Some(id(0)) },
-              Edge { src: id(0), dst: id(3), status: New },
-              Retreat { u: id(3), parent: Some(id(0)) },
-              Edge { src: id(0), dst: id(2), status: New },
-              Retreat { u: id(2), parent: Some(id(0)) },
-              Retreat { u: id(0), parent: None },
-    ]);
+    dfs_test!(
+        visit_order,
+        "0-1, 0-3, 0-2",
+        vec![
+            Root(id(0)),
+            Edge {
+                src: id(0),
+                dst: id(1),
+                status: New
+            },
+            Retreat {
+                u: id(1),
+                parent: Some(id(0))
+            },
+            Edge {
+                src: id(0),
+                dst: id(3),
+                status: New
+            },
+            Retreat {
+                u: id(3),
+                parent: Some(id(0))
+            },
+            Edge {
+                src: id(0),
+                dst: id(2),
+                status: New
+            },
+            Retreat {
+                u: id(2),
+                parent: Some(id(0))
+            },
+            Retreat {
+                u: id(0),
+                parent: None
+            },
+        ]
+    );
 
-    dfs_test!(repeat_visit, "0-1, 0-2, 1-2", vec![
-              Root(id(0)),
-              Edge { src: id(0), dst: id(1), status: New },
-              Edge { src: id(1), dst: id(2), status: New },
-              Retreat { u: id(2), parent: Some(id(1)) },
-              Retreat { u: id(1), parent: Some(id(0)) },
-              Edge { src: id(0), dst: id(2), status: Repeated },
-              Retreat { u: id(0), parent: None },
-    ]);
+    dfs_test!(
+        repeat_visit,
+        "0-1, 0-2, 1-2",
+        vec![
+            Root(id(0)),
+            Edge {
+                src: id(0),
+                dst: id(1),
+                status: New
+            },
+            Edge {
+                src: id(1),
+                dst: id(2),
+                status: New
+            },
+            Retreat {
+                u: id(2),
+                parent: Some(id(1))
+            },
+            Retreat {
+                u: id(1),
+                parent: Some(id(0))
+            },
+            Edge {
+                src: id(0),
+                dst: id(2),
+                status: Repeated
+            },
+            Retreat {
+                u: id(0),
+                parent: None
+            },
+        ]
+    );
 }
-
