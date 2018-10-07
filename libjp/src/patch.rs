@@ -63,6 +63,8 @@ pub struct UnidentifiedPatch {
     pub header: PatchHeader,
     pub changes: Vec<Change>,
     pub deps: Vec<PatchId>,
+    pub desc_short: String,
+    pub desc_long: String,
 }
 
 impl UnidentifiedPatch {
@@ -82,6 +84,8 @@ impl UnidentifiedPatch {
                 header: self.header,
                 changes: self.changes,
                 deps: self.deps,
+                desc_short: self.desc_short,
+                desc_long: self.desc_long,
             };
 
             for change in &mut ret.changes {
@@ -98,15 +102,23 @@ pub struct Patch {
     pub header: PatchHeader,
     pub changes: Vec<Change>,
     pub deps: Vec<PatchId>,
+    pub desc_short: String,
+    pub desc_long: String,
 }
 
 impl Patch {
-    pub fn store_contents(&self, storage: &mut Storage) {
-        unimplemented!();
+    pub fn store_new_contents(&self, storage: &mut Storage) {
+        for change in &self.changes {
+            change.store_new_contents(storage);
+        }
     }
 
     pub fn apply_to_digle(&self, digle: Digle) -> Digle {
-        unimplemented!();
+        let mut digle = digle;
+        for change in &self.changes {
+            digle = change.apply_to_digle(digle);
+        }
+        digle
     }
 }
 
@@ -125,10 +137,7 @@ pub enum Change {
 impl Change {
     fn apply_to_digle(&self, digle: Digle) -> Digle {
         match *self {
-            Change::NewNode {
-                ref id,
-                ref contents,
-            } => digle.add_node(id.clone()),
+            Change::NewNode { ref id, .. } => digle.add_node(id.clone()),
             Change::NewEdge { ref src, ref dst } => digle.add_edge(src.clone(), dst.clone()),
         }
     }

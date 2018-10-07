@@ -6,3 +6,12 @@ authors = ["Joe Neeman <joeneeman@gmail.com>"]
 [dependencies]
     diff = { path = "../diff" }
     libjp = { path = "../libjp" }
+
+[[bin]]
+name = "new"
+path = "src/new.rs"
+
+[[bin]]
+name = "show"
+path = "src/show.rs"
+
