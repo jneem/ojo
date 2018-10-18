@@ -13,7 +13,7 @@ pub enum LineDiff {
     /// This line was introduced in the second file, and the `usize` is the line number in the
     /// second file.
     New(usize),
-    /// This line was is the first file, but got deleted.
+    /// This line was in the first file, but got deleted.
     Delete(usize),
     /// This line was present in both files; the first `usize` is the line number in the first
     /// file, and the second is the line number in the second file.

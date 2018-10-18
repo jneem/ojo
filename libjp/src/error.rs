@@ -4,7 +4,7 @@ use std::{self, fmt, io};
 
 #[derive(Debug)]
 pub enum Error {
-    Io(io::Error),
+    Io(io::Error, String),
     Serde(serde_yaml::Error),
     RepoNotFound(PathBuf),
     RepoExists(PathBuf),
@@ -15,7 +15,7 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::Io(e) => e.fmt(f),
+            Error::Io(e, msg) => write!( f, "I/O error: {}. Details: {}", msg, e),
             Error::Serde(e) => e.fmt(f),
             Error::RepoNotFound(p) => write!(
                 f,
@@ -36,7 +36,7 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {
     fn description(&self) -> &str {
         match self {
-            Error::Io(e) => e.description(),
+            Error::Io(e, _) => e.description(),
             Error::Serde(e) => e.description(),
             Error::RepoNotFound(_) => "repository not found",
             Error::RepoExists(_) => "repository exists",
@@ -48,7 +48,13 @@ impl std::error::Error for Error {
 
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Error {
-        Error::Io(e)
+        Error::Io(e, "".to_owned())
+    }
+}
+
+impl From<(io::Error, &'static str)> for Error {
+    fn from((e, msg): (io::Error, &'static str)) -> Error {
+        Error::Io(e, msg.to_owned())
     }
 }
 

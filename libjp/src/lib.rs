@@ -1,13 +1,4 @@
-#![feature(nll)]
-
-#[macro_use]
-extern crate serde_derive;
-
-extern crate itertools;
-extern crate multimap;
-extern crate rpds;
-extern crate serde_yaml;
-extern crate sha2;
+#[macro_use] extern crate serde_derive;
 
 use std::collections::HashSet;
 use std::ffi::OsString;
@@ -19,9 +10,9 @@ pub mod graph;
 pub mod patch;
 pub mod storage;
 
-pub use error::Error;
-pub use patch::{Patch, PatchId, UnidentifiedPatch};
-pub use storage::Digle;
+pub use crate::error::Error;
+pub use crate::patch::{Change, Changes, Patch, PatchId, UnidentifiedPatch};
+pub use crate::storage::Digle;
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct LineId {
@@ -33,6 +24,13 @@ impl LineId {
     fn set_patch_id(&mut self, id: &PatchId) {
         if self.patch.is_cur() {
             self.patch = id.clone();
+        }
+    }
+
+    fn cur(line: u64) -> LineId {
+        LineId {
+            patch: PatchId::cur(),
+            line: line,
         }
     }
 }
@@ -56,20 +54,27 @@ pub struct Repo {
 }
 
 impl Repo {
-    /// Given the name of a file that is being versioned, returns the path containing its
-    /// serialized digle.
-    fn db_path(file_path: &Path) -> Result<PathBuf, Error> {
+    /// Given the name of a file that is being versioned, returns the path to the directory where
+    /// everything is stored.
+    fn repo_dir(file_path: &Path) -> Result<PathBuf, Error> {
         let parent = file_path
             .parent()
             .ok_or_else(|| Error::NoParent(file_path.to_path_buf()))?;
+        let mut ret = parent.to_path_buf();
+        ret.push(".jp");
+        Ok(ret)
+    }
+
+    /// Given the name of a file that is being versioned, returns the path containing its
+    /// serialized digle.
+    fn db_path(file_path: &Path) -> Result<PathBuf, Error> {
         let file_name = file_path
             .file_name()
             .ok_or_else(|| Error::NoFilename(file_path.to_path_buf()))?;
 
-        let mut ret = parent.to_path_buf();
+        let mut ret = Repo::repo_dir(file_path)?;
         let mut db_file_name = OsString::from("db_");
         db_file_name.push(file_name);
-        ret.push(".jp");
         ret.push(db_file_name);
         Ok(ret)
     }
@@ -77,12 +82,7 @@ impl Repo {
     /// Given the name of a file that is being versioned, returns the directory containing all the
     /// patches related to that file.
     fn patch_dir(file_path: &Path) -> Result<PathBuf, Error> {
-        let parent = file_path
-            .parent()
-            .ok_or_else(|| Error::NoParent(file_path.to_path_buf()))?;
-
-        let mut ret = parent.to_path_buf();
-        ret.push(".jp");
+        let mut ret = Repo::repo_dir(file_path)?;
         ret.push("patches");
         Ok(ret)
     }
@@ -110,21 +110,54 @@ impl Repo {
         }
         let patch_dir = Repo::patch_dir(path.as_ref())?;
 
+        let mut storage = storage::Storage::new();
+        let master_inode = storage.allocate_inode();
+        storage.set_inode("master", master_inode);
         Ok(Repo {
             db_path: db_path,
             patch_dir: patch_dir,
             file: path.as_ref().to_path_buf(),
-            storage: storage::Storage::new(),
+            storage: storage,
             patches: HashSet::new(),
         })
+    }
+
+    pub fn write(&self) -> Result<(), Error> {
+        let db = DbRef {
+            storage: &self.storage,
+            patches: &self.patches,
+        };
+        self.try_create_repo_dir()?;
+        let db_file = File::create(&self.db_path)?;
+        serde_yaml::to_writer(db_file, &db)?;
+        Ok(())
     }
 
     pub fn storage(&self) -> &storage::Storage {
         &self.storage
     }
 
-    pub fn file(&self) -> Option<Vec<u8>> {
-        unimplemented!();
+    pub fn file(&self, branch: &str) -> Option<storage::File> {
+        use crate::graph::GraphRef;
+        let inode = self.storage.inode(branch).unwrap(); // FIXME: unwrap
+        self.storage.digle(inode).linear_order().map(|order| {
+            storage::File::from_ids(&order, &self.storage)
+        })
+    }
+
+    pub fn patches(&self) -> &HashSet<PatchId> {
+        &self.patches
+    }
+
+    fn try_create_repo_dir(&self) -> Result<(), Error> {
+        let repo_dir = Repo::repo_dir(&self.file)?;
+        if let Err(e) = std::fs::create_dir(&repo_dir) {
+            // If the directory already exists, just swallow the error.
+            if e.kind() != std::io::ErrorKind::AlreadyExists {
+                return Err(e)?;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -133,4 +166,12 @@ impl Repo {
 struct Db {
     storage: storage::Storage,
     patches: HashSet<PatchId>,
+}
+
+// I *think* that the auto-generated Serialize implementation here is compatible with the
+// auto-generated Seserialize implementation for Db.
+#[derive(Debug, Serialize)]
+struct DbRef<'a> {
+    storage: &'a storage::Storage,
+    patches: &'a HashSet<PatchId>,
 }

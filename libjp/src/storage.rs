@@ -1,6 +1,10 @@
 use multimap::MMap;
 use rpds::{RedBlackTreeMap as Map, RedBlackTreeSet as Set};
-use {Edge, LineId};
+use crate::{Edge, LineId};
+
+pub mod file;
+
+pub use self::file::File;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct INode {
@@ -23,33 +27,47 @@ impl Digle {
         }
     }
 
-    pub fn out_edges<'a>(&'a self, line: LineId) -> impl Iterator<Item = Edge> + 'a {
-        self.edges.get(&line).cloned()
+    pub fn out_edges<'a>(&'a self, line: LineId) -> impl Iterator<Item = &'a Edge> + 'a {
+        self.edges.get(&line)
     }
 
-    pub fn in_edges<'a>(&'a self, line: LineId) -> impl Iterator<Item = Edge> + 'a {
-        self.back_edges.get(&line).cloned()
+    pub fn in_edges<'a>(&'a self, line: LineId) -> impl Iterator<Item = &'a Edge> + 'a {
+        self.back_edges.get(&line)
     }
 
-    pub fn add_node(&self, id: LineId) -> Digle {
-        Digle {
-            lines: self.lines.insert(id),
-            edges: self.edges.clone(),
-            back_edges: self.back_edges.clone(),
-        }
+    pub fn add_node(&mut self, id: LineId) {
+        self.lines.insert_mut(id);
     }
 
-    pub fn add_edge(&self, from: LineId, to: LineId) -> Digle {
+    pub fn delete_node(&mut self, id: &LineId) {
+        unimplemented!();
+    }
+
+    pub fn add_edge(&mut self, from: LineId, to: LineId) {
         assert!(self.lines.contains(&from));
         assert!(self.lines.contains(&to));
 
-        let new_edges = self.edges.insert(from.clone(), Edge { dest: to.clone() });
-        let new_back_edges = self.back_edges.insert(to, Edge { dest: from });
-        Digle {
-            lines: self.lines.clone(),
-            edges: new_edges,
-            back_edges: new_back_edges,
-        }
+        self.edges.insert_mut(from.clone(), Edge { dest: to.clone() });
+        self.back_edges.insert_mut(to, Edge { dest: from });
+    }
+}
+
+impl<'a> crate::graph::GraphRef<'a> for &'a Digle {
+    // TODO: once impl Trait return types are nameable, unbox these
+    type NodesIter = Box<dyn Iterator<Item = &'a LineId> + 'a>;
+    type OutNeighborsIter = Box<dyn Iterator<Item = &'a LineId> + 'a>;
+    type InNeighborsIter = Box<dyn Iterator<Item = &'a LineId> + 'a>;
+
+    fn nodes(self) -> Self::NodesIter {
+        Box::new(self.lines.iter())
+    }
+
+    fn out_neighbors(self, u: &LineId) -> Self::OutNeighborsIter {
+        Box::new(self.out_edges(u.clone()).map(|e| &e.dest))
+    }
+
+    fn in_neighbors(self, u: &LineId) -> Self::InNeighborsIter {
+        Box::new(self.in_edges(u.clone()).map(|e| &e.dest))
     }
 }
 
@@ -74,8 +92,16 @@ impl Storage {
         }
     }
 
-    pub fn contents(&self, id: LineId) -> &[u8] {
-        self.contents.get(&id).unwrap().as_slice()
+    pub fn allocate_inode(&mut self) -> INode {
+        //FIXME
+        let ret = INode { n: 0 };
+        let digle = Digle::new();
+        self.digles = self.digles.insert(ret, digle);
+        ret
+    }
+
+    pub fn contents(&self, id: &LineId) -> &[u8] {
+        self.contents.get(id).unwrap().as_slice()
     }
 
     /// Panics if the line already has contents.

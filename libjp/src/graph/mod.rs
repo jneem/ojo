@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 
-use LineId;
+use crate::LineId;
 
 pub mod dfs;
 pub mod tarjan;
@@ -144,7 +144,7 @@ impl<'a> GraphRef<'a> for &'a Digle {
 mod tests {
     use super::{Digle, DigleNode, GraphRef};
     use std::collections::HashMap;
-    use {LineId, PatchId};
+    use crate::{LineId, PatchId};
 
     #[derive(Clone, Debug)]
     pub struct Node {

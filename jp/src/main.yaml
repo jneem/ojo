@@ -1,0 +1,53 @@
+name: jp
+version: "0.1.0"
+about: An educational and proof-of-concept version control system.
+author: Joe Neeman <joeneeman@gmail.com>
+
+subcommands:
+    - apply:
+        about: Applies a patch to a repository.
+        args:
+            - PATH:
+                help: path to the file being tracked
+                required: true
+            - PATCH:
+                help: path to the patch
+                required: true
+    - diff:
+        about: Shows changes between commits.
+        args:
+            - PATH:
+                help: path to the file we want to track
+                required: true
+    - init:
+        about: Creates a new jp repository.
+        args:
+            - PATH:
+                help: path to the file we want to track
+                required: true
+    - log:
+        about: Prints all of the patches present in a repository.
+        args:
+            - PATH:
+                help: path to the file we are tracking
+                required: true
+    - patch:
+        about: Creates a patch representing the changes in the current working directory.
+        args:
+            - PATH:
+                help: path to the file we are tracking
+                required: true
+            - description:
+                help: message describing the patch
+                short: m
+                long: description
+                required: true
+                takes_value: true
+            - author:
+                help: the author of the patch
+                short: a
+                long: author
+                required: true
+                takes_value: true
+
+

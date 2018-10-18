@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
-use graph::GraphRef;
-use LineId;
+use crate::graph::GraphRef;
+use crate::LineId;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Status {
@@ -114,8 +114,8 @@ impl<'a, G: GraphRef<'a> + ?Sized> Iterator for Dfs<'a, G> {
 mod tests {
     use super::Status::*;
     use super::Visit::*;
-    use graph::tests::{graph, id, ids};
-    use graph::GraphRef;
+    use crate::graph::tests::{graph, id, ids};
+    use crate::graph::GraphRef;
 
     macro_rules! dfs_test {
         ($name:ident, $graph:expr, $expected:expr) => {

@@ -1,9 +1,9 @@
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 
-use graph::dfs::{Dfs, Status, Visit};
-use graph::GraphRef;
-use LineId;
+use crate::graph::dfs::{Dfs, Status, Visit};
+use crate::graph::GraphRef;
+use crate::LineId;
 
 struct NodeState {
     on_stack: bool,
@@ -114,8 +114,8 @@ impl Decomposition {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use graph::tests::{graph, ids};
-    use graph::GraphRef;
+    use crate::graph::tests::{graph, ids};
+    use crate::graph::GraphRef;
 
     macro_rules! tarjan_test {
         ($name:ident, $graph:expr, $expected:expr) => {

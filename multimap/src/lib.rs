@@ -1,6 +1,3 @@
-extern crate rpds;
-extern crate serde;
-
 #[macro_use]
 extern crate serde_derive;
 
@@ -43,6 +40,16 @@ impl<K: Ord, V: Ord> MMap<K, V> {
             map: new_map,
             empty_set: RedBlackTreeSet::new(),
         }
+    }
+
+    pub fn insert_mut(&mut self, key: K, val: V) {
+        let mut values = self
+            .map
+            .get(&key)
+            .cloned()
+            .unwrap_or_else(|| RedBlackTreeSet::new());
+        values.insert_mut(val);
+        self.map.insert_mut(key, values);
     }
 
     // It might seem a bit strange that we need an owned key in order to remove the binding. This
