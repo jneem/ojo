@@ -123,4 +123,9 @@ impl Storage {
     pub fn digle(&self, inode: INode) -> Digle {
         self.digles.get(&inode).unwrap().clone()
     }
+
+    pub fn set_digle(&mut self, inode: INode, digle: Digle) {
+        self.digles.insert(inode, digle);
+    }
 }
+

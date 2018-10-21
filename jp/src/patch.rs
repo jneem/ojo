@@ -21,6 +21,7 @@ pub fn run(m: &ArgMatches) -> Result<(), libjp::Error> {
     let new_file = storage::File::from_bytes(&contents);
     if let Some(old_file) = repo.file("master") {
         let changes = Changes::from_diff(&old_file, &new_file, &diff);
+        // TODO: if there are no changes, abort
         let patch = UnidentifiedPatch::new(author.to_owned(), msg.to_owned(), changes);
 
         // Write the patch to a temporary file, and get back the identified patch.

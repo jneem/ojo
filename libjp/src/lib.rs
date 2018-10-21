@@ -127,7 +127,8 @@ impl Repo {
             storage: &self.storage,
             patches: &self.patches,
         };
-        self.try_create_repo_dir()?;
+        self.try_create_dir(&Repo::repo_dir(&self.file)?)?;
+        self.try_create_dir(&Repo::patch_dir(&self.file)?)?;
         let db_file = File::create(&self.db_path)?;
         serde_yaml::to_writer(db_file, &db)?;
         Ok(())
@@ -135,6 +136,10 @@ impl Repo {
 
     pub fn storage(&self) -> &storage::Storage {
         &self.storage
+    }
+
+    pub fn storage_mut(&mut self) -> &mut storage::Storage {
+        &mut self.storage
     }
 
     pub fn file(&self, branch: &str) -> Option<storage::File> {
@@ -149,9 +154,8 @@ impl Repo {
         &self.patches
     }
 
-    fn try_create_repo_dir(&self) -> Result<(), Error> {
-        let repo_dir = Repo::repo_dir(&self.file)?;
-        if let Err(e) = std::fs::create_dir(&repo_dir) {
+    fn try_create_dir(&self, dir: &Path) -> Result<(), Error> {
+        if let Err(e) = std::fs::create_dir(dir) {
             // If the directory already exists, just swallow the error.
             if e.kind() != std::io::ErrorKind::AlreadyExists {
                 return Err(e)?;

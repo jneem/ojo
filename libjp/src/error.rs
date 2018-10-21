@@ -5,6 +5,7 @@ use std::{self, fmt, io};
 #[derive(Debug)]
 pub enum Error {
     Io(io::Error, String),
+    Base64Decode(base64::DecodeError),
     Serde(serde_yaml::Error),
     RepoNotFound(PathBuf),
     RepoExists(PathBuf),
@@ -15,7 +16,8 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::Io(e, msg) => write!( f, "I/O error: {}. Details: {}", msg, e),
+            Error::Io(e, msg) => write!(f, "I/O error: {}. Details: {}", msg, e),
+            Error::Base64Decode(e) => write!(f, "Error decoding base64: {}", e),
             Error::Serde(e) => e.fmt(f),
             Error::RepoNotFound(p) => write!(
                 f,
@@ -37,6 +39,7 @@ impl std::error::Error for Error {
     fn description(&self) -> &str {
         match self {
             Error::Io(e, _) => e.description(),
+            Error::Base64Decode(e) => e.description(),
             Error::Serde(e) => e.description(),
             Error::RepoNotFound(_) => "repository not found",
             Error::RepoExists(_) => "repository exists",
@@ -49,6 +52,12 @@ impl std::error::Error for Error {
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Error {
         Error::Io(e, "".to_owned())
+    }
+}
+
+impl From<base64::DecodeError> for Error {
+    fn from(e: base64::DecodeError) -> Error {
+        Error::Base64Decode(e)
     }
 }
 
