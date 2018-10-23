@@ -1,7 +1,11 @@
 #[macro_use]
 extern crate clap;
 
+#[macro_use]
+extern crate failure;
+
 use clap::App;
+use failure::Error;
 
 mod apply;
 mod diff;
@@ -10,9 +14,9 @@ mod log;
 mod patch;
 
 // TODO:
-// - commit
 // - make diff display things more nicely
-fn main() -> Result<(), libjp::Error> {
+// - output (graphs and/or files)
+fn main() -> Result<(), Error> {
     let yml = load_yaml!("main.yaml");
     let m = App::from_yaml(yml).get_matches();
 

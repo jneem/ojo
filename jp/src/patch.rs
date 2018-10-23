@@ -1,11 +1,12 @@
 use clap::ArgMatches;
+use failure::{Error, ResultExt};
 use libjp::{Changes, Repo};
 use libjp::patch::UnidentifiedPatch;
 use libjp::storage;
 use std::io::prelude::*;
 use std::fs::File;
 
-pub fn run(m: &ArgMatches) -> Result<(), libjp::Error> {
+pub fn run(m: &ArgMatches) -> Result<(), Error> {
     // The unwraps are ok because these are required arguments.
     let path = m.value_of("PATH").unwrap();
     let msg = m.value_of("description").unwrap();
@@ -26,13 +27,12 @@ pub fn run(m: &ArgMatches) -> Result<(), libjp::Error> {
 
         // Write the patch to a temporary file, and get back the identified patch.
         let mut out = tempfile::NamedTempFile::new_in(".")
-            .map_err(|e| (e, "trying to create a named temp file"))?;
+            .context("trying to create a named temp file")?;
         let patch = patch.write_out(&mut out)?;
 
         // Now that we know the patch's id, move it to a location given by that name.
-        // TODO: more informative error
         out.persist(&patch.id.filename())
-            .map_err(|e| (e.error, "trying to rename temp file"))?;
+            .with_context(|_| format!("saving patch to {}", &patch.id.filename()))?;
     } else {
         panic!("FIXME");
     };

@@ -3,6 +3,7 @@
 use std::collections::HashSet;
 use std::ffi::OsString;
 use std::fs::File;
+use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 
 mod error;
@@ -152,6 +153,37 @@ impl Repo {
 
     pub fn patches(&self) -> &HashSet<PatchId> {
         &self.patches
+    }
+
+    fn patch_path(&self, id: &PatchId) -> PathBuf {
+        let mut ret = self.patch_dir.clone();
+        ret.push(id.filename());
+        ret
+    }
+
+    fn open_patch(&self, id: &PatchId) -> Result<Patch, Error> {
+        Patch::from_reader(File::open(self.patch_path(id))?, id.clone())
+    }
+
+    pub fn register_patch(&mut self, patch: &Patch) -> Result<(), Error> {
+        let patch_path = self.patch_path(&patch.id);
+
+        // If the patch already exists in our repository then there's nothing to do. But if there's
+        // a file there which doesn't match this one then something's really wrong.
+        if self.patches.contains(&patch.id) {
+            let old_patch = self.open_patch(&patch.id)?;
+            if &old_patch == patch {
+                return Ok(());
+            } else {
+                return Err(Error::PatchCollision(patch.id.clone()));
+            }
+        }
+
+        let mut out = File::create(&patch_path)?;
+        let id = patch.id.clone();
+        patch.write_out(&mut out)?;
+        self.patches.insert(id);
+        Ok(())
     }
 
     fn try_create_dir(&self, dir: &Path) -> Result<(), Error> {

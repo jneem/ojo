@@ -1,10 +1,10 @@
 use clap::ArgMatches;
+use failure::{err_msg, Error};
 use libjp::{Patch, PatchId, Repo};
-use std::io::prelude::*;
 use std::fs::File;
 use std::path::Path;
 
-pub fn run(m: &ArgMatches) -> Result<(), libjp::Error> {
+pub fn run(m: &ArgMatches) -> Result<(), Error> {
     // The unwraps are ok because these are required arguments.
     let repo_path = m.value_of("PATH").unwrap();
     let patch_path = Path::new(m.value_of("PATCH").unwrap());
@@ -21,17 +21,17 @@ pub fn run(m: &ArgMatches) -> Result<(), libjp::Error> {
     let mut repo = Repo::open(repo_path)?;
     let patch = File::open(patch_path)?;
     let patch = Patch::from_reader(patch, patch_id)?;
+    repo.register_patch(&patch)?;
 
-    // Copy the patch to the patch directory. FIXME: check for errors
-    let mut target_path = repo.patch_dir.clone();
-    target_path.push(patch_path);
-    std::fs::copy(patch_path, &target_path)?;
-
-    let inode = repo.storage().inode("master").unwrap(); // FIXME: unwrap and hardcoded name
-    let mut digle = repo.storage().digle(inode); // FIXME: unwrap
+    // Apply the patch's changes to the digle.
+    let inode = repo.storage()
+        .inode("master")
+        .ok_or_else(|| err_msg("master branch not found"))?;
+    let mut digle = repo.storage().digle(inode);
     patch.store_new_contents(repo.storage_mut());
     patch.apply_to_digle(&mut digle);
     repo.storage_mut().set_digle(inode, digle);
 
-    repo.write()
+    repo.write()?;
+    Ok(())
 }

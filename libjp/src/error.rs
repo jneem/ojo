@@ -7,6 +7,7 @@ pub enum Error {
     Io(io::Error, String),
     Base64Decode(base64::DecodeError),
     Serde(serde_yaml::Error),
+    PatchCollision(crate::PatchId),
     RepoNotFound(PathBuf),
     RepoExists(PathBuf),
     NoParent(PathBuf),
@@ -18,6 +19,11 @@ impl fmt::Display for Error {
         match self {
             Error::Io(e, msg) => write!(f, "I/O error: {}. Details: {}", msg, e),
             Error::Base64Decode(e) => write!(f, "Error decoding base64: {}", e),
+            Error::PatchCollision(id) => write!(
+                f,
+                "Encountered a collision between patch hashes: {}",
+                base64::encode_config(&id.data[..], base64::URL_SAFE)
+            ),
             Error::Serde(e) => e.fmt(f),
             Error::RepoNotFound(p) => write!(
                 f,
@@ -40,6 +46,7 @@ impl std::error::Error for Error {
         match self {
             Error::Io(e, _) => e.description(),
             Error::Base64Decode(e) => e.description(),
+            Error::PatchCollision(_) => "patch collision detected",
             Error::Serde(e) => e.description(),
             Error::RepoNotFound(_) => "repository not found",
             Error::RepoExists(_) => "repository exists",

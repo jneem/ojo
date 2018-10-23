@@ -125,7 +125,7 @@ impl Storage {
     }
 
     pub fn set_digle(&mut self, inode: INode, digle: Digle) {
-        self.digles.insert(inode, digle);
+        self.digles.insert_mut(inode, digle);
     }
 }
 

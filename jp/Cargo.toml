@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 diff = { path = "../diff" }
+failure = "0.1.3"
 libjp = { path = "../libjp" }
 tempfile = "3"
 

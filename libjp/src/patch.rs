@@ -42,7 +42,7 @@ impl<W: Write> Write for HashingWriter<W> {
 /// cannot simultaneously contain two patches with the same id.
 #[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct PatchId {
-    data: [u8; 32],
+    pub(crate) data: [u8; 32],
 }
 
 impl PatchId {
@@ -172,6 +172,15 @@ impl Patch {
         let up: UnidentifiedPatch = serde_yaml::from_reader(input)?;
         // TODO: should we verify that the id matches the hash of the input?
         Ok(up.set_id(id))
+    }
+
+    pub fn write_out<W: Write>(&self, mut writer: W) -> Result<(), serde_yaml::Error> {
+        let up = UnidentifiedPatch {
+            header: self.header.clone(),
+            changes: self.changes.clone(),
+            deps: self.deps.clone(),
+        };
+        serde_yaml::to_writer(&mut writer, &up)
     }
 }
 
