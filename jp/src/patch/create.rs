@@ -10,9 +10,9 @@ pub fn run(m: &ArgMatches) -> Result<(), Error> {
     let msg = m.value_of("description").unwrap();
     let author = m.value_of("author").unwrap();
 
-    let repo = super::open_repo()?;
-    let branch = super::branch(&repo, m);
-    let diff = super::diff::diff(&repo)?;
+    let repo = crate::open_repo()?;
+    let branch = crate::branch(&repo, m);
+    let diff = crate::diff::diff(&repo)?;
 
     // TODO: this is not very efficient: we're reading the file twice.
     let mut f = repo.open_file()?;

@@ -8,34 +8,29 @@ use clap::{App, ArgMatches};
 use failure::{Error, ResultExt};
 use libjp::Repo;
 
-mod add_patch;
 mod apply;
-mod create_patch;
 mod diff;
 mod graph;
 mod init;
 mod log;
-mod unapply;
+mod patch;
 
 // TODO:
 // - support multiple branches
 // - support auto-finding repository
 // - make diff display things more nicely
 // - output (graphs and/or files)
-// - rename commands heirarchically (eg: jp patch add, jp patch create)
 fn main() -> Result<(), Error> {
     let yml = load_yaml!("main.yaml");
     let m = App::from_yaml(yml).get_matches();
 
     match m.subcommand_name() {
-        Some("add-patch") => add_patch::run(m.subcommand_matches("add-patch").unwrap()),
         Some("apply") => apply::run(m.subcommand_matches("apply").unwrap()),
-        Some("create-patch") => create_patch::run(m.subcommand_matches("create-patch").unwrap()),
         Some("diff") => diff::run(m.subcommand_matches("diff").unwrap()),
         Some("graph") => graph::run(m.subcommand_matches("graph").unwrap()),
         Some("init") => init::run(m.subcommand_matches("init").unwrap()),
         Some("log") => log::run(m.subcommand_matches("log").unwrap()),
-        Some("unapply") => unapply::run(m.subcommand_matches("unapply").unwrap()),
+        Some("patch") => patch::run(m.subcommand_matches("patch").unwrap()),
         _ => panic!("Unknown subcommand"),
     }
 }

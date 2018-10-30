@@ -24,7 +24,7 @@ pub fn run(m: &ArgMatches) -> Result<(), Error> {
     let patch = File::open(patch_path)?;
     let patch = Patch::from_reader(patch, patch_id)?;
 
-    let mut repo = super::open_repo()?;
+    let mut repo = crate::open_repo()?;
     repo.register_patch(&patch)?;
     Ok(())
 }
