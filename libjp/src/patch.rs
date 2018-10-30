@@ -3,8 +3,8 @@ use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::io::{self, prelude::*};
 
+use crate::storage::{DigleMut, Storage};
 use crate::Error;
-use crate::storage::{Digle, Storage};
 
 mod change;
 pub use self::change::{Change, Changes};
@@ -112,7 +112,10 @@ impl UnidentifiedPatch {
         }
 
         UnidentifiedPatch {
-            header: PatchHeader { author, description },
+            header: PatchHeader {
+                author,
+                description,
+            },
             changes,
             deps: deps.into_iter().collect(),
         }
@@ -126,16 +129,11 @@ impl UnidentifiedPatch {
             deps: self.deps,
         };
 
-        for change in &mut ret.changes.changes {
-            change.set_patch_id(&ret.id);
-        }
+        ret.changes.set_patch_id(&ret.id);
         ret
     }
 
-    pub fn write_out<W: Write>(
-        self,
-        writer: W,
-    ) -> Result<Patch, serde_yaml::Error> {
+    pub fn write_out<W: Write>(self, writer: W) -> Result<Patch, serde_yaml::Error> {
         let mut w = HashingWriter::new(writer);
         serde_yaml::to_writer(&mut w, &self)?;
 
@@ -157,15 +155,19 @@ pub struct Patch {
 
 impl Patch {
     pub fn store_new_contents(&self, storage: &mut Storage) {
-        for change in &self.changes.changes {
-            change.store_new_contents(storage);
-        }
+        self.changes.store_new_contents(storage);
     }
 
-    pub fn apply_to_digle(&self, digle: &mut Digle) {
-        for change in &self.changes.changes {
-            change.apply_to_digle(digle);
-        }
+    pub fn unstore_new_contents(&self, storage: &mut Storage) {
+        self.changes.unstore_new_contents(storage)
+    }
+
+    pub fn apply_to_digle(&self, digle: &mut DigleMut) {
+        self.changes.apply_to_digle(digle)
+    }
+
+    pub fn unapply_to_digle(&self, digle: &mut DigleMut) {
+        self.changes.unapply_to_digle(digle)
     }
 
     pub fn from_reader<R: Read>(input: R, id: PatchId) -> Result<Patch, Error> {
@@ -189,5 +191,3 @@ pub struct PatchHeader {
     pub author: String,
     pub description: String,
 }
-
-

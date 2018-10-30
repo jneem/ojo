@@ -1,17 +1,19 @@
 use clap::ArgMatches;
 use failure::Error;
-use libjp::Repo;
 
 pub fn run(m: &ArgMatches) -> Result<(), Error> {
-    // The unwrap is ok because "path" is a required argument.
-    let path = m.value_of("PATH").unwrap();
-    let repo = Repo::open(path)?;
+    let repo = super::open_repo()?;
+    let branch = super::branch(&repo, m);
 
-    for patch_id in repo.patches() {
-        // FIXME: open the patch file and read the description. Also, this is wrong because we need
-        // to somehow find out just the patches in the current branch.
-        println!("{:?}", patch_id);
+    for patch_id in repo.patches(&branch) {
+        let patch = repo.open_patch_by_id(patch_id)?;
+        println!("patch {}", patch_id.filename());
+        println!("Author: {}", patch.header.author);
+        println!("");
+        // TODO: dates and sorting.
+        // TODO: better display for multi-line description.
+        println!("\t{}", patch.header.description);
+        println!("");
     }
     Ok(())
 }
-

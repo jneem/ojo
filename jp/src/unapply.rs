@@ -9,7 +9,7 @@ pub fn run(m: &ArgMatches) -> Result<(), Error> {
 
     let mut repo = super::open_repo()?;
     let branch = super::branch(&repo, m);
-    repo.apply_patch(&branch, &patch_id)?;
+    repo.unapply_patch(&branch, &patch_id)?;
 
     // The unwrap is ok, because if the branch didn't exist then the previous line would already
     // have failed.

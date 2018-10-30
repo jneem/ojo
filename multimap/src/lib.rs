@@ -1,21 +1,21 @@
 #[macro_use]
 extern crate serde_derive;
 
-use rpds::{RedBlackTreeMap, RedBlackTreeSet};
 use std::borrow::Borrow;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MMap<K: Ord, V: Ord> {
-    map: RedBlackTreeMap<K, RedBlackTreeSet<V>>,
+    map: BTreeMap<K, BTreeSet<V>>,
     // hackity
-    empty_set: RedBlackTreeSet<V>,
+    empty_set: BTreeSet<V>,
 }
 
 impl<K: Ord, V: Ord> MMap<K, V> {
     pub fn new() -> MMap<K, V> {
         MMap {
-            map: RedBlackTreeMap::new(),
-            empty_set: RedBlackTreeSet::new(),
+            map: BTreeMap::new(),
+            empty_set: BTreeSet::new(),
         }
     }
 
@@ -28,46 +28,46 @@ impl<K: Ord, V: Ord> MMap<K, V> {
         self.map.get(key).unwrap_or(&self.empty_set).iter()
     }
 
-    pub fn insert(&self, key: K, val: V) -> MMap<K, V> {
-        let old_set = self
-            .map
-            .get(&key)
-            .cloned()
-            .unwrap_or_else(|| RedBlackTreeSet::new());
-        let new_set = old_set.insert(val);
-        let new_map = self.map.insert(key, new_set);
-        MMap {
-            map: new_map,
-            empty_set: RedBlackTreeSet::new(),
-        }
+    pub fn insert(&mut self, key: K, val: V) {
+        self.map
+            .entry(key)
+            .or_insert_with(|| BTreeSet::new())
+            .insert(val);
     }
 
-    pub fn insert_mut(&mut self, key: K, val: V) {
-        let mut values = self
-            .map
-            .get(&key)
-            .cloned()
-            .unwrap_or_else(|| RedBlackTreeSet::new());
-        values.insert_mut(val);
-        self.map.insert_mut(key, values);
-    }
-
-    // It might seem a bit strange that we need an owned key in order to remove the binding. This
-    // is an artifact of our implementation, because it means we effectively need to modify a
-    // binding, which actually means we need to create a new binding, which means we need a new key
-    // to put in it.
-    pub fn remove(&self, key: K, val: &V) -> MMap<K, V> {
-        if let Some(old_set) = self.map.get(&key) {
-            let new_set = old_set.remove(val);
-            MMap {
-                map: self.map.insert(key, new_set),
-                empty_set: RedBlackTreeSet::new(),
-            }
+    pub fn remove<Q, R>(&mut self, key: &Q, val: &R) -> bool
+    where
+        K: Borrow<Q>,
+        Q: Ord + ?Sized,
+        V: Borrow<R>,
+        R: Ord + ?Sized,
+    {
+        if let Some(set) = self.map.get_mut(&key) {
+            set.remove(val)
         } else {
-            MMap {
-                map: self.map.clone(),
-                empty_set: RedBlackTreeSet::new(),
-            }
+            false
         }
+    }
+
+    pub fn contains<Q, R>(&self, key: &Q, val: &R) -> bool
+    where
+        K: Borrow<Q>,
+        Q: Ord + ?Sized,
+        V: Borrow<R>,
+        R: Ord + ?Sized,
+    {
+        self.map.get(key)
+            .and_then(|bindings| bindings.get(val))
+            .is_some()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item=(&K, &V)> {
+        self.map.iter()
+            .flat_map(|(k, vs)| {
+                vs.iter().map(move |v| (k, v))
+            })
     }
 }
+
+// FIXME: tests
+

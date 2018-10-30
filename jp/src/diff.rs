@@ -3,12 +3,11 @@ use diff::LineDiff;
 use failure::Error;
 use libjp::Repo;
 use std::io::prelude::*;
-use std::fs::File;
 
 // TODO: we should refactor some of this into libjp. In particular, it's probably useful to
 // have a method for taking a file and producing a diff.
-pub fn diff(repo: &Repo, path: &str) -> Result<Vec<LineDiff>, Error> {
-    let mut fs_file = File::open(path)?;
+pub fn diff(repo: &Repo) -> Result<Vec<LineDiff>, Error> {
+    let mut fs_file = repo.open_file()?;
     let mut fs_file_contents = Vec::new();
     fs_file.read_to_end(&mut fs_file_contents)?;
     let fs_lines = lines(&fs_file_contents);
@@ -23,12 +22,10 @@ pub fn diff(repo: &Repo, path: &str) -> Result<Vec<LineDiff>, Error> {
     }
 }
 
-pub fn run(m: &ArgMatches) -> Result<(), Error> {
-    // The unwrap is ok because "path" is a required argument.
-    let path = m.value_of("PATH").unwrap();
-    let repo = Repo::open(path)?;
+pub fn run(_m: &ArgMatches) -> Result<(), Error> {
+    let repo = super::open_repo()?;
 
-    let diff = diff(&repo, path)?;
+    let diff = diff(&repo)?;
     println!("{:?}", diff);
 
     Ok(())
@@ -57,8 +54,13 @@ mod tests {
     fn lines() {
         assert_eq!(super::lines(&b""[..]), vec![Vec::<u8>::new()]);
         assert_eq!(super::lines(&b"\n"[..]), vec![b"\n".to_owned()]);
-        assert_eq!(super::lines(&b"a\nb\n"[..]), vec![b"a\n".to_owned(), b"b\n".to_owned()]);
-        assert_eq!(super::lines(&b"a\nb"[..]), vec![b"a\n"[..].to_owned(), b"b"[..].to_owned()]);
+        assert_eq!(
+            super::lines(&b"a\nb\n"[..]),
+            vec![b"a\n".to_owned(), b"b\n".to_owned()]
+        );
+        assert_eq!(
+            super::lines(&b"a\nb"[..]),
+            vec![b"a\n"[..].to_owned(), b"b"[..].to_owned()]
+        );
     }
 }
-

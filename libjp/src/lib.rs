@@ -1,9 +1,7 @@
-#[macro_use] extern crate serde_derive;
+#[macro_use]
+extern crate serde_derive;
 
-use std::collections::HashSet;
-use std::ffi::OsString;
 use std::fs::File;
-use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 
 mod error;
@@ -17,8 +15,8 @@ pub use crate::storage::Digle;
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct LineId {
-    patch: PatchId,
-    line: u64,
+    pub patch: PatchId,
+    pub line: u64,
 }
 
 impl LineId {
@@ -36,100 +34,114 @@ impl LineId {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
-pub struct Edge {
-    pub dest: LineId,
-}
-
 #[derive(Debug)]
 pub struct Repo {
+    /// The path to the root directory of the repository.
+    pub root_dir: PathBuf,
+    /// The path to the directory where all of jp's data is stored.
+    pub repo_dir: PathBuf,
     /// The path to the database containing all the history, and so on.
     pub db_path: PathBuf,
     /// The path to the directory where patches are stored.
     pub patch_dir: PathBuf,
-    /// The path to the file that is being tracked.
-    pub file: PathBuf,
+    /// The name of the file that is being tracked.
+    pub file_name: String,
+    pub current_branch: String,
 
     storage: storage::Storage,
-    patches: HashSet<PatchId>,
 }
 
 impl Repo {
-    /// Given the name of a file that is being versioned, returns the path to the directory where
-    /// everything is stored.
-    fn repo_dir(file_path: &Path) -> Result<PathBuf, Error> {
-        let parent = file_path
-            .parent()
-            .ok_or_else(|| Error::NoParent(file_path.to_path_buf()))?;
-        let mut ret = parent.to_path_buf();
+    /// Given the path of the root directory of a repository, returns the directory where jp's data
+    /// is stored.
+    fn repo_dir(dir: &Path) -> Result<PathBuf, Error> {
+        let mut ret = dir.to_path_buf();
         ret.push(".jp");
         Ok(ret)
     }
 
-    /// Given the name of a file that is being versioned, returns the path containing its
-    /// serialized digle.
-    fn db_path(file_path: &Path) -> Result<PathBuf, Error> {
-        let file_name = file_path
-            .file_name()
-            .ok_or_else(|| Error::NoFilename(file_path.to_path_buf()))?;
-
-        let mut ret = Repo::repo_dir(file_path)?;
-        let mut db_file_name = OsString::from("db_");
-        db_file_name.push(file_name);
-        ret.push(db_file_name);
+    /// Given the path of the root directory of a repository, returns the path containing jp's
+    /// serialized data.
+    fn db_path(dir: &Path) -> Result<PathBuf, Error> {
+        let mut ret = Repo::repo_dir(dir)?;
+        ret.push("db");
         Ok(ret)
     }
 
-    /// Given the name of a file that is being versioned, returns the directory containing all the
-    /// patches related to that file.
+    /// Given the path of the root directory of a repository, returns the path containing all the
+    /// patches contained in the repository.
     fn patch_dir(file_path: &Path) -> Result<PathBuf, Error> {
         let mut ret = Repo::repo_dir(file_path)?;
         ret.push("patches");
         Ok(ret)
     }
 
-    /// Opens the existing repo that is tracking the given file.
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Repo, Error> {
-        let db_path = Repo::db_path(path.as_ref())?;
-        let patch_dir = Repo::patch_dir(path.as_ref())?;
+    pub fn open_file(&self) -> Result<File, Error> {
+        let mut path = self.root_dir.clone();
+        path.push(&self.file_name);
+        Ok(File::open(path)?)
+    }
+
+    /// Opens the existing repository with the given root directory.
+    pub fn open<P: AsRef<Path>>(dir: P) -> Result<Repo, Error> {
+        let db_path = Repo::db_path(dir.as_ref())?;
+        let patch_dir = Repo::patch_dir(dir.as_ref())?;
         let db_file = File::open(&db_path)?;
         let db: Db = serde_yaml::from_reader(db_file)?;
         Ok(Repo {
+            root_dir: dir.as_ref().to_owned(),
+            repo_dir: Repo::repo_dir(dir.as_ref())?,
             db_path,
             patch_dir,
-            file: path.as_ref().to_path_buf(),
+            file_name: db.file_name,
+            current_branch: db.current_branch,
             storage: db.storage,
-            patches: db.patches,
         })
     }
 
     /// Creates a repo for tracking the given file.
     pub fn init<P: AsRef<Path>>(path: P) -> Result<Repo, Error> {
-        let db_path = Repo::db_path(path.as_ref())?;
+        let root_dir = path
+            .as_ref()
+            .parent()
+            .ok_or_else(|| Error::NoParent(path.as_ref().to_owned()))?
+            .to_owned();
+        let repo_dir = Repo::repo_dir(&root_dir)?;
+        let db_path = Repo::db_path(&root_dir)?;
         if db_path.exists() {
             return Err(Error::RepoExists(db_path));
         }
-        let patch_dir = Repo::patch_dir(path.as_ref())?;
+        let patch_dir = Repo::patch_dir(&root_dir)?;
+        let file_name = path
+            .as_ref()
+            .file_name()
+            .ok_or_else(|| Error::NoFilename(path.as_ref().to_owned()))?;
+        let file_name = file_name
+            .to_str()
+            .ok_or_else(|| Error::NonUtfFilename(file_name.to_owned()))?;
 
         let mut storage = storage::Storage::new();
         let master_inode = storage.allocate_inode();
         storage.set_inode("master", master_inode);
         Ok(Repo {
+            root_dir,
+            repo_dir,
             db_path: db_path,
             patch_dir: patch_dir,
-            file: path.as_ref().to_path_buf(),
+            file_name: file_name.to_owned(),
+            current_branch: "master".to_owned(),
             storage: storage,
-            patches: HashSet::new(),
         })
     }
 
     pub fn write(&self) -> Result<(), Error> {
         let db = DbRef {
+            file_name: &self.file_name,
+            current_branch: &self.current_branch,
             storage: &self.storage,
-            patches: &self.patches,
         };
-        self.try_create_dir(&Repo::repo_dir(&self.file)?)?;
-        self.try_create_dir(&Repo::patch_dir(&self.file)?)?;
+        self.try_create_dir(&self.repo_dir)?;
+        self.try_create_dir(&self.patch_dir)?;
         let db_file = File::create(&self.db_path)?;
         serde_yaml::to_writer(db_file, &db)?;
         Ok(())
@@ -143,16 +155,25 @@ impl Repo {
         &mut self.storage
     }
 
+    pub fn digle<'a>(&'a self, branch: &str) -> Result<storage::Digle<'a>, Error> {
+        let inode = self.storage().inode(branch)
+            .ok_or_else(|| Error::UnknownBranch(branch.to_owned()))?;
+        Ok(self.storage().digle(inode))
+    }
+
+    pub fn digle_mut<'a>(&'a mut self, branch: &str) -> Result<storage::DigleMut<'a>, Error> {
+        let inode = self.storage().inode(branch)
+            .ok_or_else(|| Error::UnknownBranch(branch.to_owned()))?;
+        Ok(self.storage_mut().digle_mut(inode))
+    }
+
     pub fn file(&self, branch: &str) -> Option<storage::File> {
         use crate::graph::GraphRef;
         let inode = self.storage.inode(branch).unwrap(); // FIXME: unwrap
-        self.storage.digle(inode).linear_order().map(|order| {
-            storage::File::from_ids(&order, &self.storage)
-        })
-    }
-
-    pub fn patches(&self) -> &HashSet<PatchId> {
-        &self.patches
+        self.storage
+            .digle(inode)
+            .linear_order()
+            .map(|order| storage::File::from_ids(&order, &self.storage))
     }
 
     fn patch_path(&self, id: &PatchId) -> PathBuf {
@@ -161,8 +182,12 @@ impl Repo {
         ret
     }
 
-    fn open_patch(&self, id: &PatchId) -> Result<Patch, Error> {
+    pub fn open_patch_by_id(&self, id: &PatchId) -> Result<Patch, Error> {
         Patch::from_reader(File::open(self.patch_path(id))?, id.clone())
+    }
+
+    pub fn open_patch(&self, name: &str) -> Result<Patch, Error> {
+        self.open_patch_by_id(&PatchId::from_filename(name)?)
     }
 
     pub fn register_patch(&mut self, patch: &Patch) -> Result<(), Error> {
@@ -170,8 +195,8 @@ impl Repo {
 
         // If the patch already exists in our repository then there's nothing to do. But if there's
         // a file there which doesn't match this one then something's really wrong.
-        if self.patches.contains(&patch.id) {
-            let old_patch = self.open_patch(&patch.id)?;
+        if self.storage.patches.contains(&patch.id) {
+            let old_patch = self.open_patch_by_id(&patch.id)?;
             if &old_patch == patch {
                 return Ok(());
             } else {
@@ -179,11 +204,79 @@ impl Repo {
             }
         }
 
+        // Record the deps and reverse-deps.
+        for dep in &patch.deps {
+            if !self.storage.patches.contains(dep) {
+                return Err(Error::MissingDep(dep.clone()));
+            }
+            self.storage.patch_deps.insert(patch.id.clone(), dep.clone());
+            self.storage.patch_rev_deps.insert(dep.clone(), patch.id.clone());
+        }
+
         let mut out = File::create(&patch_path)?;
         let id = patch.id.clone();
         patch.write_out(&mut out)?;
-        self.patches.insert(id);
+        self.storage.patches.insert(id);
         Ok(())
+    }
+
+    // Applies a single patch to a branch.
+    //
+    // Panics if not all of the dependencies are already present.
+    fn apply_one_patch(&mut self, branch: &str, patch: &Patch) -> Result<(), Error> {
+        // NOTE: this can probably be disabled in release builds.
+        for dep in &patch.deps {
+            if !self.storage.branch_patches.contains(branch, dep) {
+                panic!("tried to apply a patch while it was missing a dependency");
+            }
+        }
+        let mut digle = self.digle_mut(branch)?;
+        patch.apply_to_digle(&mut digle);
+        patch.store_new_contents(&mut self.storage);
+        self.storage.branch_patches.insert(branch.to_owned(), patch.id.clone());
+        Ok(())
+    }
+
+    /// Applies a patch (and all its dependencies) to a branch.
+    pub fn apply_patch(&mut self, branch: &str, patch_id: &PatchId) -> Result<(), Error> {
+        let mut patch_stack = vec![self.open_patch_by_id(patch_id)?];
+
+        while !patch_stack.is_empty() {
+            // The unwrap is ok because the stack is non-empty inside the loop.
+            let cur = patch_stack.last().unwrap();
+            let unapplied_deps = cur.deps.iter()
+                .filter(|dep| !self.storage.branch_patches.contains(branch, dep))
+                .cloned()
+                .collect::<Vec<_>>();
+            if unapplied_deps.is_empty() {
+                self.apply_one_patch(branch, cur)?;
+                patch_stack.pop();
+            } else {
+                for dep in &unapplied_deps {
+                    patch_stack.push(self.open_patch_by_id(dep)?);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn unapply_one_patch(&mut self, branch: &str, patch: &Patch) -> Result<(), Error> {
+        let mut digle = self.digle_mut(branch)?;
+        patch.unapply_to_digle(&mut digle);
+        patch.unstore_new_contents(&mut self.storage);
+        self.storage.branch_patches.remove(branch, &patch.id);
+        Ok(())
+    }
+
+    /// Unapplies a patch (and everything that depends on it) to a branch.
+    // FIXME: need to make sure we remove any reverse-dependencies
+    pub fn unapply_patch(&mut self, branch: &str, patch_id: &PatchId) -> Result<(), Error> {
+        let patch = self.open_patch_by_id(patch_id)?;
+        self.unapply_one_patch(branch, &patch)
+    }
+
+    pub fn patches(&self, branch: &str) -> impl Iterator<Item=&PatchId> {
+        self.storage.branch_patches.get(branch)
     }
 
     fn try_create_dir(&self, dir: &Path) -> Result<(), Error> {
@@ -200,14 +293,17 @@ impl Repo {
 /// This struct, serialized, is the contents of the database.
 #[derive(Debug, Deserialize, Serialize)]
 struct Db {
+    // Path (relative to the repository's root directory) to the file being tracked.
+    file_name: String,
+    current_branch: String,
     storage: storage::Storage,
-    patches: HashSet<PatchId>,
 }
 
 // I *think* that the auto-generated Serialize implementation here is compatible with the
 // auto-generated Seserialize implementation for Db.
 #[derive(Debug, Serialize)]
 struct DbRef<'a> {
+    file_name: &'a str,
+    current_branch: &'a str,
     storage: &'a storage::Storage,
-    patches: &'a HashSet<PatchId>,
 }

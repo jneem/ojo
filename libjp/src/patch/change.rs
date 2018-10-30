@@ -1,7 +1,7 @@
 use diff::LineDiff;
 
+use crate::storage::{DigleMut, File, Storage};
 use crate::{LineId, PatchId};
-use crate::storage::{Digle, File, Storage};
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct Changes {
@@ -32,7 +32,7 @@ impl Changes {
         let mut last = LastLine::Start;
         for d in diff {
             match *d {
-                LineDiff::New(i) => { 
+                LineDiff::New(i) => {
                     let id = file2.line_id(i);
                     changes.push(Change::NewNode {
                         id: id.clone(),
@@ -63,13 +63,60 @@ impl Changes {
                 }
                 LineDiff::Delete(i) => {
                     let id = file1.line_id(i);
-                    changes.push(Change::DeleteNode {
-                        id: id.clone()
-                    });
+                    changes.push(Change::DeleteNode { id: id.clone() });
                 }
             }
         }
         Changes { changes }
+    }
+
+    pub fn apply_to_digle(&self, digle: &mut DigleMut) {
+        for ch in &self.changes {
+            match *ch {
+                Change::NewNode { ref id, .. } => digle.add_node(id.clone()),
+                Change::DeleteNode { ref id } => digle.delete_node(&id),
+                Change::NewEdge { ref src, ref dst } => digle.add_edge(src.clone(), dst.clone()),
+            }
+        }
+    }
+
+    pub fn unapply_to_digle(&self, digle: &mut DigleMut) {
+        // Because of the requirements of `unadd_edge`, we need to unadd all edges before we unadd
+        // all nodes.
+        for ch in &self.changes {
+            match *ch {
+                Change::DeleteNode { ref id } => digle.undelete_node(id),
+                Change::NewEdge { ref src, ref dst } => digle.unadd_edge(src, dst),
+                Change::NewNode { .. } => {},
+            }
+        }
+        for ch in &self.changes {
+            if let Change::NewNode { ref id, .. } = *ch {
+                digle.unadd_node(id);
+            }
+        }
+    }
+
+    pub fn store_new_contents(&self, storage: &mut Storage) {
+        for ch in &self.changes {
+            if let Change::NewNode { ref id, ref contents, } = *ch {
+                storage.add_contents(id.clone(), contents.to_owned());
+            }
+        }
+    }
+
+    pub fn unstore_new_contents(&self, storage: &mut Storage) {
+        for ch in &self.changes {
+            if let Change::NewNode { ref id, ..  } = *ch {
+                storage.remove_contents(id);
+            }
+        }
+    }
+
+    pub fn set_patch_id(&mut self, new_id: &PatchId) {
+        for ch in &mut self.changes {
+            ch.set_patch_id(new_id);
+        }
     }
 }
 
@@ -81,25 +128,7 @@ pub enum Change {
 }
 
 impl Change {
-    pub fn apply_to_digle(&self, digle: &mut Digle) {
-        match *self {
-            Change::NewNode { ref id, .. } => digle.add_node(id.clone()),
-            Change::DeleteNode { ref id } => digle.delete_node(&id),
-            Change::NewEdge { ref src, ref dst } => digle.add_edge(src.clone(), dst.clone()),
-        }
-    }
-
-    pub fn store_new_contents(&self, storage: &mut Storage) {
-        if let Change::NewNode {
-            ref id,
-            ref contents,
-        } = *self
-        {
-            storage.add_contents(id.clone(), contents.to_owned());
-        }
-    }
-
-    pub fn set_patch_id(&mut self, new_id: &PatchId) {
+    fn set_patch_id(&mut self, new_id: &PatchId) {
         match *self {
             Change::NewNode { ref mut id, .. } => {
                 id.set_patch_id(new_id);
@@ -122,8 +151,8 @@ impl Change {
 mod tests {
     use super::Change::*;
     use super::Changes;
-    use crate::LineId;
     use crate::storage::File;
+    use crate::LineId;
     use diff::LineDiff::*;
 
     #[test]
@@ -132,13 +161,10 @@ mod tests {
         let file2 = File::from_bytes(b"something");
         let diff = vec![New(0)];
 
-        let expected = vec![
-            NewNode {
-                id: LineId::cur(0),
-                contents: b"something".to_vec(),
-            },
-        ];
+        let expected = vec![NewNode {
+            id: LineId::cur(0),
+            contents: b"something".to_vec(),
+        }];
         assert_eq!(Changes::from_diff(&file1, &file2, &diff).changes, expected);
     }
 }
-

@@ -1,5 +1,5 @@
-use crate::LineId;
 use crate::storage::Storage;
+use crate::LineId;
 
 /// A File is a special case of a Digle, in which there is just a linear order.
 ///
@@ -44,10 +44,11 @@ impl File {
         // EOF if there isn't a newline at the end of the file.
         let mut boundaries = vec![0];
         boundaries.extend(
-            bytes.into_iter()
-            .enumerate()
-            .filter(|&(_, &b)| b == b'\n')
-            .map(|x| x.0 + 1)
+            bytes
+                .into_iter()
+                .enumerate()
+                .filter(|&(_, &b)| b == b'\n')
+                .map(|x| x.0 + 1),
         );
         if let Some(&last) = bytes.last() {
             if last != b'\n' {
@@ -55,7 +56,9 @@ impl File {
             }
         }
 
-        let ids = (0..(boundaries.len() as u64 - 1)).map(LineId::cur).collect();
+        let ids = (0..(boundaries.len() as u64 - 1))
+            .map(LineId::cur)
+            .collect();
 
         File {
             ids,
@@ -128,4 +131,3 @@ mod tests {
         assert_eq!(f.line(1), b"test2\n");
     }
 }
-

@@ -143,8 +143,8 @@ impl<'a> GraphRef<'a> for &'a Digle {
 #[cfg(test)]
 mod tests {
     use super::{Digle, DigleNode, GraphRef};
-    use std::collections::HashMap;
     use crate::{LineId, PatchId};
+    use std::collections::HashMap;
 
     #[derive(Clone, Debug)]
     pub struct Node {

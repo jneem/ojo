@@ -4,39 +4,26 @@ about: An educational and proof-of-concept version control system.
 author: Joe Neeman <joeneeman@gmail.com>
 
 subcommands:
-    - apply:
-        about: Applies a patch to a repository.
+    - add-patch:
+        about: Adds a patch to the current repository
         args:
-            - PATH:
-                help: path to the file being tracked
-                required: true
             - PATCH:
                 help: path to the patch
                 required: true
-    - diff:
-        about: Shows changes between commits.
+                takes_value: true
+    - apply:
+        about: Applies a patch to a branch. The patch must already exist in the repository
         args:
-            - PATH:
-                help: path to the file we want to track
+            - PATCH:
+                help: hash of the patch
                 required: true
-    - init:
-        about: Creates a new jp repository.
+                takes_value: true
+            - branch:
+                help: branch to apply the patch to (defaults to the current branch)
+                takes_value: true
+    - create-patch:
+        about: Creates a patch with the changes in the current working directory
         args:
-            - PATH:
-                help: path to the file we want to track
-                required: true
-    - log:
-        about: Prints all of the patches present in a repository.
-        args:
-            - PATH:
-                help: path to the file we are tracking
-                required: true
-    - patch:
-        about: Creates a patch representing the changes in the current working directory.
-        args:
-            - PATH:
-                help: path to the file we are tracking
-                required: true
             - description:
                 help: message describing the patch
                 short: m
@@ -49,5 +36,38 @@ subcommands:
                 long: author
                 required: true
                 takes_value: true
-
+            - branch:
+                help: branch to compare against (defaults to the current branch)
+                takes_value: true
+    - diff:
+        about: Shows changes between commits
+    - graph:
+        about: Creates a .dot file for visualizing the stored file
+        args:
+            - out:
+                help: path for the output file (defaults to the tracked file + '.dot')
+                short: o
+                long: out
+                takes_value: true
+    - init:
+        about: Creates a new jp repository
+        args:
+            - PATH:
+                help: path to the file we want to track
+                required: true
+    - log:
+        about: Prints all of the patches present on a branch
+        args:
+            - branch:
+                help: branch whose patches we want to print (defaults to the current branch)
+                takes_value: true
+    - unapply:
+        about: Deletes a patch from the repository
+        args:
+            - PATCH:
+                help: the hash of the patch to delete
+                required: true
+            - branch:
+                help: branch to modify (defaults to the current branch)
+                takes_value: true
 
