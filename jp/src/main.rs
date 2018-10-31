@@ -9,6 +9,7 @@ use failure::{Error, ResultExt};
 use libjp::Repo;
 
 mod apply;
+mod branch;
 mod diff;
 mod graph;
 mod init;
@@ -16,7 +17,6 @@ mod log;
 mod patch;
 
 // TODO:
-// - support multiple branches
 // - support auto-finding repository
 // - make diff display things more nicely
 // - output (graphs and/or files)
@@ -26,6 +26,7 @@ fn main() -> Result<(), Error> {
 
     match m.subcommand_name() {
         Some("apply") => apply::run(m.subcommand_matches("apply").unwrap()),
+        Some("branch") => branch::run(m.subcommand_matches("branch").unwrap()),
         Some("diff") => diff::run(m.subcommand_matches("diff").unwrap()),
         Some("graph") => graph::run(m.subcommand_matches("graph").unwrap()),
         Some("init") => init::run(m.subcommand_matches("init").unwrap()),

@@ -8,6 +8,8 @@ use crate::PatchId;
 #[derive(Debug)]
 pub enum Error {
     Base64Decode(base64::DecodeError),
+    BranchExists(String),
+    CurrentBranch(String),
     DbCorruption,
     Io(io::Error, String),
     MissingDep(PatchId),
@@ -24,6 +26,7 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            Error::CurrentBranch(b) => write!(f, "\"{}\" is the current branch", b),
             Error::DbCorruption => write!(f, "Found corruption in the database"),
             Error::Io(e, msg) => write!(f, "I/O error: {}. Details: {}", msg, e),
             Error::Base64Decode(e) => write!(f, "Error decoding base64: {}", e),
@@ -48,6 +51,7 @@ impl fmt::Display for Error {
             Error::NoFilename(p) => write!(f, "This path didn't end in a filename: {:?}", p),
             Error::NonUtfFilename(p) => write!(f, "This filename couldn't be converted to UTF-8: {:?}", p),
             Error::UnknownBranch(b) => write!(f, "There is no branch named {:?}", b),
+            Error::BranchExists(b) => write!(f, "The branch \"{}\" already exists", b),
         }
     }
 }
@@ -55,6 +59,8 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {
     fn description(&self) -> &str {
         match self {
+            Error::BranchExists(_) => "branch already exists",
+            Error::CurrentBranch(_) => "current branch",
             Error::DbCorruption => "found corruption in the database",
             Error::Io(e, _) => e.description(),
             Error::Base64Decode(e) => e.description(),

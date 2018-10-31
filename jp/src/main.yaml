@@ -18,6 +18,39 @@ subcommands:
                 help: if set, unapplies the patch instead of applying it
                 short: R
                 long: revert
+    - branch:
+        about: Various commands related to branches
+        subcommands:
+            - clone:
+                about: Creates a copy of the current branch
+                args:
+                    - NAME:
+                        help: name of the branch to create
+                        required: true
+                        takes_value: true
+            - delete:
+                about: Deletes a branch
+                args:
+                    - NAME:
+                        help: name of the branch to delete
+                        required: true
+                        takes_value: true
+            - list:
+                about: Lists all branches
+            - new:
+                about: Creates a new, empty, branch
+                args:
+                    - NAME:
+                        help: name of the branch to create
+                        required: true
+                        takes_value: true
+            - switch:
+                about: Switches the current branch
+                args:
+                    - NAME:
+                        help: name of the branch to switch to
+                        required: true
+                        takes_value: true
     - diff:
         about: Shows changes between commits
     - graph:
@@ -61,20 +94,11 @@ subcommands:
                     - branch:
                         help: branch to compare against (defaults to the current branch)
                         takes_value: true
-                - add:
-                    about: Adds a patch to the current repository
-                    args:
-                        - PATCH:
-                            help: path to the patch
-                            required: true
-                            takes_value: true
-    - unapply:
-        about: Deletes a patch from the repository
-        args:
-            - PATCH:
-                help: the hash of the patch to delete
-                required: true
-            - branch:
-                help: branch to modify (defaults to the current branch)
-                takes_value: true
+            - add:
+                about: Adds a patch to the current repository
+                args:
+                    - PATCH:
+                        help: path to the patch
+                        required: true
+                        takes_value: true
 

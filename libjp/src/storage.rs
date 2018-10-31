@@ -306,6 +306,15 @@ impl Storage {
         ret
     }
 
+    pub fn clone_inode(&mut self, inode: INode) -> INode {
+        let ret = INode { n: self.next_inode };
+        self.next_inode += 1;
+
+        let old_digle = self.digles.get(&inode).unwrap();
+        self.digles.insert(ret, old_digle.clone());
+        ret
+    }
+
     pub fn contents(&self, id: &LineId) -> &[u8] {
         self.contents.get(id).unwrap().as_slice()
     }
@@ -328,6 +337,10 @@ impl Storage {
         self.branches.insert(branch.to_owned(), inode)
     }
 
+    pub fn remove_inode(&mut self, branch: &str) {
+        self.branches.remove(branch);
+    }
+
     pub fn digle_mut<'a>(&'a mut self, inode: INode) -> DigleMut<'a> {
         DigleMut {
             data: self.digles.get_mut(&inode).unwrap(),
@@ -338,6 +351,10 @@ impl Storage {
         Digle {
             data: self.digles.get(&inode).unwrap(),
         }
+    }
+
+    pub fn remove_digle(&mut self, inode: INode) {
+        self.digles.remove(&inode);
     }
 
     pub fn branches(&self) -> impl Iterator<Item=&str> {

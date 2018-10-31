@@ -1,9 +1,13 @@
+// This is just a hacked-up multimap. Eventually, we'll need to move to a fully persistent (in the
+// functional-data-structure sense), on-disk multimap.
+
 #[macro_use]
 extern crate serde_derive;
 
 use std::borrow::Borrow;
 use std::collections::{BTreeMap, BTreeSet};
 
+// FIXME: write Deserialize and Serialize manually so as not to expose the implementation.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct MMap<K: Ord, V: Ord> {
     map: BTreeMap<K, BTreeSet<V>>,
@@ -49,6 +53,14 @@ impl<K: Ord, V: Ord> MMap<K, V> {
         }
     }
 
+    pub fn remove_all<Q>(&mut self, key: &Q)
+    where
+        K: Borrow<Q>,
+        Q: Ord + ?Sized,
+    {
+        self.map.remove(key);
+    }
+
     pub fn contains<Q, R>(&self, key: &Q, val: &R) -> bool
     where
         K: Borrow<Q>,
@@ -69,5 +81,37 @@ impl<K: Ord, V: Ord> MMap<K, V> {
     }
 }
 
-// FIXME: tests
+#[cfg(test)]
+mod tests {
+    use super::MMap;
+
+    #[test]
+    fn get_empty() {
+        let mut map = MMap::new();
+        assert!(map.get(&1).next().is_none());
+        map.insert(1, 2);
+        assert!(map.get(&1).next().is_some());
+        assert!(map.get(&2).next().is_none());
+    }
+
+    #[test]
+    fn get_many() {
+        let mut map = MMap::new();
+        map.insert(1, 2);
+        map.insert(1, 3);
+        map.insert(1, 2);
+        map.insert(1, 1);
+        assert_eq!(map.get(&1).cloned().collect::<Vec<_>>(), vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn contains() {
+        let mut map = MMap::new();
+        map.insert(1, 2);
+        map.insert(1, 3);
+        assert!(map.contains(&1, &2));
+        assert!(!map.contains(&2, &1));
+        assert!(!map.contains(&1, &4));
+    }
+}
 

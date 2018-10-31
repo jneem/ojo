@@ -169,7 +169,7 @@ impl Repo {
 
     pub fn file(&self, branch: &str) -> Option<storage::File> {
         use crate::graph::GraphRef;
-        let inode = self.storage.inode(branch).unwrap(); // FIXME: unwrap
+        let inode = self.storage.inode(branch)?;
         self.storage
             .digle(inode)
             .linear_order()
@@ -223,7 +223,8 @@ impl Repo {
     // Applies a single patch to a branch.
     //
     // Panics if not all of the dependencies are already present.
-    fn apply_one_patch(&mut self, branch: &str, patch: &Patch) -> Result<(), Error> {
+    fn apply_one_patch(&mut self, branch: &str, patch_id: &PatchId) -> Result<(), Error> {
+        let patch = self.open_patch_by_id(patch_id)?;
         // NOTE: this can probably be disabled in release builds.
         for dep in &patch.deps {
             if !self.storage.branch_patches.contains(branch, dep) {
@@ -239,28 +240,27 @@ impl Repo {
 
     /// Applies a patch (and all its dependencies) to a branch.
     pub fn apply_patch(&mut self, branch: &str, patch_id: &PatchId) -> Result<(), Error> {
-        let mut patch_stack = vec![self.open_patch_by_id(patch_id)?];
+        let mut patch_stack = vec![patch_id.clone()];
 
         while !patch_stack.is_empty() {
             // The unwrap is ok because the stack is non-empty inside the loop.
             let cur = patch_stack.last().unwrap();
-            let unapplied_deps = cur.deps.iter()
+            let unapplied_deps = self.storage.patch_deps.get(&cur)
                 .filter(|dep| !self.storage.branch_patches.contains(branch, dep))
                 .cloned()
                 .collect::<Vec<_>>();
             if unapplied_deps.is_empty() {
-                self.apply_one_patch(branch, cur)?;
+                self.apply_one_patch(branch, &cur)?;
                 patch_stack.pop();
             } else {
-                for dep in &unapplied_deps {
-                    patch_stack.push(self.open_patch_by_id(dep)?);
-                }
+                patch_stack.extend_from_slice(&unapplied_deps[..]);
             }
         }
         Ok(())
     }
 
-    fn unapply_one_patch(&mut self, branch: &str, patch: &Patch) -> Result<(), Error> {
+    fn unapply_one_patch(&mut self, branch: &str, patch_id: &PatchId) -> Result<(), Error> {
+        let patch = self.open_patch_by_id(patch_id)?;
         let mut digle = self.digle_mut(branch)?;
         patch.unapply_to_digle(&mut digle);
         patch.unstore_new_contents(&mut self.storage);
@@ -269,10 +269,23 @@ impl Repo {
     }
 
     /// Unapplies a patch (and everything that depends on it) to a branch.
-    // FIXME: need to make sure we remove any reverse-dependencies
     pub fn unapply_patch(&mut self, branch: &str, patch_id: &PatchId) -> Result<(), Error> {
-        let patch = self.open_patch_by_id(patch_id)?;
-        self.unapply_one_patch(branch, &patch)
+        let mut patch_stack = vec![patch_id.clone()];
+        while !patch_stack.is_empty() {
+            // The unwrap is ok because the stack is non-empty inside the loop.
+            let cur = patch_stack.last().unwrap();
+            let applied_rev_deps = self.storage.patch_rev_deps.get(&cur)
+                .filter(|dep| self.storage.branch_patches.contains(branch, dep))
+                .cloned()
+                .collect::<Vec<_>>();
+            if applied_rev_deps.is_empty() {
+                self.unapply_one_patch(branch, &cur)?;
+                patch_stack.pop();
+            } else {
+                patch_stack.extend_from_slice(&applied_rev_deps[..]);
+            }
+        }
+        Ok(())
     }
 
     pub fn patches(&self, branch: &str) -> impl Iterator<Item=&PatchId> {
@@ -287,6 +300,56 @@ impl Repo {
             }
         }
         Ok(())
+    }
+
+    pub fn create_branch(&mut self, branch: &str) -> Result<(), Error> {
+        if self.storage.inode(branch).is_some() {
+            Err(Error::BranchExists(branch.to_owned()))
+        } else {
+            let inode = self.storage.allocate_inode();
+            self.storage.set_inode(branch, inode);
+            Ok(())
+        }
+    }
+
+    pub fn clone_branch(&mut self, from: &str, to: &str) -> Result<(), Error> {
+        if self.storage.inode(to).is_some() {
+            Err(Error::BranchExists(to.to_owned()))
+        } else {
+            let from_inode = self.storage.inode(from)
+                .ok_or_else(|| Error::UnknownBranch(from.to_owned()))?;
+            let to_inode = self.storage.clone_inode(from_inode);
+            self.storage.set_inode(to, to_inode);
+
+            // Record the fact that all the patches in the old branch are also present in the new
+            // branch.
+            let from_patches = self.storage.branch_patches.get(from).cloned().collect::<Vec<_>>();
+            for p in from_patches {
+                self.storage.branch_patches.insert(to.to_owned(), p);
+            }
+            Ok(())
+        }
+    }
+
+    pub fn delete_branch(&mut self, branch: &str) -> Result<(), Error> {
+        if branch == &self.current_branch {
+            return Err(Error::CurrentBranch(branch.to_owned()));
+        }
+        let inode = self.storage.inode(branch)
+            .ok_or_else(|| Error::UnknownBranch(branch.to_owned()))?;
+        self.storage.remove_digle(inode);
+        self.storage.remove_inode(branch);
+        self.storage.branch_patches.remove_all(branch);
+        Ok(())
+    }
+
+    pub fn switch_branch(&mut self, branch: &str) -> Result<(), Error> {
+        if self.storage.inode(branch).is_none() {
+            Err(Error::UnknownBranch(branch.to_owned()))
+        } else {
+            self.current_branch = branch.to_owned();
+            Ok(())
+        }
     }
 }
 
