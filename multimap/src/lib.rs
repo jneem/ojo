@@ -1,14 +1,13 @@
 // This is just a hacked-up multimap. Eventually, we'll need to move to a fully persistent (in the
 // functional-data-structure sense), on-disk multimap.
 
-#[macro_use]
-extern crate serde_derive;
-
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::de::{MapAccess, Visitor};
+use serde::ser::SerializeMap;
 use std::borrow::Borrow;
 use std::collections::{BTreeMap, BTreeSet};
 
-// FIXME: write Deserialize and Serialize manually so as not to expose the implementation.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug)]
 pub struct MMap<K: Ord, V: Ord> {
     map: BTreeMap<K, BTreeSet<V>>,
     // hackity
@@ -78,6 +77,42 @@ impl<K: Ord, V: Ord> MMap<K, V> {
             .flat_map(|(k, vs)| {
                 vs.iter().map(move |v| (k, v))
             })
+    }
+}
+
+impl<K: Ord + Serialize, V: Ord + Serialize> Serialize for MMap<K, V> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut map = serializer.serialize_map(None)?;
+        for (k, v) in self.iter() {
+            map.serialize_entry(k, v)?;
+        }
+        map.end()
+    }
+}
+
+impl<'de, K: Ord + Deserialize<'de>, V: Ord + Deserialize<'de>> Deserialize<'de> for MMap<K, V> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        deserializer.deserialize_map(MMapVisitor { x: std::marker::PhantomData })
+    }
+}
+
+struct MMapVisitor<K, V> {
+    x: std::marker::PhantomData<(K, V)>,
+}
+
+impl<'de, K: Ord + Deserialize<'de>, V: Ord + Deserialize<'de>> Visitor<'de> for MMapVisitor<K, V> {
+    type Value = MMap<K, V>;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "a map")
+    }
+
+    fn visit_map<M: MapAccess<'de>>(self, mut access: M) -> Result<Self::Value, M::Error> {
+        let mut ret = MMap::new();
+        while let Some((key, val)) = access.next_entry()? {
+            ret.insert(key, val);
+        }
+        Ok(ret)
     }
 }
 
