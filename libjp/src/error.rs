@@ -49,7 +49,9 @@ impl fmt::Display for Error {
             Error::MissingDep(id) => write!(f, "Missing a dependency: {}", id.filename()),
             Error::NoParent(p) => write!(f, "I could not find the parent directory of: {:?}", p),
             Error::NoFilename(p) => write!(f, "This path didn't end in a filename: {:?}", p),
-            Error::NonUtfFilename(p) => write!(f, "This filename couldn't be converted to UTF-8: {:?}", p),
+            Error::NonUtfFilename(p) => {
+                write!(f, "This filename couldn't be converted to UTF-8: {:?}", p)
+            }
             Error::UnknownBranch(b) => write!(f, "There is no branch named {:?}", b),
             Error::BranchExists(b) => write!(f, "The branch \"{}\" already exists", b),
         }

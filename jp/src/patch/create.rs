@@ -10,7 +10,7 @@ pub fn run(m: &ArgMatches) -> Result<(), Error> {
     let msg = m.value_of("description").unwrap();
     let author = m.value_of("author").unwrap();
 
-    let repo = crate::open_repo()?;
+    let mut repo = crate::open_repo()?;
     let branch = crate::branch(&repo, m);
     let diff = crate::diff::diff(&repo)?;
 
@@ -31,13 +31,17 @@ pub fn run(m: &ArgMatches) -> Result<(), Error> {
 
         // Write the patch to a temporary file, and get back the identified patch.
         let mut out =
-            tempfile::NamedTempFile::new_in(".").context("trying to create a named temp file")?;
+            tempfile::NamedTempFile::new_in(&repo.patch_dir)
+            .context("trying to create a named temp file")?;
         let patch = patch.write_out(&mut out)?;
 
         // Now that we know the patch's id, move it to a location given by that name.
-        out.persist(&patch.id.filename())
-            .with_context(|_| format!("saving patch to {}", &patch.id.filename()))?;
-        eprintln!("Saved patch to: {}", &patch.id.filename());
+        let mut patch_path = repo.patch_dir.clone();
+        patch_path.push(patch.id.filename());
+        repo.register_patch(&patch)?;
+        out.persist(&patch_path)
+            .with_context(|_| format!("saving patch to {:?}", patch_path))?;
+        eprintln!("Created patch {}", &patch.id.filename());
     } else {
         // There was an error rendering the target branch to a file. In order to print an
         // informative message, we need to check whether the reason for failure was that the branch

@@ -1,9 +1,9 @@
 // This is just a hacked-up multimap. Eventually, we'll need to move to a fully persistent (in the
 // functional-data-structure sense), on-disk multimap.
 
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::{MapAccess, Visitor};
 use serde::ser::SerializeMap;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::borrow::Borrow;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -67,16 +67,16 @@ impl<K: Ord, V: Ord> MMap<K, V> {
         V: Borrow<R>,
         R: Ord + ?Sized,
     {
-        self.map.get(key)
+        self.map
+            .get(key)
             .and_then(|bindings| bindings.get(val))
             .is_some()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item=(&K, &V)> {
-        self.map.iter()
-            .flat_map(|(k, vs)| {
-                vs.iter().map(move |v| (k, v))
-            })
+    pub fn iter(&self) -> impl Iterator<Item = (&K, &V)> {
+        self.map
+            .iter()
+            .flat_map(|(k, vs)| vs.iter().map(move |v| (k, v)))
     }
 }
 
@@ -92,7 +92,9 @@ impl<K: Ord + Serialize, V: Ord + Serialize> Serialize for MMap<K, V> {
 
 impl<'de, K: Ord + Deserialize<'de>, V: Ord + Deserialize<'de>> Deserialize<'de> for MMap<K, V> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        deserializer.deserialize_map(MMapVisitor { x: std::marker::PhantomData })
+        deserializer.deserialize_map(MMapVisitor {
+            x: std::marker::PhantomData,
+        })
     }
 }
 
@@ -149,4 +151,3 @@ mod tests {
         assert!(!map.contains(&1, &4));
     }
 }
-

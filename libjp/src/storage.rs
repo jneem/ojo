@@ -53,23 +53,19 @@ pub struct Digle<'a> {
 }
 
 impl<'a> Digle<'a> {
-    pub fn out_edges<'b>(&'b self, line: &LineId) -> impl Iterator<Item = &'b Edge> + 'b
-    {
+    pub fn out_edges<'b>(&'b self, line: &LineId) -> impl Iterator<Item = &'b Edge> + 'b {
         self.data.edges.get(line).take_while(|e| !e.deleted)
     }
 
-    pub fn all_out_edges<'b>(&'b self, line: &LineId) -> impl Iterator<Item = &'b Edge> + 'b
-    {
+    pub fn all_out_edges<'b>(&'b self, line: &LineId) -> impl Iterator<Item = &'b Edge> + 'b {
         self.data.edges.get(line)
     }
 
-    pub fn in_edges<'b>(&'b self, line: &LineId) -> impl Iterator<Item = &'b Edge> + 'b
-    {
+    pub fn in_edges<'b>(&'b self, line: &LineId) -> impl Iterator<Item = &'b Edge> + 'b {
         self.data.back_edges.get(line).take_while(|e| !e.deleted)
     }
 
-    pub fn all_in_edges<'b>(&'b self, line: &LineId) -> impl Iterator<Item = &'b Edge> + 'b
-    {
+    pub fn all_in_edges<'b>(&'b self, line: &LineId) -> impl Iterator<Item = &'b Edge> + 'b {
         self.data.back_edges.get(line)
     }
 
@@ -82,8 +78,9 @@ impl<'a> Digle<'a> {
         // The live and deleted lines should be disjoint.
         assert!(self.data.lines.is_disjoint(&self.data.deleted_lines));
 
-        let line_exists = |line_id|
-            self.data.lines.contains(line_id) || self.data.deleted_lines.contains(line_id);
+        let line_exists = |line_id| {
+            self.data.lines.contains(line_id) || self.data.deleted_lines.contains(line_id)
+        };
         // The source and destination of every edge should exist somewhere.
         // The `deleted` field of an edge should agree with the status of the destination line.
         // There should be a one-to-one correspondence between edges and back_edges.
@@ -100,7 +97,10 @@ impl<'a> Digle<'a> {
         for (line, back_edge) in self.data.back_edges.iter() {
             assert!(line_exists(line));
             assert!(line_exists(&back_edge.dest));
-            assert_eq!(back_edge.deleted, self.data.deleted_lines.contains(&back_edge.dest));
+            assert_eq!(
+                back_edge.deleted,
+                self.data.deleted_lines.contains(&back_edge.dest)
+            );
             let edge = Edge {
                 dest: line.clone(),
                 deleted: self.data.deleted_lines.contains(line),
@@ -139,11 +139,13 @@ impl<'a> DigleMut<'a> {
 
         // All the edges (both forward and backwards) pointing towards the newly deleted node need
         // to be marked as deleted.
-        let out_neighbors = self.as_digle()
+        let out_neighbors = self
+            .as_digle()
             .all_out_edges(id)
             .map(|e| e.dest.clone())
             .collect::<Vec<_>>();
-        let in_neighbors = self.as_digle()
+        let in_neighbors = self
+            .as_digle()
             .all_in_edges(id)
             .map(|e| e.dest.clone())
             .collect::<Vec<_>>();
@@ -162,11 +164,13 @@ impl<'a> DigleMut<'a> {
 
         // All the edges (both forward and backwards) pointing towards the newly deleted node need
         // to be marked as live.
-        let out_neighbors = self.as_digle()
+        let out_neighbors = self
+            .as_digle()
             .all_out_edges(id)
             .map(|e| e.dest.clone())
             .collect::<Vec<_>>();
-        let in_neighbors = self.as_digle()
+        let in_neighbors = self
+            .as_digle()
             .all_in_edges(id)
             .map(|e| e.dest.clone())
             .collect::<Vec<_>>();
@@ -357,8 +361,7 @@ impl Storage {
         self.digles.remove(&inode);
     }
 
-    pub fn branches(&self) -> impl Iterator<Item=&str> {
+    pub fn branches(&self) -> impl Iterator<Item = &str> {
         self.branches.keys().map(|s| s.as_str())
     }
 }
-

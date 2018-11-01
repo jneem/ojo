@@ -4,6 +4,7 @@ use crate::storage::{DigleMut, File, Storage};
 use crate::{LineId, PatchId};
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[serde(transparent)]
 pub struct Changes {
     pub changes: Vec<Change>,
 }
@@ -87,7 +88,7 @@ impl Changes {
             match *ch {
                 Change::DeleteNode { ref id } => digle.undelete_node(id),
                 Change::NewEdge { ref src, ref dst } => digle.unadd_edge(src, dst),
-                Change::NewNode { .. } => {},
+                Change::NewNode { .. } => {}
             }
         }
         for ch in &self.changes {
@@ -99,7 +100,11 @@ impl Changes {
 
     pub fn store_new_contents(&self, storage: &mut Storage) {
         for ch in &self.changes {
-            if let Change::NewNode { ref id, ref contents, } = *ch {
+            if let Change::NewNode {
+                ref id,
+                ref contents,
+            } = *ch
+            {
                 storage.add_contents(id.clone(), contents.to_owned());
             }
         }
@@ -107,7 +112,7 @@ impl Changes {
 
     pub fn unstore_new_contents(&self, storage: &mut Storage) {
         for ch in &self.changes {
-            if let Change::NewNode { ref id, ..  } = *ch {
+            if let Change::NewNode { ref id, .. } = *ch {
                 storage.remove_contents(id);
             }
         }

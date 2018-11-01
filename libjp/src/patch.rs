@@ -41,7 +41,9 @@ impl<W: Write> Write for HashingWriter<W> {
 /// A `PatchId` is derived from a patch by hashing its contents. It must be unique: a repository
 /// cannot simultaneously contain two patches with the same id.
 #[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(transparent)]
 pub struct PatchId {
+    #[serde(with = "crate::Base64Slice")]
     pub(crate) data: [u8; 32],
 }
 

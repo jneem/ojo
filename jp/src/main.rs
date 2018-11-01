@@ -8,7 +8,6 @@ use clap::{App, ArgMatches};
 use failure::{Error, ResultExt};
 use libjp::Repo;
 
-mod apply;
 mod branch;
 mod diff;
 mod graph;
@@ -25,7 +24,6 @@ fn main() -> Result<(), Error> {
     let m = App::from_yaml(yml).get_matches();
 
     match m.subcommand_name() {
-        Some("apply") => apply::run(m.subcommand_matches("apply").unwrap()),
         Some("branch") => branch::run(m.subcommand_matches("branch").unwrap()),
         Some("diff") => diff::run(m.subcommand_matches("diff").unwrap()),
         Some("graph") => graph::run(m.subcommand_matches("graph").unwrap()),

@@ -4,20 +4,6 @@ about: An educational and proof-of-concept version control system.
 author: Joe Neeman <joeneeman@gmail.com>
 
 subcommands:
-    - apply:
-        about: Applies a patch to a branch. The patch must already exist in the repository
-        args:
-            - PATCH:
-                help: hash of the patch
-                required: true
-                takes_value: true
-            - branch:
-                help: branch to apply the patch to (defaults to the current branch)
-                takes_value: true
-            - revert:
-                help: if set, unapplies the patch instead of applying it
-                short: R
-                long: revert
     - branch:
         about: Various commands related to branches
         subcommands:
@@ -76,6 +62,20 @@ subcommands:
     - patch:
         about: Various commands related to patches
         subcommands:
+            - apply:
+                about: Applies a patch to a branch. The patch must already exist in the repository
+                args:
+                    - PATCH:
+                        help: hash of the patch
+                        required: true
+                        takes_value: true
+                    - branch:
+                        help: branch to apply the patch to (defaults to the current branch)
+                        takes_value: true
+                    - revert:
+                        help: if set, unapplies the patch instead of applying it
+                        short: R
+                        long: revert
             - create:
                 about: Creates a patch with the changes in the current working directory
                 args:
@@ -93,12 +93,5 @@ subcommands:
                         takes_value: true
                     - branch:
                         help: branch to compare against (defaults to the current branch)
-                        takes_value: true
-            - add:
-                about: Adds a patch to the current repository
-                args:
-                    - PATCH:
-                        help: path to the patch
-                        required: true
                         takes_value: true
 
