@@ -20,7 +20,7 @@ pub fn run(m: &ArgMatches) -> Result<(), Error> {
     f.read_to_end(&mut contents)?;
     let new_file = storage::File::from_bytes(&contents);
     if let Some(old_file) = repo.file(&branch) {
-        let changes = Changes::from_diff(&old_file, &new_file, &diff);
+        let changes = Changes::from_diff(&old_file, &new_file, &diff.changes);
 
         if changes.changes.is_empty() {
             eprintln!("Not creating a patch because there were no changes.");

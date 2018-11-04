@@ -8,5 +8,6 @@ pub fn run(m: &ArgMatches) -> Result<(), Error> {
     let repo = Repo::init(path)?;
     repo.write()
         .context("Failed to write repository to disk.")?;
+    eprintln!("Created empty jp repository.");
     Ok(())
 }

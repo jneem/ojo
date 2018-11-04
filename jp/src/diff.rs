@@ -1,12 +1,41 @@
 use clap::ArgMatches;
+use colored::*;
 use diff::LineDiff;
 use failure::Error;
 use libjp::Repo;
 use std::io::prelude::*;
+use std::fmt;
+
+pub struct Diff {
+    pub changes: Vec<LineDiff>,
+    pub a_lines: Vec<Vec<u8>>,
+    pub b_lines: Vec<Vec<u8>>,
+}
+
+impl fmt::Display for Diff {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        for &ch in &self.changes {
+            match ch {
+                LineDiff::New(i) => {
+                    let s = format!("+ {}", String::from_utf8_lossy(&self.b_lines[i]));
+                    write!(fmt, "{}", s.green())?;
+                }
+                LineDiff::Delete(i) => {
+                    let s = format!("- {}", String::from_utf8_lossy(&self.a_lines[i]));
+                    write!(fmt, "{}", s.red())?;
+                }
+                LineDiff::Keep(i, _) => {
+                    write!(fmt, "  {}", String::from_utf8_lossy(&self.a_lines[i]))?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
 
 // TODO: we should refactor some of this into libjp. In particular, it's probably useful to
 // have a method for taking a file and producing a diff.
-pub fn diff(repo: &Repo) -> Result<Vec<LineDiff>, Error> {
+pub fn diff(repo: &Repo) -> Result<Diff, Error> {
     let mut fs_file = repo.open_file()?;
     let mut fs_file_contents = Vec::new();
     fs_file.read_to_end(&mut fs_file_contents)?;
@@ -16,7 +45,13 @@ pub fn diff(repo: &Repo) -> Result<Vec<LineDiff>, Error> {
         let repo_lines = (0..repo_file.num_lines())
             .map(|i| repo_file.line(i).to_owned())
             .collect::<Vec<_>>();
-        Ok(diff::diff(&repo_lines, &fs_lines))
+        let line_diffs = diff::diff(&repo_lines, &fs_lines);
+        let ret = Diff {
+            changes: line_diffs,
+            a_lines: repo_lines,
+            b_lines: fs_lines,
+        };
+        Ok(ret)
     } else {
         panic!("FIXME");
     }
@@ -26,7 +61,7 @@ pub fn run(_m: &ArgMatches) -> Result<(), Error> {
     let repo = super::open_repo()?;
 
     let diff = diff(&repo)?;
-    println!("{:?}", diff);
+    print!("{}", diff);
 
     Ok(())
 }

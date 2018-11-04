@@ -16,8 +16,8 @@ mod log;
 mod patch;
 
 // TODO:
-// - make diff display things more nicely
-// - output (graphs and/or files)
+// - output files
+// - figure out representation for deleted lines
 fn main() {
     let yml = load_yaml!("main.yaml");
     let m = App::from_yaml(yml).get_matches();
