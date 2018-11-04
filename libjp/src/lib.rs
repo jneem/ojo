@@ -142,7 +142,7 @@ impl Repo {
         let repo_dir = Repo::repo_dir(&root_dir)?;
         let db_path = Repo::db_path(&root_dir)?;
         if db_path.exists() {
-            return Err(Error::RepoExists(db_path));
+            return Err(Error::RepoExists(repo_dir.clone()));
         }
         let patch_dir = Repo::patch_dir(&root_dir)?;
         let file_name = path

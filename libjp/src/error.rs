@@ -43,7 +43,7 @@ impl fmt::Display for Error {
             ),
             Error::RepoExists(p) => write!(
                 f,
-                "There is already a repository tracking this path: {:?}",
+                "There is already a repository in {:?}",
                 p
             ),
             Error::MissingDep(id) => write!(f, "Missing a dependency: {}", id.filename()),
