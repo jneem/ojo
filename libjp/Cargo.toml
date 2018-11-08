@@ -7,6 +7,7 @@ edition = "2018"
 [dependencies]
 base64 = "0.9"
 diff = { path = "../diff" }
+graph = { path = "../graph" }
 itertools = "0.7"
 multimap = { path = "../multimap" }
 serde = "1.0"

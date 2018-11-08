@@ -2,6 +2,7 @@
 
 members = [
     "diff",
+    "graph",
     "jp",
     "libjp",
     "multimap",

@@ -1,9 +1,8 @@
 use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 
-use crate::graph::dfs::{Dfs, Status, Visit};
-use crate::graph::GraphRef;
-use crate::LineId;
+use crate::dfs::{Dfs, Status, Visit};
+use crate::Graph;
 
 struct NodeState {
     on_stack: bool,
@@ -21,15 +20,15 @@ impl NodeState {
     }
 }
 
-struct Tarjan<'a, G: GraphRef<'a> + ?Sized + 'a> {
+struct Tarjan<'a, G: Graph<'a> + ?Sized> {
     dfs: Dfs<'a, G>,
-    stack: Vec<LineId>,
-    node_states: HashMap<LineId, NodeState>,
+    stack: Vec<G::Node>,
+    node_states: HashMap<G::Node, NodeState>,
     next_index: usize,
 }
 
-impl<'a, G: GraphRef<'a> + ?Sized + 'a> Tarjan<'a, G> {
-    fn run(mut self) -> Decomposition {
+impl<'a, G: Graph<'a> + ?Sized> Tarjan<'a, G> {
+    fn run(mut self) -> Decomposition<'a, G> {
         let mut ret = Vec::new();
 
         for visit in self.dfs {
@@ -95,12 +94,12 @@ impl<'a, G: GraphRef<'a> + ?Sized + 'a> Tarjan<'a, G> {
 ///
 /// Tarjan's algorithm decomposes a directed graph into strongly connected components.  Moreover,
 /// those components are ordered topologically.
-pub struct Decomposition {
-    sccs: Vec<HashSet<LineId>>,
+pub struct Decomposition<'a, G: Graph<'a> + ?Sized> {
+    sccs: Vec<HashSet<G::Node>>,
 }
 
-impl Decomposition {
-    pub(crate) fn from_graph<'a, G: GraphRef<'a> + ?Sized>(g: G) -> Decomposition {
+impl<'a, G: Graph<'a> + ?Sized> Decomposition<'a, G> {
+    pub(crate) fn from_graph(g: &'a G) -> Decomposition<G> {
         let tj = Tarjan {
             dfs: g.dfs(),
             stack: Vec::new(),
@@ -114,8 +113,8 @@ impl Decomposition {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::graph::tests::{graph, ids};
-    use crate::graph::GraphRef;
+    use crate::tests::graph;
+    use crate::Graph;
 
     macro_rules! tarjan_test {
         ($name:ident, $graph:expr, $expected:expr) => {
@@ -125,7 +124,7 @@ mod tests {
                 let d = g.tarjan();
                 let expected: Vec<_> = $expected
                     .into_iter()
-                    .map(|scc| ids(scc).into_iter().collect::<HashSet<_>>())
+                    .map(|scc| scc.into_iter().cloned().collect::<HashSet<u32>>())
                     .collect();
                 assert_eq!(d.sccs, expected);
             }
@@ -139,3 +138,4 @@ mod tests {
         [[0, 1, 2], [3, 4, 5]]
     );
 }
+

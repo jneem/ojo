@@ -1,31 +1,50 @@
 use itertools::Itertools;
 use std::collections::HashSet;
-
-use crate::LineId;
+use std::hash::Hash;
 
 pub mod dfs;
 pub mod tarjan;
 
-pub trait GraphRef<'a>: Copy + 'a {
-    type NodesIter: Iterator<Item = &'a LineId>;
-    type OutNeighborsIter: Iterator<Item = &'a LineId>;
-    type InNeighborsIter: Iterator<Item = &'a LineId>;
+pub trait Edge<N> {
+    fn target(&self) -> N;
+}
 
-    fn nodes(self) -> Self::NodesIter;
-    fn out_neighbors(self, u: &LineId) -> Self::OutNeighborsIter;
-    fn in_neighbors(self, u: &LineId) -> Self::InNeighborsIter;
+impl<N: Copy> Edge<N> for N {
+    fn target(&self) -> N {
+        *self
+    }
+}
 
-    fn dfs(self) -> dfs::Dfs<'a, Self> {
+pub trait Graph<'a>: 'a
+{
+    type Node: Copy + Eq + Hash;
+    type Edge: Copy + Eq + Edge<Self::Node>;
+    type NodesIter: Iterator<Item = Self::Node> + 'a;
+    type EdgesIter: Iterator<Item = Self::Edge> + 'a;
+
+    fn nodes(&'a self) -> Self::NodesIter;
+    fn out_edges(&'a self, u: &Self::Node) -> Self::EdgesIter;
+    fn in_edges(&'a self, u: &Self::Node) -> Self::EdgesIter;
+
+    fn out_neighbors(&'a self, u: &Self::Node) -> std::iter::Map<Self::EdgesIter, fn(Self::Edge) -> Self::Node> {
+        self.out_edges(u).map((|e| e.target()) as fn(Self::Edge) -> Self::Node)
+    }
+
+    fn in_neighbors(&'a self, u: &Self::Node) -> std::iter::Map<Self::EdgesIter, fn(Self::Edge) -> Self::Node> {
+        self.in_edges(u).map((|e| e.target()) as fn(Self::Edge) -> Self::Node)
+    }
+
+    fn dfs(&'a self) -> dfs::Dfs<'a, Self> {
         dfs::Dfs::new(self)
     }
 
-    fn tarjan(self) -> tarjan::Decomposition {
+    fn tarjan(&'a self) -> tarjan::Decomposition<'a, Self> {
         tarjan::Decomposition::from_graph(self)
     }
 
     /// If this graph is acyclic, returns a topological sort of the vertices. Otherwise, returns
     /// `None`.
-    fn top_sort(self) -> Option<Vec<LineId>> {
+    fn top_sort(&'a self) -> Option<Vec<Self::Node>> {
         use self::dfs::Visit;
 
         let mut visiting = HashSet::new();
@@ -62,13 +81,13 @@ pub trait GraphRef<'a>: Copy + 'a {
         Some(top_sort)
     }
 
-    fn linear_order(self) -> Option<Vec<LineId>> {
+    fn linear_order(&'a self) -> Option<Vec<Self::Node>> {
         if let Some(top) = self.top_sort() {
             // A graph has a linear order if and only if it has a unique topological sort. A
             // topological sort is unique if and only if every node in it has an edge pointing to
             // the subsequent node.
             for (u, v) in top.iter().tuples() {
-                if self.out_neighbors(u).position(|x| x == v).is_none() {
+                if self.out_neighbors(u).position(|x| x == *v).is_none() {
                     return None;
                 }
             }
@@ -80,69 +99,78 @@ pub trait GraphRef<'a>: Copy + 'a {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct NodeFiltered<'a, G: GraphRef<'a>, F: Fn(&LineId) -> bool> {
+pub struct NodeFiltered<'a, G, F>
+where
+    G: Graph<'a>,
+    F: Fn(&G::Node) -> bool + 'a,
+{
     predicate: F,
     graph: G,
     marker: std::marker::PhantomData<&'a ()>,
 }
 
-impl<'a, G: GraphRef<'a>, F: Fn(&LineId) -> bool + Copy + 'a> GraphRef<'a> for NodeFiltered<'a, G, F> {
+impl<'a, G, F> Graph<'a> for NodeFiltered<'a, G, F> 
+where
+    G: Graph<'a>,
+    F: Fn(&G::Node) -> bool + 'a,
+{
     // TODO: unbox this once there is the appropriate support for impl trait
-    type NodesIter = Box<Iterator<Item = &'a LineId> + 'a>;
-    type OutNeighborsIter = Box<Iterator<Item = &'a LineId> + 'a>;
-    type InNeighborsIter = Box<Iterator<Item = &'a LineId> + 'a>;
+    type Node = G::Node;
+    type Edge = G::Edge;
+    type NodesIter = Box<Iterator<Item = Self::Node> + 'a>;
+    type EdgesIter = Box<Iterator<Item = Self::Edge> + 'a>;
 
-    fn nodes(self) -> Self::NodesIter {
+    fn nodes(&'a self) -> Self::NodesIter {
         Box::new(self.graph.nodes().filter(move |n| (self.predicate)(n)))
     }
 
-    fn out_neighbors(self, u: &LineId) -> Self::OutNeighborsIter {
-        Box::new(self.graph.out_neighbors(u).filter(move |n| (self.predicate)(n)))
+    fn out_edges(&'a self, u: &Self::Node) -> Self::EdgesIter {
+        Box::new(self.graph.out_edges(u).filter(move |e| (self.predicate)(&e.target())))
     }
 
-    fn in_neighbors(self, u: &LineId) -> Self::InNeighborsIter {
-        Box::new(self.graph.in_neighbors(u).filter(move |n| (self.predicate)(n)))
+    fn in_edges(&'a self, u: &Self::Node) -> Self::EdgesIter {
+        Box::new(self.graph.in_edges(u).filter(move |e| (self.predicate)(&e.target())))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::GraphRef;
-    use crate::{LineId, PatchId};
+    use super::Graph;
 
     #[derive(Clone, Debug)]
     pub struct Node {
-        prev: Vec<LineId>,
-        next: Vec<LineId>,
+        prev: Vec<u32>,
+        next: Vec<u32>,
     }
 
     #[derive(Clone, Debug)]
-    pub struct Graph {
+    pub struct GraphData {
         nodes: Vec<Node>,
-        ids: Vec<LineId>,
+        ids: Vec<u32>,
     }
 
-    impl<'a> GraphRef<'a> for &'a Graph {
-        type NodesIter = ::std::slice::Iter<'a, LineId>;
-        type OutNeighborsIter = ::std::slice::Iter<'a, LineId>;
-        type InNeighborsIter = ::std::slice::Iter<'a, LineId>;
+    impl<'a> Graph<'a> for GraphData {
+        type Node = u32;
+        type Edge = u32;
+        type NodesIter = std::iter::Cloned<std::slice::Iter<'a, u32>>;
+        type EdgesIter = std::iter::Cloned<std::slice::Iter<'a, u32>>;
 
-        fn nodes(self) -> Self::NodesIter {
-            self.ids.iter()
+        fn nodes(&'a self) -> Self::NodesIter {
+            self.ids.iter().cloned()
         }
 
-        fn out_neighbors(self, u: &LineId) -> Self::OutNeighborsIter {
-            self.nodes[u.line as usize].next.iter()
+        fn out_edges(&'a self, u: &u32) -> Self::EdgesIter {
+            self.nodes[*u as usize].next.iter().cloned()
         }
 
-        fn in_neighbors(self, u: &LineId) -> Self::InNeighborsIter {
-            self.nodes[u.line as usize].prev.iter()
+        fn in_edges(&'a self, u: &u32) -> Self::EdgesIter {
+            self.nodes[*u as usize].prev.iter().cloned()
         }
     }
 
     // Given a string like "0-3, 1-2, 3-4, 2-3", creates a graph.
-    pub fn graph(s: &str) -> Graph {
-        let mut ret = Graph {
+    pub fn graph(s: &str) -> GraphData {
+        let mut ret = GraphData {
             nodes: Vec::new(),
             ids: Vec::new(),
         };
@@ -158,29 +186,16 @@ mod tests {
                     next: Vec::new(),
                     prev: Vec::new(),
                 };
-                ret.ids
-                    .extend((ret.ids.len()..(w + 1)).map(|x| id(x as u64)));
+                ret.ids.extend((ret.ids.len() as u32)..=(w as u32));
                 ret.nodes.resize(w + 1, empty_node);
                 assert!(ret.ids.len() == ret.nodes.len());
             }
 
-            ret.nodes[u].next.push(id(v as u64));
-            ret.nodes[v].prev.push(id(u as u64));
+            ret.nodes[u].next.push(v as u32);
+            ret.nodes[v].prev.push(u as u32);
         }
 
         ret
-    }
-
-    pub fn id(n: u64) -> LineId {
-        LineId {
-            patch: PatchId::cur(),
-            line: n,
-        }
-    }
-
-    // Given an array of numbers, creates a matching vec of LineIds.
-    pub fn ids(nums: &[u64]) -> Vec<LineId> {
-        nums.into_iter().cloned().map(id).collect()
     }
 
     macro_rules! top_sort_test {
@@ -189,8 +204,7 @@ mod tests {
             fn $name() {
                 let g = graph($graph);
                 let top_sort = g.top_sort();
-                let expected = $expected.map(|nums: Vec<u64>| ids(&nums));
-                assert_eq!(top_sort, expected);
+                assert_eq!(top_sort, $expected);
             }
         };
     }
@@ -201,8 +215,7 @@ mod tests {
             fn $name() {
                 let g = graph($graph);
                 let order = g.linear_order();
-                let expected = $expected.map(|nums: Vec<u64>| ids(&nums));
-                assert_eq!(order, expected);
+                assert_eq!(order, $expected);
             }
         };
     }

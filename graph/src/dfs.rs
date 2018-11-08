@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 
-use crate::graph::GraphRef;
-use crate::LineId;
+use crate::{Edge, Graph};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Status {
@@ -10,17 +9,17 @@ pub enum Status {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Visit {
+pub enum Visit<N> {
     Edge {
-        src: LineId,
-        dst: LineId,
+        src: N,
+        dst: N,
         status: Status,
     },
     Retreat {
-        u: LineId,
-        parent: Option<LineId>,
+        u: N,
+        parent: Option<N>,
     },
-    Root(LineId),
+    Root(N),
 }
 
 // A naive DFS is recursive, and so it can run out of stack space. Here, we prevent that by
@@ -29,29 +28,29 @@ pub enum Visit {
 //
 // (There is also a simpler non-recursive way to write DFS (described, e.g. on wikipedia), but that
 // one loses information about which edges we're traversing.)
-struct StackFrame<'a, G: GraphRef<'a> + ?Sized> {
-    u: LineId,
-    neighbors: G::OutNeighborsIter,
+struct StackFrame<'a, G: Graph<'a> + ?Sized> {
+    u: G::Node,
+    neighbors: G::EdgesIter,
 }
 
-impl<'a, G: GraphRef<'a> + ?Sized> StackFrame<'a, G> {
-    fn new(g: G, u: LineId) -> StackFrame<'a, G> {
+impl<'a, G: Graph<'a> + ?Sized> StackFrame<'a, G> {
+    fn new(g: &'a G, u: G::Node) -> StackFrame<'a, G> {
         StackFrame {
-            neighbors: g.out_neighbors(&u),
+            neighbors: g.out_edges(&u),
             u: u,
         }
     }
 }
 
-pub struct Dfs<'a, G: GraphRef<'a> + ?Sized> {
-    g: G,
-    visited: HashSet<LineId>,
+pub struct Dfs<'a, G: Graph<'a> + ?Sized> {
+    g: &'a G,
+    visited: HashSet<G::Node>,
     stack: Vec<StackFrame<'a, G>>,
     roots: G::NodesIter,
 }
 
-impl<'a, G: GraphRef<'a> + ?Sized + 'a> Dfs<'a, G> {
-    pub(crate) fn new(g: G) -> Dfs<'a, G> {
+impl<'a, G: Graph<'a> + ?Sized> Dfs<'a, G> {
+    pub(crate) fn new(g: &'a G) -> Dfs<'a, G> {
         Dfs {
             g: g,
             visited: HashSet::new(),
@@ -60,37 +59,38 @@ impl<'a, G: GraphRef<'a> + ?Sized + 'a> Dfs<'a, G> {
         }
     }
 
-    fn next_root(&mut self) -> Option<LineId> {
+    fn next_root(&mut self) -> Option<G::Node> {
         while let Some(root) = self.roots.next() {
-            if !self.visited.contains(root) {
-                return Some(root.clone());
+            if !self.visited.contains(&root) {
+                return Some(root);
             }
         }
         None
     }
 
-    fn cur_node(&self) -> Option<LineId> {
-        self.stack.last().map(|frame| frame.u.clone())
+    fn cur_node(&self) -> Option<G::Node> {
+        self.stack.last().map(|frame| frame.u)
     }
 }
 
-impl<'a, G: GraphRef<'a> + ?Sized> Iterator for Dfs<'a, G> {
-    type Item = Visit;
+impl<'a, G: Graph<'a> + ?Sized> Iterator for Dfs<'a, G> {
+    type Item = Visit<G::Node>;
 
-    fn next(&mut self) -> Option<Visit> {
+    fn next(&mut self) -> Option<Visit<G::Node>> {
         if let Some(frame) = self.stack.last_mut() {
-            let cur = frame.u.clone();
+            let cur = frame.u;
             if let Some(next) = frame.neighbors.next() {
+                let next = next.target();
                 let status = if self.visited.contains(&next) {
                     Status::Repeated
                 } else {
-                    self.stack.push(StackFrame::new(self.g, next.clone()));
-                    self.visited.insert(next.clone());
+                    self.stack.push(StackFrame::new(self.g, next));
+                    self.visited.insert(next);
                     Status::New
                 };
                 Some(Visit::Edge {
                     src: cur,
-                    dst: next.clone(),
+                    dst: next,
                     status: status,
                 })
             } else {
@@ -101,8 +101,8 @@ impl<'a, G: GraphRef<'a> + ?Sized> Iterator for Dfs<'a, G> {
                 })
             }
         } else if let Some(next_root) = self.next_root() {
-            self.stack.push(StackFrame::new(self.g, next_root.clone()));
-            self.visited.insert(next_root.clone());
+            self.stack.push(StackFrame::new(self.g, next_root));
+            self.visited.insert(next_root);
             Some(Visit::Root(next_root))
         } else {
             None
@@ -114,8 +114,8 @@ impl<'a, G: GraphRef<'a> + ?Sized> Iterator for Dfs<'a, G> {
 mod tests {
     use super::Status::*;
     use super::Visit::*;
-    use crate::graph::tests::{graph, id};
-    use crate::graph::GraphRef;
+    use crate::Graph;
+    use crate::tests::graph;
 
     macro_rules! dfs_test {
         ($name:ident, $graph:expr, $expected:expr) => {
@@ -132,36 +132,36 @@ mod tests {
         visit_order,
         "0-1, 0-3, 0-2",
         vec![
-            Root(id(0)),
+            Root(0),
             Edge {
-                src: id(0),
-                dst: id(1),
+                src: 0,
+                dst: 1,
                 status: New
             },
             Retreat {
-                u: id(1),
-                parent: Some(id(0))
+                u: 1,
+                parent: Some(0)
             },
             Edge {
-                src: id(0),
-                dst: id(3),
+                src: 0,
+                dst: 3,
                 status: New
             },
             Retreat {
-                u: id(3),
-                parent: Some(id(0))
+                u: 3,
+                parent: Some(0)
             },
             Edge {
-                src: id(0),
-                dst: id(2),
+                src: 0,
+                dst: 2,
                 status: New
             },
             Retreat {
-                u: id(2),
-                parent: Some(id(0))
+                u: 2,
+                parent: Some(0)
             },
             Retreat {
-                u: id(0),
+                u: 0,
                 parent: None
             },
         ]
@@ -171,32 +171,32 @@ mod tests {
         repeat_visit,
         "0-1, 0-2, 1-2",
         vec![
-            Root(id(0)),
+            Root(0),
             Edge {
-                src: id(0),
-                dst: id(1),
+                src: 0,
+                dst: 1,
                 status: New
             },
             Edge {
-                src: id(1),
-                dst: id(2),
+                src: 1,
+                dst: 2,
                 status: New
             },
             Retreat {
-                u: id(2),
-                parent: Some(id(1))
+                u: 2,
+                parent: Some(1)
             },
             Retreat {
-                u: id(1),
-                parent: Some(id(0))
+                u: 1,
+                parent: Some(0)
             },
             Edge {
-                src: id(0),
-                dst: id(2),
+                src: 0,
+                dst: 2,
                 status: Repeated
             },
             Retreat {
-                u: id(0),
+                u: 0,
                 parent: None
             },
         ]

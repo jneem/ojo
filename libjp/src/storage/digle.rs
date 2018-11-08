@@ -259,22 +259,23 @@ impl<'a> From<&'a mut DigleData> for DigleMut<'a> {
     }
 }
 
-impl<'a, 'b: 'a> crate::graph::GraphRef<'a> for &'a Digle<'b> {
+impl<'a> graph::Graph<'a> for Digle<'a> {
+    type Node = LineId;
+    type Edge = LineId;
     // TODO: once impl Trait return types are nameable, unbox these
-    type NodesIter = Box<dyn Iterator<Item = &'a LineId> + 'a>;
-    type OutNeighborsIter = Box<dyn Iterator<Item = &'a LineId> + 'a>;
-    type InNeighborsIter = Box<dyn Iterator<Item = &'a LineId> + 'a>;
+    type NodesIter = Box<dyn Iterator<Item = LineId> + 'a>;
+    type EdgesIter = Box<dyn Iterator<Item = LineId> + 'a>;
 
-    fn nodes(self) -> Self::NodesIter {
-        Box::new(self.data.lines.iter().chain(self.data.deleted_lines.iter()))
+    fn nodes(&'a self) -> Self::NodesIter {
+        Box::new(self.data.lines.iter().chain(self.data.deleted_lines.iter()).cloned())
     }
 
-    fn out_neighbors(self, u: &LineId) -> Self::OutNeighborsIter {
-        Box::new(self.all_out_edges(u).map(|e| &e.dest))
+    fn out_edges(&'a self, u: &LineId) -> Self::EdgesIter {
+        Box::new(self.all_out_edges(u).map(|e| &e.dest).cloned())
     }
 
-    fn in_neighbors(self, u: &LineId) -> Self::InNeighborsIter {
-        Box::new(self.all_in_edges(u).map(|e| &e.dest))
+    fn in_edges(&'a self, u: &LineId) -> Self::EdgesIter {
+        Box::new(self.all_in_edges(u).map(|e| &e.dest).cloned())
     }
 }
 

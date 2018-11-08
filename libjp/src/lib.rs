@@ -5,7 +5,6 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 
 mod error;
-pub mod graph;
 pub mod patch;
 pub mod storage;
 
@@ -46,7 +45,7 @@ impl Base64Slice {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct LineId {
     pub patch: PatchId,
     pub line: u64,
@@ -205,7 +204,7 @@ impl Repo {
     }
 
     pub fn file(&self, branch: &str) -> Option<storage::File> {
-        use crate::graph::GraphRef;
+        use graph::Graph;
         let inode = self.storage.inode(branch)?;
         self.storage
             .digle(inode)
