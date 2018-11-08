@@ -114,7 +114,7 @@ impl<'a, G: GraphRef<'a> + ?Sized> Iterator for Dfs<'a, G> {
 mod tests {
     use super::Status::*;
     use super::Visit::*;
-    use crate::graph::tests::{graph, id, ids};
+    use crate::graph::tests::{graph, id};
     use crate::graph::GraphRef;
 
     macro_rules! dfs_test {

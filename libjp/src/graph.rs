@@ -1,53 +1,10 @@
 use itertools::Itertools;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use crate::LineId;
 
 pub mod dfs;
 pub mod tarjan;
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct DigleNode {
-    contents: Vec<u8>,
-    //alive: bool,
-    prev: Vec<LineId>,
-    next: Vec<LineId>,
-    //prev_alive: Vec<usize>,
-    //next_alive: Vec<usize>,
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct Digle {
-    nodes: HashMap<LineId, DigleNode>,
-    //alive_indices: Vec<usize>,
-}
-
-impl Digle {
-    pub fn add_node(&mut self, id: &LineId, contents: Vec<u8>) {
-        assert!(!self.nodes.contains_key(id));
-
-        let node = DigleNode {
-            contents: contents,
-            prev: Vec::new(),
-            next: Vec::new(),
-        };
-        self.nodes.insert(id.clone(), node);
-    }
-
-    pub fn add_edge(&mut self, from: &LineId, to: &LineId) {
-        assert!(self.nodes.contains_key(from));
-        assert!(self.nodes.contains_key(to));
-
-        self.nodes.get_mut(from).unwrap().next.push(to.clone());
-        self.nodes.get_mut(to).unwrap().prev.push(from.clone());
-    }
-
-    pub fn new() -> Digle {
-        Digle {
-            nodes: HashMap::new(),
-        }
-    }
-}
 
 pub trait GraphRef<'a>: Copy + 'a {
     type NodesIter: Iterator<Item = &'a LineId>;
@@ -122,29 +79,36 @@ pub trait GraphRef<'a>: Copy + 'a {
     }
 }
 
-impl<'a> GraphRef<'a> for &'a Digle {
-    type NodesIter = ::std::collections::hash_map::Keys<'a, LineId, DigleNode>;
-    type OutNeighborsIter = ::std::slice::Iter<'a, LineId>;
-    type InNeighborsIter = ::std::slice::Iter<'a, LineId>;
+#[derive(Clone, Copy, Debug)]
+pub struct NodeFiltered<'a, G: GraphRef<'a>, F: Fn(&LineId) -> bool> {
+    predicate: F,
+    graph: G,
+    marker: std::marker::PhantomData<&'a ()>,
+}
+
+impl<'a, G: GraphRef<'a>, F: Fn(&LineId) -> bool + Copy + 'a> GraphRef<'a> for NodeFiltered<'a, G, F> {
+    // TODO: unbox this once there is the appropriate support for impl trait
+    type NodesIter = Box<Iterator<Item = &'a LineId> + 'a>;
+    type OutNeighborsIter = Box<Iterator<Item = &'a LineId> + 'a>;
+    type InNeighborsIter = Box<Iterator<Item = &'a LineId> + 'a>;
 
     fn nodes(self) -> Self::NodesIter {
-        self.nodes.keys()
+        Box::new(self.graph.nodes().filter(move |n| (self.predicate)(n)))
     }
 
     fn out_neighbors(self, u: &LineId) -> Self::OutNeighborsIter {
-        self.nodes[u].next.iter()
+        Box::new(self.graph.out_neighbors(u).filter(move |n| (self.predicate)(n)))
     }
 
     fn in_neighbors(self, u: &LineId) -> Self::InNeighborsIter {
-        self.nodes[u].prev.iter()
+        Box::new(self.graph.in_neighbors(u).filter(move |n| (self.predicate)(n)))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Digle, DigleNode, GraphRef};
+    use super::GraphRef;
     use crate::{LineId, PatchId};
-    use std::collections::HashMap;
 
     #[derive(Clone, Debug)]
     pub struct Node {

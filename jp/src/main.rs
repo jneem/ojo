@@ -17,7 +17,20 @@ mod patch;
 
 // TODO:
 // - output files
+// - conflict resolution utility
 // - figure out representation for deleted lines
+//
+// Algorithm for deciding on pseudo-edges:
+// 1) Take the graph of changes. If necessary, "expand" the edge set by recursively exploring for
+//    deleted lines. Divide it into (weakly) connected components.
+// 2) For each connected component, compute the connectivity relation on its "boundary" (the nodes
+//    that are present in the undeleted part of the digle). Add a pseudo-edge for every connected
+//    pair. Probably, this connectivity relation needs to be computed using the entire collection
+//    of deleted lines.
+// 3) Remove redundant pseudo-edges by only keeping those that are covering edges.
+//
+// The algorithm above should work when dealing with things that were only added. What about
+// changes that came from unapplying patches?
 fn main() {
     let yml = load_yaml!("main.yaml");
     let m = App::from_yaml(yml).get_matches();
