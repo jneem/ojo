@@ -137,7 +137,8 @@ pub fn diff<T: Hash + Eq>(a: &[T], b: &[T]) -> Vec<LineDiff> {
                 }
             }
             None
-        }).collect::<Vec<(usize, usize)>>();
+        })
+        .collect::<Vec<(usize, usize)>>();
     both_unique.sort_unstable_by_key(|(_b_idx, a_idx)| *a_idx);
 
     let mut ret = Vec::with_capacity(a.len().max(b.len()));
@@ -235,7 +236,8 @@ mod tests {
                 New(_) => None,
                 Keep(i, _) => Some(i),
                 Delete(i) => Some(i),
-            }).collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
         assert_eq!(input_indices, (0..a.len()).into_iter().collect::<Vec<_>>());
 
         let output_indices = diff
@@ -244,7 +246,8 @@ mod tests {
                 New(i) => Some(i),
                 Keep(_, i) => Some(i),
                 Delete(_) => None,
-            }).collect::<Vec<_>>();
+            })
+            .collect::<Vec<_>>();
         assert_eq!(output_indices, (0..b.len()).into_iter().collect::<Vec<_>>());
 
         for line in diff {
@@ -261,7 +264,8 @@ mod tests {
         prop::collection::vec(
             prop::strategy::Union::new_weighted(vec![(10, 0..10), (1, 0..1000)]),
             1..100,
-        ).boxed()
+        )
+        .boxed()
     }
 
     // Generates two files for diffing by first generating one, and then making another by changing
@@ -294,7 +298,8 @@ mod tests {
                     }
                 }
                 (f, g)
-            }).boxed()
+            })
+            .boxed()
     }
 
     proptest! {

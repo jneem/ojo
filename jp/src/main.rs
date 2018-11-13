@@ -73,4 +73,3 @@ fn branch(repo: &Repo, m: &ArgMatches) -> String {
         .unwrap_or(&repo.current_branch)
         .to_owned()
 }
-

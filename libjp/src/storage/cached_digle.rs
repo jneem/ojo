@@ -1,9 +1,9 @@
 use multimap::MMap;
-use std::collections::{BTreeSet as Set};
+use std::collections::BTreeSet as Set;
 
-use crate::LineId;
-use crate::storage::digle::Digle;
 use crate::patch::Change;
+use crate::storage::digle::Digle;
+use crate::LineId;
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct Edge {
@@ -76,5 +76,3 @@ impl<'a> CachedDigleMut<'a> {
         unimplemented!();
     }
 }
-
-

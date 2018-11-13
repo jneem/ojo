@@ -6,3 +6,6 @@ edition = "2018"
 
 [dependencies]
 itertools = "0.7"
+
+[dev-dependencies]
+proptest = "0.7"

@@ -3,8 +3,8 @@ use colored::*;
 use diff::LineDiff;
 use failure::Error;
 use libjp::Repo;
-use std::io::prelude::*;
 use std::fmt;
+use std::io::prelude::*;
 
 pub struct Diff {
     pub changes: Vec<LineDiff>,

@@ -2,7 +2,7 @@ use std::cmp::min;
 use std::collections::{HashMap, HashSet};
 
 use crate::dfs::{Dfs, Status, Visit};
-use crate::Graph;
+use crate::{Graph, Partition};
 
 struct NodeState {
     on_stack: bool,
@@ -20,7 +20,8 @@ impl NodeState {
     }
 }
 
-struct Tarjan<'a, G: Graph<'a> + ?Sized> {
+pub(crate) struct Tarjan<'a, G: Graph<'a> + ?Sized> {
+    g: &'a G,
     dfs: Dfs<'a, G>,
     stack: Vec<G::Node>,
     node_states: HashMap<G::Node, NodeState>,
@@ -28,7 +29,17 @@ struct Tarjan<'a, G: Graph<'a> + ?Sized> {
 }
 
 impl<'a, G: Graph<'a> + ?Sized> Tarjan<'a, G> {
-    fn run(mut self) -> Decomposition<'a, G> {
+    pub fn from_graph(g: &'a G) -> Self {
+        Tarjan {
+            g,
+            dfs: g.dfs(),
+            stack: Vec::new(),
+            node_states: HashMap::new(),
+            next_index: 0,
+        }
+    }
+
+    pub fn run(mut self) -> Partition<'a, G> {
         let mut ret = Vec::new();
 
         for visit in self.dfs {
@@ -86,27 +97,7 @@ impl<'a, G: Graph<'a> + ?Sized> Tarjan<'a, G> {
         }
 
         ret.reverse();
-        Decomposition { sccs: ret }
-    }
-}
-
-/// The output of Tarjan's algorithm.
-///
-/// Tarjan's algorithm decomposes a directed graph into strongly connected components.  Moreover,
-/// those components are ordered topologically.
-pub struct Decomposition<'a, G: Graph<'a> + ?Sized> {
-    sccs: Vec<HashSet<G::Node>>,
-}
-
-impl<'a, G: Graph<'a> + ?Sized> Decomposition<'a, G> {
-    pub(crate) fn from_graph(g: &'a G) -> Decomposition<G> {
-        let tj = Tarjan {
-            dfs: g.dfs(),
-            stack: Vec::new(),
-            node_states: HashMap::new(),
-            next_index: 0,
-        };
-        tj.run()
+        Partition::new(self.g, ret)
     }
 }
 
@@ -126,7 +117,7 @@ mod tests {
                     .into_iter()
                     .map(|scc| scc.into_iter().cloned().collect::<HashSet<u32>>())
                     .collect();
-                assert_eq!(d.sccs, expected);
+                assert_eq!(d.sets, expected);
             }
         };
     }
@@ -138,4 +129,3 @@ mod tests {
         [[0, 1, 2], [3, 4, 5]]
     );
 }
-

@@ -16,12 +16,16 @@ pub use crate::storage::Digle;
 pub(crate) enum Base64Slice {}
 impl Base64Slice {
     pub fn serialize<S>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error>
-        where S: serde::Serializer {
+    where
+        S: serde::Serializer,
+    {
         serializer.serialize_str(&base64::encode_config(bytes, base64::URL_SAFE))
     }
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<[u8; 32], D::Error>
-        where D: serde::Deserializer<'de> {
+    where
+        D: serde::Deserializer<'de>,
+    {
         struct Base64Visitor;
 
         impl<'de> serde::de::Visitor<'de> for Base64Visitor {
@@ -31,13 +35,15 @@ impl Base64Slice {
                 write!(formatter, "base64 ASCII text")
             }
 
-            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E> where
-                    E: serde::de::Error, {
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
                 let mut ret = [0; 32];
-                let vec = base64::decode_config(v, base64::URL_SAFE).map_err(serde::de::Error::custom)?;
+                let vec =
+                    base64::decode_config(v, base64::URL_SAFE).map_err(serde::de::Error::custom)?;
                 ret.copy_from_slice(&vec[..]);
                 Ok(ret)
-
             }
         }
 

@@ -41,11 +41,7 @@ impl fmt::Display for Error {
                 "I could not find a repository tracking this path: {:?}",
                 p
             ),
-            Error::RepoExists(p) => write!(
-                f,
-                "There is already a repository in {:?}",
-                p
-            ),
+            Error::RepoExists(p) => write!(f, "There is already a repository in {:?}", p),
             Error::MissingDep(id) => write!(f, "Missing a dependency: {}", id.filename()),
             Error::NoParent(p) => write!(f, "I could not find the parent directory of: {:?}", p),
             Error::NoFilename(p) => write!(f, "This path didn't end in a filename: {:?}", p),

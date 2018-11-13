@@ -1,9 +1,16 @@
+#[cfg(test)]
+#[macro_use]
+extern crate proptest;
+
 use itertools::Itertools;
 use std::collections::HashSet;
 use std::hash::Hash;
 
 pub mod dfs;
+pub mod partition;
 pub mod tarjan;
+
+pub use crate::partition::Partition;
 
 pub trait Edge<N> {
     fn target(&self) -> N;
@@ -15,8 +22,7 @@ impl<N: Copy> Edge<N> for N {
     }
 }
 
-pub trait Graph<'a>: 'a
-{
+pub trait Graph<'a>: 'a {
     type Node: Copy + Eq + Hash;
     type Edge: Copy + Eq + Edge<Self::Node>;
     type NodesIter: Iterator<Item = Self::Node> + 'a;
@@ -26,20 +32,50 @@ pub trait Graph<'a>: 'a
     fn out_edges(&'a self, u: &Self::Node) -> Self::EdgesIter;
     fn in_edges(&'a self, u: &Self::Node) -> Self::EdgesIter;
 
-    fn out_neighbors(&'a self, u: &Self::Node) -> std::iter::Map<Self::EdgesIter, fn(Self::Edge) -> Self::Node> {
-        self.out_edges(u).map((|e| e.target()) as fn(Self::Edge) -> Self::Node)
+    fn out_neighbors(
+        &'a self,
+        u: &Self::Node,
+    ) -> std::iter::Map<Self::EdgesIter, fn(Self::Edge) -> Self::Node> {
+        self.out_edges(u)
+            .map((|e| e.target()) as fn(Self::Edge) -> Self::Node)
     }
 
-    fn in_neighbors(&'a self, u: &Self::Node) -> std::iter::Map<Self::EdgesIter, fn(Self::Edge) -> Self::Node> {
-        self.in_edges(u).map((|e| e.target()) as fn(Self::Edge) -> Self::Node)
+    fn in_neighbors(
+        &'a self,
+        u: &Self::Node,
+    ) -> std::iter::Map<Self::EdgesIter, fn(Self::Edge) -> Self::Node> {
+        self.in_edges(u)
+            .map((|e| e.target()) as fn(Self::Edge) -> Self::Node)
     }
 
     fn dfs(&'a self) -> dfs::Dfs<'a, Self> {
         dfs::Dfs::new(self)
     }
 
-    fn tarjan(&'a self) -> tarjan::Decomposition<'a, Self> {
-        tarjan::Decomposition::from_graph(self)
+    fn tarjan(&'a self) -> Partition<'a, Self> {
+        tarjan::Tarjan::from_graph(self).run()
+    }
+
+    fn weak_components(&'a self) -> Partition<'a, Self> {
+        unimplemented!()
+    }
+
+    /// Returns the graph that has edges in both directions for every edge that this graph has in
+    /// one direction.
+    fn doubled(&'a self) -> Doubled<'a, Self> {
+        Doubled { graph: self }
+    }
+
+    /// Returns the subgraph of this graph that is induced by the set of nodes for which
+    /// `predicate` returns `true`.
+    fn node_filtered<F>(&'a self, predicate: F) -> NodeFiltered<'a, Self, F>
+    where
+        F: Fn(&Self::Node) -> bool
+    {
+        NodeFiltered {
+            predicate,
+            graph: self,
+        }
     }
 
     /// If this graph is acyclic, returns a topological sort of the vertices. Otherwise, returns
@@ -101,22 +137,21 @@ pub trait Graph<'a>: 'a
 #[derive(Clone, Copy, Debug)]
 pub struct NodeFiltered<'a, G, F>
 where
-    G: Graph<'a>,
+    G: Graph<'a> + ?Sized,
     F: Fn(&G::Node) -> bool + 'a,
 {
     predicate: F,
-    graph: G,
-    marker: std::marker::PhantomData<&'a ()>,
+    graph: &'a G,
 }
 
-impl<'a, G, F> Graph<'a> for NodeFiltered<'a, G, F> 
+impl<'a, G, F> Graph<'a> for NodeFiltered<'a, G, F>
 where
-    G: Graph<'a>,
+    G: Graph<'a> + ?Sized,
     F: Fn(&G::Node) -> bool + 'a,
 {
-    // TODO: unbox this once there is the appropriate support for impl trait
     type Node = G::Node;
     type Edge = G::Edge;
+    // TODO: unbox this once there is the appropriate support for impl trait
     type NodesIter = Box<Iterator<Item = Self::Node> + 'a>;
     type EdgesIter = Box<Iterator<Item = Self::Edge> + 'a>;
 
@@ -125,17 +160,53 @@ where
     }
 
     fn out_edges(&'a self, u: &Self::Node) -> Self::EdgesIter {
-        Box::new(self.graph.out_edges(u).filter(move |e| (self.predicate)(&e.target())))
+        Box::new(
+            self.graph
+                .out_edges(u)
+                .filter(move |e| (self.predicate)(&e.target())),
+        )
     }
 
     fn in_edges(&'a self, u: &Self::Node) -> Self::EdgesIter {
-        Box::new(self.graph.in_edges(u).filter(move |e| (self.predicate)(&e.target())))
+        Box::new(
+            self.graph
+                .in_edges(u)
+                .filter(move |e| (self.predicate)(&e.target())),
+        )
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Doubled<'a, G: Graph<'a> + ?Sized> {
+    graph: &'a G,
+}
+
+impl<'a, G> Graph<'a> for Doubled<'a, G>
+where
+    G: Graph<'a> + ?Sized,
+{
+    type Node = G::Node;
+    type Edge = G::Edge;
+    type NodesIter = G::NodesIter;
+    type EdgesIter = std::iter::Chain<G::EdgesIter, G::EdgesIter>;
+
+    fn nodes(&'a self) -> Self::NodesIter {
+        self.graph.nodes()
+    }
+
+    fn out_edges(&'a self, u: &Self::Node) -> Self::EdgesIter {
+        self.graph.out_edges(u).chain(self.graph.in_edges(u))
+    }
+
+    fn in_edges(&'a self, u: &Self::Node) -> Self::EdgesIter {
+        self.out_edges(u)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::Graph;
+    use proptest::prelude::*;
 
     #[derive(Clone, Debug)]
     pub struct Node {
@@ -147,6 +218,12 @@ mod tests {
     pub struct GraphData {
         nodes: Vec<Node>,
         ids: Vec<u32>,
+    }
+
+    impl GraphData {
+        fn has_edge(&self, u: u32, v: u32) -> bool {
+            self.nodes[u as usize].next.iter().any(|x| *x == v)
+        }
     }
 
     impl<'a> Graph<'a> for GraphData {
@@ -237,4 +314,60 @@ mod tests {
     );
     linear_order_test!(linear_order_cycle, "0-1, 1-2, 2-3, 3-1", None);
     linear_order_test!(linear_order_tree, "0-2, 2-3, 1-3", None);
+
+    // A strategy for generating arbitrary graphs (with up to 20 nodes and up to 40 edges).
+    prop_compose! {
+        fn graph_data()
+        (size in 1u32..20)
+        (edges in proptest::collection::vec((0..size, 0..size), 1..40), size in Just(size))
+        -> GraphData {
+            let mut ret = GraphData {
+                ids: (0..size).collect(),
+                nodes: vec![Node { prev: vec![], next: vec![] }; size as usize],
+            };
+            for (u, v) in edges {
+                ret.nodes[u as usize].next.push(v);
+                ret.nodes[v as usize].prev.push(u);
+            }
+            ret
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn top_sort_proptest(ref g in graph_data()) {
+            if let Some(sort) = g.top_sort() {
+                for i in 0..sort.len() {
+                    for j in (i+1)..sort.len() {
+                        let u = sort[i];
+                        let v = sort[j];
+                        // v appears after u in the topological sort, so there must not be any
+                        // edge from v to u.
+                        assert!(!g.has_edge(v, u));
+                    }
+                }
+            }
+        }
+
+        #[test]
+        fn doubled_proptest(ref g in graph_data()) {
+            let d = g.doubled();
+
+            // Every edge of the original graph appears in both directions in the doubled graph.
+            for u in g.nodes() {
+                for v in g.out_neighbors(&u) {
+                    assert!(d.out_neighbors(&u).any(|x| x == v));
+                    assert!(d.in_neighbors(&u).any(|x| x == v));
+                }
+            }
+
+            // Every edge of the doubled graph appears in at least one direction in the original.
+            for u in d.nodes() {
+                for v in d.out_neighbors(&u) {
+                    assert!(g.out_neighbors(&u).any(|x| x == v)
+                        || g.in_neighbors(&u).any(|x| x == v));
+                }
+            }
+        }
+    }
 }

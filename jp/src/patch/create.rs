@@ -30,8 +30,7 @@ pub fn run(m: &ArgMatches) -> Result<(), Error> {
         let patch = UnidentifiedPatch::new(author.to_owned(), msg.to_owned(), changes);
 
         // Write the patch to a temporary file, and get back the identified patch.
-        let mut out =
-            tempfile::NamedTempFile::new_in(&repo.patch_dir)
+        let mut out = tempfile::NamedTempFile::new_in(&repo.patch_dir)
             .context("trying to create a named temp file")?;
         let patch = patch.write_out(&mut out)?;
 

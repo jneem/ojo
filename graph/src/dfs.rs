@@ -10,15 +10,8 @@ pub enum Status {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Visit<N> {
-    Edge {
-        src: N,
-        dst: N,
-        status: Status,
-    },
-    Retreat {
-        u: N,
-        parent: Option<N>,
-    },
+    Edge { src: N, dst: N, status: Status },
+    Retreat { u: N, parent: Option<N> },
     Root(N),
 }
 
@@ -114,8 +107,8 @@ impl<'a, G: Graph<'a> + ?Sized> Iterator for Dfs<'a, G> {
 mod tests {
     use super::Status::*;
     use super::Visit::*;
-    use crate::Graph;
     use crate::tests::graph;
+    use crate::Graph;
 
     macro_rules! dfs_test {
         ($name:ident, $graph:expr, $expected:expr) => {
@@ -160,10 +153,7 @@ mod tests {
                 u: 2,
                 parent: Some(0)
             },
-            Retreat {
-                u: 0,
-                parent: None
-            },
+            Retreat { u: 0, parent: None },
         ]
     );
 
@@ -195,10 +185,7 @@ mod tests {
                 dst: 2,
                 status: Repeated
             },
-            Retreat {
-                u: 0,
-                parent: None
-            },
+            Retreat { u: 0, parent: None },
         ]
     );
 }

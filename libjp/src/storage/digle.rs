@@ -1,5 +1,5 @@
 use multimap::MMap;
-use std::collections::{BTreeSet as Set};
+use std::collections::BTreeSet as Set;
 
 use crate::LineId;
 
@@ -104,9 +104,7 @@ impl<'a> Digle<'a> {
 
 impl<'a> From<&'a DigleData> for Digle<'a> {
     fn from(d: &'a DigleData) -> Digle<'a> {
-        Digle {
-            data: d,
-        }
+        Digle { data: d }
     }
 }
 
@@ -253,9 +251,7 @@ impl<'a> DigleMut<'a> {
 
 impl<'a> From<&'a mut DigleData> for DigleMut<'a> {
     fn from(d: &'a mut DigleData) -> DigleMut<'a> {
-        DigleMut {
-            data: d,
-        }
+        DigleMut { data: d }
     }
 }
 
@@ -267,7 +263,13 @@ impl<'a> graph::Graph<'a> for Digle<'a> {
     type EdgesIter = Box<dyn Iterator<Item = LineId> + 'a>;
 
     fn nodes(&'a self) -> Self::NodesIter {
-        Box::new(self.data.lines.iter().chain(self.data.deleted_lines.iter()).cloned())
+        Box::new(
+            self.data
+                .lines
+                .iter()
+                .chain(self.data.deleted_lines.iter())
+                .cloned(),
+        )
     }
 
     fn out_edges(&'a self, u: &LineId) -> Self::EdgesIter {
@@ -278,5 +280,3 @@ impl<'a> graph::Graph<'a> for Digle<'a> {
         Box::new(self.all_in_edges(u).map(|e| &e.dest).cloned())
     }
 }
-
-
