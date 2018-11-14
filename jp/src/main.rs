@@ -68,7 +68,7 @@ fn open_repo() -> Result<libjp::Repo, Error> {
     }
 }
 
-fn branch(repo: &Repo, m: &ArgMatches) -> String {
+fn branch(repo: &Repo, m: &ArgMatches<'_>) -> String {
     m.value_of("branch")
         .unwrap_or(&repo.current_branch)
         .to_owned()

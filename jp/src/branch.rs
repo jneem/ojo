@@ -1,7 +1,7 @@
 use clap::ArgMatches;
 use failure::Error;
 
-pub fn run(m: &ArgMatches) -> Result<(), Error> {
+pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     match m.subcommand_name() {
         Some("clone") => clone_run(m.subcommand_matches("clone").unwrap()),
         Some("delete") => delete_run(m.subcommand_matches("delete").unwrap()),
@@ -12,7 +12,7 @@ pub fn run(m: &ArgMatches) -> Result<(), Error> {
     }
 }
 
-fn clone_run(m: &ArgMatches) -> Result<(), Error> {
+fn clone_run(m: &ArgMatches<'_>) -> Result<(), Error> {
     // The unwrap is ok, because NAME is a required argument.
     let name = m.value_of("NAME").unwrap();
     let mut repo = crate::open_repo()?;
@@ -23,7 +23,7 @@ fn clone_run(m: &ArgMatches) -> Result<(), Error> {
     Ok(())
 }
 
-fn delete_run(m: &ArgMatches) -> Result<(), Error> {
+fn delete_run(m: &ArgMatches<'_>) -> Result<(), Error> {
     // The unwrap is ok, because NAME is a required argument.
     let name = m.value_of("NAME").unwrap();
     let mut repo = crate::open_repo()?;
@@ -33,7 +33,7 @@ fn delete_run(m: &ArgMatches) -> Result<(), Error> {
     Ok(())
 }
 
-fn list_run(_m: &ArgMatches) -> Result<(), Error> {
+fn list_run(_m: &ArgMatches<'_>) -> Result<(), Error> {
     let repo = crate::open_repo()?;
     let mut branches = repo.storage().branches().collect::<Vec<_>>();
     branches.sort();
@@ -47,7 +47,7 @@ fn list_run(_m: &ArgMatches) -> Result<(), Error> {
     Ok(())
 }
 
-fn new_run(m: &ArgMatches) -> Result<(), Error> {
+fn new_run(m: &ArgMatches<'_>) -> Result<(), Error> {
     // The unwrap is ok, because NAME is a required argument.
     let name = m.value_of("NAME").unwrap();
     let mut repo = crate::open_repo()?;
@@ -57,7 +57,7 @@ fn new_run(m: &ArgMatches) -> Result<(), Error> {
     Ok(())
 }
 
-fn switch_run(m: &ArgMatches) -> Result<(), Error> {
+fn switch_run(m: &ArgMatches<'_>) -> Result<(), Error> {
     // The unwrap is ok, because NAME is a required argument.
     let name = m.value_of("NAME").unwrap();
     let mut repo = crate::open_repo()?;

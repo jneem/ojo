@@ -31,7 +31,7 @@ impl Base64Slice {
         impl<'de> serde::de::Visitor<'de> for Base64Visitor {
             type Value = [u8; 32];
 
-            fn expecting(&self, formatter: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+            fn expecting(&self, formatter: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
                 write!(formatter, "base64 ASCII text")
             }
 

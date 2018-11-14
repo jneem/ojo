@@ -164,11 +164,11 @@ impl Patch {
         self.changes.unstore_new_contents(storage)
     }
 
-    pub fn apply_to_digle(&self, digle: &mut DigleMut) {
+    pub fn apply_to_digle(&self, digle: &mut DigleMut<'_>) {
         self.changes.apply_to_digle(digle)
     }
 
-    pub fn unapply_to_digle(&self, digle: &mut DigleMut) {
+    pub fn unapply_to_digle(&self, digle: &mut DigleMut<'_>) {
         self.changes.unapply_to_digle(digle)
     }
 

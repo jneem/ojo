@@ -13,7 +13,7 @@ pub struct Diff {
 }
 
 impl fmt::Display for Diff {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         for &ch in &self.changes {
             match ch {
                 LineDiff::New(i) => {
@@ -57,7 +57,7 @@ pub fn diff(repo: &Repo) -> Result<Diff, Error> {
     }
 }
 
-pub fn run(_m: &ArgMatches) -> Result<(), Error> {
+pub fn run(_m: &ArgMatches<'_>) -> Result<(), Error> {
     let repo = super::open_repo()?;
 
     let diff = diff(&repo)?;

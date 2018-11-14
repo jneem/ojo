@@ -5,7 +5,7 @@ use libjp::storage;
 use libjp::Changes;
 use std::io::prelude::*;
 
-pub fn run(m: &ArgMatches) -> Result<(), Error> {
+pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     // The unwraps are ok because these are required arguments.
     let msg = m.value_of("description").unwrap();
     let author = m.value_of("author").unwrap();

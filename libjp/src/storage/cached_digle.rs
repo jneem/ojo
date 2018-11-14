@@ -37,7 +37,7 @@ impl CachedDigleData {
     ///
     /// In most cases, it should probably be faster to use the incremental updates, but this is
     /// useful for initial construction and also for testing.
-    pub fn from_digle(digle: Digle) -> CachedDigleData {
+    pub fn from_digle(_digle: Digle<'_>) -> CachedDigleData {
         unimplemented!()
     }
 }

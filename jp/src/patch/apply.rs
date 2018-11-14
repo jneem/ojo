@@ -2,7 +2,7 @@ use clap::ArgMatches;
 use failure::Error;
 use libjp::PatchId;
 
-pub fn run(m: &ArgMatches) -> Result<(), Error> {
+pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     // The unwrap is ok because this is a required argument.
     let patch_id = m.value_of("PATCH").unwrap();
     let patch_id = PatchId::from_filename(patch_id)?;

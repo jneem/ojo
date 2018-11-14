@@ -5,7 +5,7 @@ use libjp::LineId;
 use std::fs::File;
 use std::io::prelude::*;
 
-pub fn run(m: &ArgMatches) -> Result<(), Error> {
+pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     let output = m.value_of("out").unwrap_or("out.dot");
     let repo = super::open_repo()?;
     let inode = repo.storage().inode("master").unwrap();

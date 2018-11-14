@@ -71,7 +71,7 @@ impl Changes {
         Changes { changes }
     }
 
-    pub fn apply_to_digle(&self, digle: &mut DigleMut) {
+    pub fn apply_to_digle(&self, digle: &mut DigleMut<'_>) {
         for ch in &self.changes {
             match *ch {
                 Change::NewNode { ref id, .. } => digle.add_node(id.clone()),
@@ -81,7 +81,7 @@ impl Changes {
         }
     }
 
-    pub fn unapply_to_digle(&self, digle: &mut DigleMut) {
+    pub fn unapply_to_digle(&self, digle: &mut DigleMut<'_>) {
         // Because of the requirements of `unadd_edge`, we need to unadd all edges before we unadd
         // all nodes.
         for ch in &self.changes {

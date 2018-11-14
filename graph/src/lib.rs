@@ -27,18 +27,18 @@ pub trait Graph {
     type Edge: Copy + Eq + Edge<Self::Node>;
 
     // Once impl iterator is available in traits, unbox these.
-    fn nodes<'a>(&'a self) -> Box<Iterator<Item=Self::Node> + 'a>;
-    fn out_edges<'a>(&'a self, u: &Self::Node) -> Box<Iterator<Item=Self::Edge> + 'a>;
-    fn in_edges<'a>(&'a self, u: &Self::Node) -> Box<Iterator<Item=Self::Edge> + 'a>;
+    fn nodes<'a>(&'a self) -> Box<dyn Iterator<Item=Self::Node> + 'a>;
+    fn out_edges<'a>(&'a self, u: &Self::Node) -> Box<dyn Iterator<Item=Self::Edge> + 'a>;
+    fn in_edges<'a>(&'a self, u: &Self::Node) -> Box<dyn Iterator<Item=Self::Edge> + 'a>;
 
     fn out_neighbors<'a>(&'a self, u: &Self::Node)
-    -> std::iter::Map<Box<Iterator<Item=Self::Edge> + 'a>, fn(Self::Edge) -> Self::Node> {
+    -> std::iter::Map<Box<dyn Iterator<Item=Self::Edge> + 'a>, fn(Self::Edge) -> Self::Node> {
         self.out_edges(u)
             .map((|e| e.target()) as fn(Self::Edge) -> Self::Node)
     }
 
     fn in_neighbors<'a>(&'a self, u: &Self::Node)
-    -> std::iter::Map<Box<Iterator<Item=Self::Edge> + 'a>, fn(Self::Edge) -> Self::Node> {
+    -> std::iter::Map<Box<dyn Iterator<Item=Self::Edge> + 'a>, fn(Self::Edge) -> Self::Node> {
         self.in_edges(u)
             .map((|e| e.target()) as fn(Self::Edge) -> Self::Node)
     }
@@ -170,11 +170,11 @@ where
     type Node = G::Node;
     type Edge = G::Edge;
 
-    fn nodes<'b>(&'b self) -> Box<Iterator<Item=G::Node> + 'b> {
+    fn nodes<'b>(&'b self) -> Box<dyn Iterator<Item=G::Node> + 'b> {
         Box::new(self.graph.nodes().filter(move |n| (self.predicate)(n)))
     }
 
-    fn out_edges<'b>(&'b self, u: &Self::Node) -> Box<Iterator<Item=G::Edge> + 'b> {
+    fn out_edges<'b>(&'b self, u: &Self::Node) -> Box<dyn Iterator<Item=G::Edge> + 'b> {
         Box::new(
             self.graph
                 .out_edges(u)
@@ -182,7 +182,7 @@ where
         )
     }
 
-    fn in_edges<'b>(&'b self, u: &Self::Node) -> Box<Iterator<Item=G::Edge> + 'b> {
+    fn in_edges<'b>(&'b self, u: &Self::Node) -> Box<dyn Iterator<Item=G::Edge> + 'b> {
         Box::new(
             self.graph
                 .in_edges(u)
@@ -203,15 +203,15 @@ where
     type Node = G::Node;
     type Edge = G::Edge;
 
-    fn nodes<'b>(&'b self) -> Box<Iterator<Item=G::Node> + 'b> {
+    fn nodes<'b>(&'b self) -> Box<dyn Iterator<Item=G::Node> + 'b> {
         self.graph.nodes()
     }
 
-    fn out_edges<'b>(&'b self, u: &Self::Node) -> Box<Iterator<Item=G::Edge> + 'b> {
+    fn out_edges<'b>(&'b self, u: &Self::Node) -> Box<dyn Iterator<Item=G::Edge> + 'b> {
         Box::new(self.graph.out_edges(u).chain(self.graph.in_edges(u)))
     }
 
-    fn in_edges<'b>(&'b self, u: &Self::Node) -> Box<Iterator<Item=G::Edge> + 'b> {
+    fn in_edges<'b>(&'b self, u: &Self::Node) -> Box<dyn Iterator<Item=G::Edge> + 'b> {
         self.out_edges(u)
     }
 }
@@ -243,15 +243,15 @@ mod tests {
         type Node = u32;
         type Edge = u32;
 
-        fn nodes<'a>(&'a self) -> Box<Iterator<Item=u32> + 'a> {
+        fn nodes<'a>(&'a self) -> Box<dyn Iterator<Item=u32> + 'a> {
             Box::new(self.ids.iter().cloned())
         }
 
-        fn out_edges<'a>(&'a self, u: &u32) -> Box<Iterator<Item=u32> + 'a> {
+        fn out_edges<'a>(&'a self, u: &u32) -> Box<dyn Iterator<Item=u32> + 'a> {
             Box::new(self.nodes[*u as usize].next.iter().cloned())
         }
 
-        fn in_edges<'a>(&'a self, u: &u32) -> Box<Iterator<Item=u32> + 'a> {
+        fn in_edges<'a>(&'a self, u: &u32) -> Box<dyn Iterator<Item=u32> + 'a> {
             Box::new(self.nodes[*u as usize].prev.iter().cloned())
         }
     }

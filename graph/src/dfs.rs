@@ -23,7 +23,7 @@ pub enum Visit<N> {
 // one loses information about which edges we're traversing.)
 struct StackFrame<'a, G: Graph + ?Sized> {
     u: G::Node,
-    neighbors: Box<Iterator<Item = G::Edge> + 'a>,
+    neighbors: Box<dyn Iterator<Item = G::Edge> + 'a>,
 }
 
 impl<'a, G: Graph + ?Sized> StackFrame<'a, G> {
@@ -39,7 +39,7 @@ pub struct Dfs<'a, G: Graph + ?Sized> {
     g: &'a G,
     visited: HashSet<G::Node>,
     stack: Vec<StackFrame<'a, G>>,
-    roots: Box<Iterator<Item = G::Node> + 'a>,
+    roots: Box<dyn Iterator<Item = G::Node> + 'a>,
 }
 
 impl<'a, G: Graph + ?Sized> Dfs<'a, G> {

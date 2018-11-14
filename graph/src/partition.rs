@@ -33,11 +33,11 @@ impl<'a, G: Graph + ?Sized> Graph for Partition<'a, G> {
     type Node = usize;
     type Edge = usize;
 
-    fn nodes<'b>(&'b self) -> Box<Iterator<Item = usize>> {
+    fn nodes<'b>(&'b self) -> Box<dyn Iterator<Item = usize>> {
         Box::new(0..self.num_components())
     }
 
-    fn out_edges<'b>(&'b self, u: &usize) -> Box<Iterator<Item = usize>> {
+    fn out_edges<'b>(&'b self, u: &usize) -> Box<dyn Iterator<Item = usize>> {
         let mut neighbors = self.sets[*u]
             .iter()
             .flat_map(|u| self.g.out_neighbors(u))
@@ -48,7 +48,7 @@ impl<'a, G: Graph + ?Sized> Graph for Partition<'a, G> {
         Box::new(neighbors.into_iter())
     }
 
-    fn in_edges<'b>(&'b self, u: &usize) -> Box<Iterator<Item = usize>> {
+    fn in_edges<'b>(&'b self, u: &usize) -> Box<dyn Iterator<Item = usize>> {
         let mut neighbors = self.sets[*u]
             .iter()
             .flat_map(|u| self.g.out_neighbors(u))
