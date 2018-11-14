@@ -22,53 +22,71 @@ impl<N: Copy> Edge<N> for N {
     }
 }
 
-pub trait Graph<'a>: 'a {
+pub trait Graph {
     type Node: Copy + Eq + Hash;
     type Edge: Copy + Eq + Edge<Self::Node>;
-    type NodesIter: Iterator<Item = Self::Node> + 'a;
-    type EdgesIter: Iterator<Item = Self::Edge> + 'a;
 
-    fn nodes(&'a self) -> Self::NodesIter;
-    fn out_edges(&'a self, u: &Self::Node) -> Self::EdgesIter;
-    fn in_edges(&'a self, u: &Self::Node) -> Self::EdgesIter;
+    // Once impl iterator is available in traits, unbox these.
+    fn nodes<'a>(&'a self) -> Box<Iterator<Item=Self::Node> + 'a>;
+    fn out_edges<'a>(&'a self, u: &Self::Node) -> Box<Iterator<Item=Self::Edge> + 'a>;
+    fn in_edges<'a>(&'a self, u: &Self::Node) -> Box<Iterator<Item=Self::Edge> + 'a>;
 
-    fn out_neighbors(
-        &'a self,
-        u: &Self::Node,
-    ) -> std::iter::Map<Self::EdgesIter, fn(Self::Edge) -> Self::Node> {
+    fn out_neighbors<'a>(&'a self, u: &Self::Node)
+    -> std::iter::Map<Box<Iterator<Item=Self::Edge> + 'a>, fn(Self::Edge) -> Self::Node> {
         self.out_edges(u)
             .map((|e| e.target()) as fn(Self::Edge) -> Self::Node)
     }
 
-    fn in_neighbors(
-        &'a self,
-        u: &Self::Node,
-    ) -> std::iter::Map<Self::EdgesIter, fn(Self::Edge) -> Self::Node> {
+    fn in_neighbors<'a>(&'a self, u: &Self::Node)
+    -> std::iter::Map<Box<Iterator<Item=Self::Edge> + 'a>, fn(Self::Edge) -> Self::Node> {
         self.in_edges(u)
             .map((|e| e.target()) as fn(Self::Edge) -> Self::Node)
     }
 
-    fn dfs(&'a self) -> dfs::Dfs<'a, Self> {
+    fn dfs<'a>(&'a self) -> dfs::Dfs<'a, Self> {
         dfs::Dfs::new(self)
     }
 
-    fn tarjan(&'a self) -> Partition<'a, Self> {
+    fn tarjan<'a>(&'a self) -> Partition<'a, Self> {
         tarjan::Tarjan::from_graph(self).run()
     }
 
-    fn weak_components(&'a self) -> Partition<'a, Self> {
-        unimplemented!()
+    fn weak_components<'a>(&'a self) -> Partition<'a, Self> {
+        use self::dfs::Visit;
+
+        let mut cur_component: HashSet<Self::Node> = HashSet::new();
+        let mut components = Vec::new();
+        let doubled = self.doubled();
+        for visit in doubled.dfs() {
+            match visit {
+                Visit::Edge { dst, .. } => {
+                    cur_component.insert(dst);
+                }
+                Visit::Root(u) => {
+                    if !cur_component.is_empty() {
+                        components.push(cur_component);
+                        cur_component = HashSet::new();
+                        cur_component.insert(u);
+                    }
+                }
+                Visit::Retreat { .. } => {}
+            }
+        }
+        if !cur_component.is_empty() {
+            components.push(cur_component);
+        }
+        Partition::new(self, components)
     }
 
     /// Returns the graph that has edges in both directions for every edge that this graph has in
     /// one direction.
-    fn doubled(&'a self) -> Doubled<'a, Self> {
+    fn doubled<'a>(&'a self) -> Doubled<'a, Self> {
         Doubled { graph: self }
     }
 
     /// Returns the subgraph of this graph that is induced by the set of nodes for which
     /// `predicate` returns `true`.
-    fn node_filtered<F>(&'a self, predicate: F) -> NodeFiltered<'a, Self, F>
+    fn node_filtered<'a, F>(&'a self, predicate: F) -> NodeFiltered<'a, Self, F>
     where
         F: Fn(&Self::Node) -> bool
     {
@@ -80,7 +98,7 @@ pub trait Graph<'a>: 'a {
 
     /// If this graph is acyclic, returns a topological sort of the vertices. Otherwise, returns
     /// `None`.
-    fn top_sort(&'a self) -> Option<Vec<Self::Node>> {
+    fn top_sort<'a>(&'a self) -> Option<Vec<Self::Node>> {
         use self::dfs::Visit;
 
         let mut visiting = HashSet::new();
@@ -117,7 +135,7 @@ pub trait Graph<'a>: 'a {
         Some(top_sort)
     }
 
-    fn linear_order(&'a self) -> Option<Vec<Self::Node>> {
+    fn linear_order<'a>(&'a self) -> Option<Vec<Self::Node>> {
         if let Some(top) = self.top_sort() {
             // A graph has a linear order if and only if it has a unique topological sort. A
             // topological sort is unique if and only if every node in it has an edge pointing to
@@ -137,29 +155,26 @@ pub trait Graph<'a>: 'a {
 #[derive(Clone, Copy, Debug)]
 pub struct NodeFiltered<'a, G, F>
 where
-    G: Graph<'a> + ?Sized,
+    G: Graph + ?Sized,
     F: Fn(&G::Node) -> bool + 'a,
 {
     predicate: F,
     graph: &'a G,
 }
 
-impl<'a, G, F> Graph<'a> for NodeFiltered<'a, G, F>
+impl<'a, G, F> Graph for NodeFiltered<'a, G, F>
 where
-    G: Graph<'a> + ?Sized,
+    G: Graph + ?Sized,
     F: Fn(&G::Node) -> bool + 'a,
 {
     type Node = G::Node;
     type Edge = G::Edge;
-    // TODO: unbox this once there is the appropriate support for impl trait
-    type NodesIter = Box<Iterator<Item = Self::Node> + 'a>;
-    type EdgesIter = Box<Iterator<Item = Self::Edge> + 'a>;
 
-    fn nodes(&'a self) -> Self::NodesIter {
+    fn nodes<'b>(&'b self) -> Box<Iterator<Item=G::Node> + 'b> {
         Box::new(self.graph.nodes().filter(move |n| (self.predicate)(n)))
     }
 
-    fn out_edges(&'a self, u: &Self::Node) -> Self::EdgesIter {
+    fn out_edges<'b>(&'b self, u: &Self::Node) -> Box<Iterator<Item=G::Edge> + 'b> {
         Box::new(
             self.graph
                 .out_edges(u)
@@ -167,7 +182,7 @@ where
         )
     }
 
-    fn in_edges(&'a self, u: &Self::Node) -> Self::EdgesIter {
+    fn in_edges<'b>(&'b self, u: &Self::Node) -> Box<Iterator<Item=G::Edge> + 'b> {
         Box::new(
             self.graph
                 .in_edges(u)
@@ -177,28 +192,26 @@ where
 }
 
 #[derive(Clone, Debug)]
-pub struct Doubled<'a, G: Graph<'a> + ?Sized> {
+pub struct Doubled<'a, G: Graph + ?Sized> {
     graph: &'a G,
 }
 
-impl<'a, G> Graph<'a> for Doubled<'a, G>
+impl<'a, G> Graph for Doubled<'a, G>
 where
-    G: Graph<'a> + ?Sized,
+    G: Graph + ?Sized,
 {
     type Node = G::Node;
     type Edge = G::Edge;
-    type NodesIter = G::NodesIter;
-    type EdgesIter = std::iter::Chain<G::EdgesIter, G::EdgesIter>;
 
-    fn nodes(&'a self) -> Self::NodesIter {
+    fn nodes<'b>(&'b self) -> Box<Iterator<Item=G::Node> + 'b> {
         self.graph.nodes()
     }
 
-    fn out_edges(&'a self, u: &Self::Node) -> Self::EdgesIter {
-        self.graph.out_edges(u).chain(self.graph.in_edges(u))
+    fn out_edges<'b>(&'b self, u: &Self::Node) -> Box<Iterator<Item=G::Edge> + 'b> {
+        Box::new(self.graph.out_edges(u).chain(self.graph.in_edges(u)))
     }
 
-    fn in_edges(&'a self, u: &Self::Node) -> Self::EdgesIter {
+    fn in_edges<'b>(&'b self, u: &Self::Node) -> Box<Iterator<Item=G::Edge> + 'b> {
         self.out_edges(u)
     }
 }
@@ -226,22 +239,20 @@ mod tests {
         }
     }
 
-    impl<'a> Graph<'a> for GraphData {
+    impl Graph for GraphData {
         type Node = u32;
         type Edge = u32;
-        type NodesIter = std::iter::Cloned<std::slice::Iter<'a, u32>>;
-        type EdgesIter = std::iter::Cloned<std::slice::Iter<'a, u32>>;
 
-        fn nodes(&'a self) -> Self::NodesIter {
-            self.ids.iter().cloned()
+        fn nodes<'a>(&'a self) -> Box<Iterator<Item=u32> + 'a> {
+            Box::new(self.ids.iter().cloned())
         }
 
-        fn out_edges(&'a self, u: &u32) -> Self::EdgesIter {
-            self.nodes[*u as usize].next.iter().cloned()
+        fn out_edges<'a>(&'a self, u: &u32) -> Box<Iterator<Item=u32> + 'a> {
+            Box::new(self.nodes[*u as usize].next.iter().cloned())
         }
 
-        fn in_edges(&'a self, u: &u32) -> Self::EdgesIter {
-            self.nodes[*u as usize].prev.iter().cloned()
+        fn in_edges<'a>(&'a self, u: &u32) -> Box<Iterator<Item=u32> + 'a> {
+            Box::new(self.nodes[*u as usize].prev.iter().cloned())
         }
     }
 
@@ -366,6 +377,25 @@ mod tests {
                 for v in d.out_neighbors(&u) {
                     assert!(g.out_neighbors(&u).any(|x| x == v)
                         || g.in_neighbors(&u).any(|x| x == v));
+                }
+            }
+        }
+
+        #[test]
+        fn weak_components_proptest(ref g in graph_data()) {
+            // This is not a complete test of the correctness of weak_components: it checks that
+            // no two parts of the partition have an edge between them, but it doesn't check that
+            // every two elements of a part are weakly connected.
+            let partition = g.weak_components();
+            for part1 in &partition.sets {
+                for part2 in &partition.sets {
+                    if part1 != part2 {
+                        for u in part1 {
+                            for v in part2 {
+                                assert!(!g.has_edge(*u, *v));
+                            }
+                        }
+                    }
                 }
             }
         }

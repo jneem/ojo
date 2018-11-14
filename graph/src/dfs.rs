@@ -21,12 +21,12 @@ pub enum Visit<N> {
 //
 // (There is also a simpler non-recursive way to write DFS (described, e.g. on wikipedia), but that
 // one loses information about which edges we're traversing.)
-struct StackFrame<'a, G: Graph<'a> + ?Sized> {
+struct StackFrame<'a, G: Graph + ?Sized> {
     u: G::Node,
-    neighbors: G::EdgesIter,
+    neighbors: Box<Iterator<Item = G::Edge> + 'a>,
 }
 
-impl<'a, G: Graph<'a> + ?Sized> StackFrame<'a, G> {
+impl<'a, G: Graph + ?Sized> StackFrame<'a, G> {
     fn new(g: &'a G, u: G::Node) -> StackFrame<'a, G> {
         StackFrame {
             neighbors: g.out_edges(&u),
@@ -35,14 +35,14 @@ impl<'a, G: Graph<'a> + ?Sized> StackFrame<'a, G> {
     }
 }
 
-pub struct Dfs<'a, G: Graph<'a> + ?Sized> {
+pub struct Dfs<'a, G: Graph + ?Sized> {
     g: &'a G,
     visited: HashSet<G::Node>,
     stack: Vec<StackFrame<'a, G>>,
-    roots: G::NodesIter,
+    roots: Box<Iterator<Item = G::Node> + 'a>,
 }
 
-impl<'a, G: Graph<'a> + ?Sized> Dfs<'a, G> {
+impl<'a, G: Graph + ?Sized> Dfs<'a, G> {
     pub(crate) fn new(g: &'a G) -> Dfs<'a, G> {
         Dfs {
             g: g,
@@ -66,7 +66,7 @@ impl<'a, G: Graph<'a> + ?Sized> Dfs<'a, G> {
     }
 }
 
-impl<'a, G: Graph<'a> + ?Sized> Iterator for Dfs<'a, G> {
+impl<'a, G: Graph + ?Sized> Iterator for Dfs<'a, G> {
     type Item = Visit<G::Node>;
 
     fn next(&mut self) -> Option<Visit<G::Node>> {

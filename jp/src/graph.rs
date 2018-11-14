@@ -1,6 +1,6 @@
 use clap::ArgMatches;
 use failure::Error;
-use libjp::graph::GraphRef;
+use graph::Graph;
 use libjp::LineId;
 use std::fs::File;
 use std::io::prelude::*;
@@ -15,9 +15,9 @@ pub fn run(m: &ArgMatches) -> Result<(), Error> {
     let node_id = |n: &LineId| format!("{}:{}", &n.patch.filename()[1..8], n.line);
     writeln!(output, "digraph {{")?;
     for node in digle.nodes() {
-        let id = node_id(node);
+        let id = node_id(&node);
 
-        let mut label = String::from_utf8_lossy(repo.storage().contents(node)).to_string();
+        let mut label = String::from_utf8_lossy(repo.storage().contents(&node)).to_string();
         label.push('\n');
         label.push_str(&id);
 
@@ -29,13 +29,13 @@ pub fn run(m: &ArgMatches) -> Result<(), Error> {
         writeln!(
             output,
             "\"{}\" [style={},label={:?}];",
-            node_id(node),
+            node_id(&node),
             style,
             label
         )?;
-        for nbr in digle.out_neighbors(node) {
-            let nbr_id = node_id(nbr);
-            writeln!(output, "\"{}\" -> \"{}\";", id, nbr_id);
+        for nbr in digle.out_neighbors(&node) {
+            let nbr_id = node_id(&nbr);
+            writeln!(output, "\"{}\" -> \"{}\";", id, nbr_id)?;
         }
     }
     writeln!(output, "}}")?;

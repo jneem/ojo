@@ -6,14 +6,14 @@ use crate::Graph;
 ///
 /// Tarjan's algorithm decomposes a directed graph into strongly connected components.  Moreover,
 /// those components are ordered topologically.
-pub struct Partition<'a, G: Graph<'a> + ?Sized> {
+pub struct Partition<'a, G: Graph + ?Sized> {
     g: &'a G,
     // TODO: make private and provide accessor.
     pub(crate) sets: Vec<HashSet<G::Node>>,
     node_map: HashMap<G::Node, usize>,
 }
 
-impl<'a, G: Graph<'a> + ?Sized> Partition<'a, G> {
+impl<'a, G: Graph + ?Sized> Partition<'a, G> {
     pub(crate) fn new(g: &'a G, sets: Vec<HashSet<G::Node>>) -> Partition<'a, G> {
         let mut node_map = HashMap::new();
         for (i, component) in sets.iter().enumerate() {
@@ -29,17 +29,15 @@ impl<'a, G: Graph<'a> + ?Sized> Partition<'a, G> {
     }
 }
 
-impl<'a, G: Graph<'a> + ?Sized> Graph<'a> for Partition<'a, G> {
+impl<'a, G: Graph + ?Sized> Graph for Partition<'a, G> {
     type Node = usize;
     type Edge = usize;
-    type NodesIter = std::ops::Range<usize>;
-    type EdgesIter = std::vec::IntoIter<usize>;
 
-    fn nodes(&'a self) -> Self::NodesIter {
-        0..self.num_components()
+    fn nodes<'b>(&'b self) -> Box<Iterator<Item = usize>> {
+        Box::new(0..self.num_components())
     }
 
-    fn out_edges(&'a self, u: &usize) -> Self::EdgesIter {
+    fn out_edges<'b>(&'b self, u: &usize) -> Box<Iterator<Item = usize>> {
         let mut neighbors = self.sets[*u]
             .iter()
             .flat_map(|u| self.g.out_neighbors(u))
@@ -47,10 +45,10 @@ impl<'a, G: Graph<'a> + ?Sized> Graph<'a> for Partition<'a, G> {
             .collect::<Vec<_>>();
         neighbors.sort_unstable();
         neighbors.dedup();
-        neighbors.into_iter()
+        Box::new(neighbors.into_iter())
     }
 
-    fn in_edges(&'a self, u: &usize) -> Self::EdgesIter {
+    fn in_edges<'b>(&'b self, u: &usize) -> Box<Iterator<Item = usize>> {
         let mut neighbors = self.sets[*u]
             .iter()
             .flat_map(|u| self.g.out_neighbors(u))
@@ -58,8 +56,6 @@ impl<'a, G: Graph<'a> + ?Sized> Graph<'a> for Partition<'a, G> {
             .collect::<Vec<_>>();
         neighbors.sort_unstable();
         neighbors.dedup();
-        neighbors.into_iter()
+        Box::new(neighbors.into_iter())
     }
 }
-
-

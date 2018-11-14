@@ -255,14 +255,11 @@ impl<'a> From<&'a mut DigleData> for DigleMut<'a> {
     }
 }
 
-impl<'a> graph::Graph<'a> for Digle<'a> {
+impl<'a> graph::Graph for Digle<'a> {
     type Node = LineId;
     type Edge = LineId;
-    // TODO: once impl Trait return types are nameable, unbox these
-    type NodesIter = Box<dyn Iterator<Item = LineId> + 'a>;
-    type EdgesIter = Box<dyn Iterator<Item = LineId> + 'a>;
 
-    fn nodes(&'a self) -> Self::NodesIter {
+    fn nodes<'b>(&'b self) -> Box<dyn Iterator<Item=Self::Node> + 'b> {
         Box::new(
             self.data
                 .lines
@@ -272,11 +269,11 @@ impl<'a> graph::Graph<'a> for Digle<'a> {
         )
     }
 
-    fn out_edges(&'a self, u: &LineId) -> Self::EdgesIter {
+    fn out_edges<'b>(&'b self, u: &LineId) -> Box<dyn Iterator<Item=Self::Node> + 'b> {
         Box::new(self.all_out_edges(u).map(|e| &e.dest).cloned())
     }
 
-    fn in_edges(&'a self, u: &LineId) -> Self::EdgesIter {
+    fn in_edges<'b>(&'b self, u: &LineId) -> Box<dyn Iterator<Item=Self::Node> + 'b> {
         Box::new(self.all_in_edges(u).map(|e| &e.dest).cloned())
     }
 }

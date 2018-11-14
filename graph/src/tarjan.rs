@@ -20,7 +20,7 @@ impl NodeState {
     }
 }
 
-pub(crate) struct Tarjan<'a, G: Graph<'a> + ?Sized> {
+pub(crate) struct Tarjan<'a, G: Graph + ?Sized> {
     g: &'a G,
     dfs: Dfs<'a, G>,
     stack: Vec<G::Node>,
@@ -28,7 +28,7 @@ pub(crate) struct Tarjan<'a, G: Graph<'a> + ?Sized> {
     next_index: usize,
 }
 
-impl<'a, G: Graph<'a> + ?Sized> Tarjan<'a, G> {
+impl<'a, G: Graph + ?Sized> Tarjan<'a, G> {
     pub fn from_graph(g: &'a G) -> Self {
         Tarjan {
             g,
