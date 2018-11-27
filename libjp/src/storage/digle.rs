@@ -45,6 +45,10 @@ pub struct Digle<'a> {
 }
 
 impl<'a> Digle<'a> {
+    pub fn lines<'b>(&'b self) -> impl Iterator<Item = LineId> + 'b {
+        self.data.lines.iter().cloned()
+    }
+
     pub fn out_edges<'b>(&'b self, line: &LineId) -> impl Iterator<Item = &'b Edge> + 'b {
         self.data.edges.get(line).take_while(|e| !e.deleted)
     }

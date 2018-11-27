@@ -8,8 +8,7 @@ use crate::Graph;
 /// those components are ordered topologically.
 pub struct Partition<'a, G: Graph + ?Sized> {
     g: &'a G,
-    // TODO: make private and provide accessor.
-    pub(crate) sets: Vec<HashSet<G::Node>>,
+    sets: Vec<HashSet<G::Node>>,
     node_map: HashMap<G::Node, usize>,
 }
 
@@ -26,6 +25,10 @@ impl<'a, G: Graph + ?Sized> Partition<'a, G> {
 
     pub fn num_components(&self) -> usize {
         self.sets.len()
+    }
+
+    pub fn parts<'b>(&'b self) -> impl Iterator<Item=&'b HashSet<G::Node>> {
+        self.sets.iter()
     }
 }
 

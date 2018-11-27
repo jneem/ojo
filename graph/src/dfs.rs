@@ -52,6 +52,15 @@ impl<'a, G: Graph + ?Sized> Dfs<'a, G> {
         }
     }
 
+    pub(crate) fn new_from(g: &'a G, root: &G::Node) -> Dfs<'a, G> {
+        Dfs {
+            g: g,
+            visited: HashSet::new(),
+            stack: Vec::new(),
+            roots: Box::new(Some(*root).into_iter()),
+        }
+    }
+
     fn next_root(&mut self) -> Option<G::Node> {
         while let Some(root) = self.roots.next() {
             if !self.visited.contains(&root) {

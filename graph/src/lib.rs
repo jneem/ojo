@@ -47,6 +47,10 @@ pub trait Graph {
         dfs::Dfs::new(self)
     }
 
+    fn dfs_from<'a>(&'a self, root: &Self::Node) -> dfs::Dfs<'a, Self> {
+        dfs::Dfs::new_from(self, root)
+    }
+
     fn tarjan<'a>(&'a self) -> Partition<'a, Self> {
         tarjan::Tarjan::from_graph(self).run()
     }
@@ -149,6 +153,20 @@ pub trait Graph {
         } else {
             None
         }
+    }
+
+    /// Returns the set of all nodes that are adjacent (either an in-neighbor or an out-neighbor)
+    /// of something in `set`.
+    fn neighbor_set<'a, I: Iterator<Item=&'a Self::Node>>(&self, set: I) -> HashSet<Self::Node>
+    where
+        Self::Node: 'a
+    {
+        let mut ret = HashSet::new();
+        for u in set {
+            ret.extend(self.out_neighbors(u));
+            ret.extend(self.in_neighbors(u));
+        }
+        ret
     }
 }
 
