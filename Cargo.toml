@@ -6,4 +6,5 @@ members = [
     "jp",
     "libjp",
     "multimap",
+    "partition",
 ]
