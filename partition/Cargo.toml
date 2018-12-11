@@ -6,3 +6,5 @@ edition = "2018"
 
 [dependencies]
 multimap = { path = "../multimap" }
+serde = "1.0"
+serde_derive = "1.0"

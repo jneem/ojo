@@ -193,6 +193,12 @@ impl Repo {
         &mut self.storage
     }
 
+    pub fn inode(&self, branch: &str) -> Result<storage::INode, Error> {
+        Ok(self.storage()
+            .inode(branch)
+            .ok_or_else(|| Error::UnknownBranch(branch.to_owned()))?)
+    }
+
     pub fn digle<'a>(&'a self, branch: &str) -> Result<storage::Digle<'a>, Error> {
         let inode = self
             .storage()
@@ -272,9 +278,8 @@ impl Repo {
                 panic!("tried to apply a patch while it was missing a dependency");
             }
         }
-        let mut digle = self.digle_mut(branch)?;
-        patch.apply_to_digle(&mut digle);
-        patch.store_new_contents(&mut self.storage);
+        let inode = self.storage.inode(branch).unwrap();
+        self.storage.apply_changes(inode, &patch.changes);
         self.storage
             .branch_patches
             .insert(branch.to_owned(), patch.id.clone());
@@ -310,14 +315,17 @@ impl Repo {
                 patch_stack.extend_from_slice(&unapplied_deps[..]);
             }
         }
+
+        // Having applied all the patches, resolve the cache.
+        let inode = self.storage.inode(branch).unwrap();
+        self.storage.update_cache(inode);
         Ok(applied)
     }
 
     fn unapply_one_patch(&mut self, branch: &str, patch_id: &PatchId) -> Result<(), Error> {
         let patch = self.open_patch_by_id(patch_id)?;
-        let mut digle = self.digle_mut(branch)?;
-        patch.unapply_to_digle(&mut digle);
-        patch.unstore_new_contents(&mut self.storage);
+        let inode = self.inode(branch)?;
+        self.storage.unapply_changes(inode, &patch.changes);
         self.storage.branch_patches.remove(branch, &patch.id);
         Ok(())
     }

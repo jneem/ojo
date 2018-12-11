@@ -3,7 +3,6 @@ use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::io::{self, prelude::*};
 
-use crate::storage::{DigleMut, Storage};
 use crate::Error;
 
 mod change;
@@ -156,22 +155,6 @@ pub struct Patch {
 }
 
 impl Patch {
-    pub fn store_new_contents(&self, storage: &mut Storage) {
-        self.changes.store_new_contents(storage);
-    }
-
-    pub fn unstore_new_contents(&self, storage: &mut Storage) {
-        self.changes.unstore_new_contents(storage)
-    }
-
-    pub fn apply_to_digle(&self, digle: &mut DigleMut<'_>) {
-        self.changes.apply_to_digle(digle)
-    }
-
-    pub fn unapply_to_digle(&self, digle: &mut DigleMut<'_>) {
-        self.changes.unapply_to_digle(digle)
-    }
-
     pub fn from_reader<R: Read>(input: R, id: PatchId) -> Result<Patch, Error> {
         let up: UnidentifiedPatch = serde_yaml::from_reader(input)?;
         // TODO: should we verify that the id matches the hash of the input?

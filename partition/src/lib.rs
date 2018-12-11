@@ -1,11 +1,15 @@
 //! This crate provides an implementation of the disjoint-sets algorithm that is built on top of
 //! a pair of multimaps. (The reason for this weird implementation is that once multimaps is fully
 //! persistent, this will be also.)
+
+#[macro_use]
+extern crate serde_derive;
+
 use multimap::MMap;
 use std::collections::{BTreeMap as Map};
 use std::collections::btree_map::Entry;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Partition<T: Copy + Ord> {
     ranks: Map<T, usize>,
     parent_map: Map<T, T>,
@@ -116,6 +120,29 @@ impl<T: Copy + Ord> Partition<T> {
     }
 }
 
+impl<T: Copy + Ord, PI: IntoIterator<Item=T>> std::iter::FromIterator<PI> for Partition<T> {
+    fn from_iter<I>(iter: I) -> Self
+    where I: IntoIterator<Item=PI>
+    {
+        let mut ret = Partition::new();
+
+        for part in iter.into_iter() {
+            let mut part_iter = part.into_iter();
+            if let Some(rep) = part_iter.next() {
+                // Declare the first element in the part as its representative; all other elements
+                // will have the representative as their direct parent.
+                ret.ranks.insert(rep, 1);
+                for child in part_iter {
+                    ret.ranks.insert(child, 0);
+                    ret.parent_map.insert(child, rep);
+                    ret.child_map.insert(rep, child);
+                }
+            }
+        }
+        ret
+    }
+}
+
 pub struct PartIter<'a, T: Copy + Ord> {
     partition: &'a Partition<T>,
     // We can traverse a component as though it were a tree, by following the child links. In order
@@ -149,6 +176,7 @@ impl<'a, T: Copy + Ord> Iterator for PartIter<'a, T> {
         None
     }
 }
+
 
 #[cfg(test)]
 mod tests {
