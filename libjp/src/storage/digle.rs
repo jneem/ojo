@@ -34,7 +34,7 @@ impl EdgeKind {
 ///
 /// Note that edges are ordered, and that live edges will always come before deleted edges. This
 /// helps ensure quick access to live edges.
-#[derive(Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct Edge {
     pub kind: EdgeKind,
     /// The destination of this (directed) edge.
@@ -439,44 +439,43 @@ impl<'a> Digle<'a> {
         // The live and deleted lines should be disjoint.
         assert!(self.data.lines.is_disjoint(&self.data.deleted_lines));
 
-        let line_exists = |line_id| {
-            self.data.lines.contains(line_id) || self.data.deleted_lines.contains(line_id)
+        let node_exists = |id| {
+            self.data.lines.contains(id) || self.data.deleted_lines.contains(id)
         };
         // The source and destination of every edge should exist somewhere.
-        // The `deleted` field of an edge should agree with the status of the destination line.
+        // The destination should be deleted if and only if the edge kind is `Deleted`.
         // There should be a one-to-one correspondence between edges and back_edges.
-        for (line, edge) in self.data.edges.iter() {
-            assert!(line_exists(line));
-            assert!(line_exists(&edge.dest));
-            /* FIXME: update this method to deal with pseudo-edges
-             * Properties:
-             * - forward pseudo-edges come in pairs with back pseudo-edges
-             * - pseudo-edges never point at a deleted node
-             * - the ordering induced by pseudo-edges coincides with the ordering without them.
-             *
-            assert_eq!(edge.deleted, self.data.deleted_lines.contains(&edge.dest));
+        let mut seen_back_edges = HashSet::new();
+        for (src, edge) in self.data.edges.iter() {
+            assert!(node_exists(src));
+            assert!(node_exists(&edge.dest));
+            assert_eq!(
+                self.data.deleted_lines.contains(&edge.dest),
+                edge.kind == EdgeKind::Deleted
+            );
+
             let back_edge = Edge {
-                dest: line.clone(),
-                deleted: self.data.deleted_lines.contains(line),
+                dest: *src,
+                kind:
+                    if edge.kind == EdgeKind::Pseudo {
+                        EdgeKind::Pseudo
+                    } else {
+                        EdgeKind::from_deleted(self.data.deleted_lines.contains(src))
+                    }
             };
             assert!(self.data.back_edges.contains(&edge.dest, &back_edge));
-            */
+            seen_back_edges.insert((edge.dest, back_edge));
         }
-        for (line, back_edge) in self.data.back_edges.iter() {
-            assert!(line_exists(line));
-            assert!(line_exists(&back_edge.dest));
-            /*
-            assert_eq!(
-                back_edge.deleted,
-                self.data.deleted_lines.contains(&back_edge.dest)
-            );
-            let edge = Edge {
-                dest: line.clone(),
-                deleted: self.data.deleted_lines.contains(line),
-            };
-            assert!(self.data.edges.contains(&back_edge.dest, &edge));
-            */
+        // We've checked that every forward edge corresponds to a backward edge; now check that
+        // every backward edge was encountered in this way.
+        for (src, back_edge) in self.data.back_edges.iter() {
+            assert!(seen_back_edges.contains(&(*src, *back_edge)));
         }
+
+        // TODO:
+        // - check that deleted_partition is indeed a partition of the deleted nodes into
+        //   connected components.
+        // - check that the ordering induced by the pseudo-edges is the right one
     }
 }
 
