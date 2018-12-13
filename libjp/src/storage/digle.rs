@@ -1,6 +1,8 @@
+use graph::Graph;
 use multimap::MMap;
 use partition::Partition;
 use std::collections::BTreeSet as Set;
+use std::collections::HashSet;
 
 use crate::LineId;
 
@@ -61,6 +63,9 @@ pub(crate) struct DigleData {
     // A map from "reasons" (i.e. representatives of a partition) to edges that are there because
     // of that reason.
     reason_pseudo_edges: MMap<LineId, (LineId, LineId)>,
+    // These are the component representatives whose components are dirty (i.e. we need to
+    // recalculate the connectedness relation that they induce).
+    dirty_reps: Set<LineId>,
 }
 
 impl DigleData {
@@ -73,6 +78,13 @@ impl DigleData {
             deleted_partition: Partition::new(),
             pseudo_edge_reasons: MMap::new(),
             reason_pseudo_edges: MMap::new(),
+            dirty_reps: Set::new(),
+        }
+    }
+
+    pub fn as_digle<'a>(&'a self) -> Digle<'a> {
+        Digle {
+            data: self,
         }
     }
 
@@ -164,7 +176,11 @@ impl DigleData {
             self.undelete_opposite_edge(id, &e, false);
         }
 
-        // FIXME: mark the entire connected component containing id as dirty.
+        // Mark the entire connected component containing `id` as dirty. Note that we don't
+        // actually remove `id` from the component, because it might take too long to compute how
+        // the component splits up. When it comes time to compute the new connectivity relation, we
+        // will figure out how the component splits.
+        self.mark_dirty(id);
     }
 
     // The node `src` has just been deleted, and `edge` is an edge pointing out from it (either
@@ -193,7 +209,7 @@ impl DigleData {
         // The node `src` was just deleted. If `edge.dest` is also deleted, it means that they now
         // belong to the same connected component of deleted edges.
         if edge.kind == EdgeKind::Deleted {
-            // FIXME
+            self.merge_components(src, &edge.dest);
         }
     }
 
@@ -219,6 +235,41 @@ impl DigleData {
         // has already been marked as dirty.
     }
 
+    // `id` and `other` are two deleted nodes that have just been connected by an edge. We need to
+    // mark them as being in the same connected component of deleted nodes. This also entails
+    // marking the merged component as dirty, and removing any obsolete pseudo-edges.
+    fn merge_components(&mut self, id1: &LineId, id2: &LineId) {
+        let rep1 = self.deleted_partition.representative(*id1);
+        let rep2 = self.deleted_partition.representative(*id2);
+        self.deleted_partition.merge(rep1, rep2);
+        let new_rep = self.deleted_partition.representative(rep1);
+
+        self.delete_obsolete_reason(&rep1);
+        self.delete_obsolete_reason(&rep2);
+
+        self.dirty_reps.remove(&rep1);
+        self.dirty_reps.remove(&rep2);
+        self.dirty_reps.insert(new_rep);
+    }
+
+    // `reason` was (and possibly still is) the representative of a component that got modified. We
+    // can't trust any pseudo-edges coming from that component, so delete them all.
+    fn delete_obsolete_reason(&mut self, reason: &LineId) {
+        let obsolete_pairs = self.reason_pseudo_edges.get(reason).cloned().collect::<Vec<_>>();
+
+        for (src, dest) in obsolete_pairs {
+            let e = Edge { dest: dest, kind: EdgeKind::Pseudo };
+            self.internal_delete_edge(&src, &e);
+            self.pseudo_edge_reasons.remove(&(src, dest), reason);
+        }
+        self.reason_pseudo_edges.remove_all(reason);
+    }
+
+    // Marks the component containing `id` as dirty.
+    fn mark_dirty(&mut self, id: &LineId) {
+        self.dirty_reps.insert(self.deleted_partition.representative(*id));
+    }
+
     pub fn add_edge(&mut self, from: LineId, to: LineId) {
         let from_deleted = !self.lines.contains(&from);
         let to_deleted = !self.lines.contains(&to);
@@ -240,7 +291,17 @@ impl DigleData {
             },
         );
 
-        // FIXME: see if we need to merge partitions
+        if from_deleted && to_deleted {
+            self.merge_components(&from, &to);
+        } else if from_deleted {
+            self.mark_dirty(&from);
+        } else if to_deleted {
+            self.mark_dirty(&to);
+        }
+    }
+
+    pub fn resolve_pseudo_edges(&mut self) {
+        unimplemented!()
     }
 
     /// # Panics
@@ -264,8 +325,51 @@ impl DigleData {
         self.edges.remove(&from, &forward_edge);
         self.back_edges.remove(&to, &back_edge);
     }
+
+    // Adds all the pseudo-edges that are induced by a single connected component of deleted nodes.
+    //
+    // `component` must be a non-empty connected component of the deleted nodes.
+    fn add_component_pseudo_edges(&mut self, component: &HashSet<LineId>) {
+        let digle = self.as_digle();
+        let neighborhood = digle.neighbor_set(component.iter());
+
+        // Find the representative of this connected component. The unwrap is ok because
+        // `component` is non-empty.
+        let rep = self.deleted_partition.representative(*component.iter().next().unwrap());
+        let sub_digle = digle.node_filtered(|u| neighborhood.contains(u));
+
+        // This is the collection of all live lines that are adjacent to a particular connected
+        // component of deleted lines. We will compute the complete connectivity relation that
+        // the deleted lines induce on these boundary lines, and then we will add a pseudo-edge
+        // for each connected pair.
+        let boundary = neighborhood.iter().filter(|u| digle.is_live(u));
+
+        let mut pairs = Vec::new();
+        for u in boundary {
+            for visit in sub_digle.dfs_from(u) {
+                match visit {
+                    graph::dfs::Visit::Edge { dst, .. } => {
+                        if digle.is_live(&dst) {
+                            pairs.push((*u, dst));
+                        }
+                    }
+                    _ => {},
+                }
+            }
+        }
+        for (src, dest) in pairs {
+            self.edges.insert(src, Edge { dest, kind: EdgeKind::Pseudo });
+            self.back_edges.insert(dest, Edge { dest: src, kind: EdgeKind::Pseudo });
+            self.pseudo_edge_reasons.insert((src, dest), rep);
+            self.reason_pseudo_edges.insert(rep, (src, dest));
+        }
+    }
 }
 
+// This wrapping is a bit annoying. It would be simpler just to rename `DigleData` to `Digle` and
+// then pass around `&Digle`s. The thing is that we want to implement `Graph` for `&Digle`, and I
+// had some problems with that for some reason (can no longer remember why...). Certainly, the lack
+// of ATCs means we can't implement `Graph` for `Digle`.
 #[derive(Clone, Copy, Debug)]
 pub struct Digle<'a> {
     data: &'a DigleData,
@@ -352,7 +456,6 @@ impl<'a> From<&'a DigleData> for Digle<'a> {
     }
 }
 
-// TODO: remind me: why do we need a struct wrapping this reference?
 #[derive(Debug)]
 pub struct DigleMut<'a> {
     data: &'a mut DigleData,
