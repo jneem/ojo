@@ -1,5 +1,5 @@
-use crate::{LineId, PatchId};
 use crate::patch::{Change, Changes};
+use crate::{LineId, PatchId};
 use multimap::MMap;
 use std::collections::{BTreeMap as Map, HashSet};
 
@@ -125,7 +125,11 @@ impl Storage {
         // Because `entry` borrows self.digles, the borrow checker isn't smart enough to allow this
         // into the previous loop.
         for ch in &changes.changes {
-            if let Change::NewNode { ref id, ref contents } = *ch {
+            if let Change::NewNode {
+                ref id,
+                ref contents,
+            } = *ch
+            {
                 self.add_contents(id.clone(), contents.to_owned());
             }
         }
@@ -140,7 +144,7 @@ impl Storage {
             match *ch {
                 Change::DeleteNode { ref id } => digle.undelete_node(id),
                 Change::NewEdge { ref src, ref dst } => digle.unadd_edge(src, dst),
-                Change::NewNode { .. } => {},
+                Change::NewNode { .. } => {}
             }
         }
         for ch in &changes.changes {

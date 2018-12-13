@@ -6,8 +6,8 @@
 extern crate serde_derive;
 
 use multimap::MMap;
-use std::collections::{BTreeMap as Map};
 use std::collections::btree_map::Entry;
+use std::collections::BTreeMap as Map;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Partition<T: Copy + Ord> {
@@ -120,9 +120,10 @@ impl<T: Copy + Ord> Partition<T> {
     }
 }
 
-impl<T: Copy + Ord, PI: IntoIterator<Item=T>> std::iter::FromIterator<PI> for Partition<T> {
+impl<T: Copy + Ord, PI: IntoIterator<Item = T>> std::iter::FromIterator<PI> for Partition<T> {
     fn from_iter<I>(iter: I) -> Self
-    where I: IntoIterator<Item=PI>
+    where
+        I: IntoIterator<Item = PI>,
     {
         let mut ret = Partition::new();
 
@@ -167,7 +168,8 @@ impl<'a, T: Copy + Ord> Iterator for PartIter<'a, T> {
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(iter) = self.stack.last_mut() {
             if let Some(item) = iter.next() {
-                self.stack.push(Box::new(self.partition.child_map.get(&item).cloned()));
+                self.stack
+                    .push(Box::new(self.partition.child_map.get(&item).cloned()));
                 return Some(item);
             } else {
                 self.stack.pop();
@@ -176,7 +178,6 @@ impl<'a, T: Copy + Ord> Iterator for PartIter<'a, T> {
         None
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -226,4 +227,3 @@ mod tests {
         assert_vec_eq(partition.iter_part(3).collect(), vec![3]);
     }
 }
-

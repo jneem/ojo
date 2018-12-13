@@ -194,7 +194,8 @@ impl Repo {
     }
 
     pub fn inode(&self, branch: &str) -> Result<storage::INode, Error> {
-        Ok(self.storage()
+        Ok(self
+            .storage()
             .inode(branch)
             .ok_or_else(|| Error::UnknownBranch(branch.to_owned()))?)
     }

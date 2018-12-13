@@ -83,9 +83,7 @@ impl DigleData {
     }
 
     pub fn as_digle<'a>(&'a self) -> Digle<'a> {
-        Digle {
-            data: self,
-        }
+        Digle { data: self }
     }
 
     pub fn all_out_edges<'b>(&'b self, line: &LineId) -> impl Iterator<Item = &'b Edge> + 'b {
@@ -104,13 +102,19 @@ impl DigleData {
     // maintain invariants.
     fn internal_delete_edge(&mut self, src: &LineId, edge: &Edge) {
         self.edges.remove(src, edge);
-        let back_edge = Edge { dest: *src, kind: edge.kind };
+        let back_edge = Edge {
+            dest: *src,
+            kind: edge.kind,
+        };
         self.back_edges.remove(&edge.dest, &back_edge);
     }
 
     fn internal_delete_back_edge(&mut self, dest: &LineId, back_edge: &Edge) {
         self.back_edges.remove(dest, back_edge);
-        let edge = Edge { dest: *dest, kind: back_edge.kind };
+        let edge = Edge {
+            dest: *dest,
+            kind: back_edge.kind,
+        };
         self.edges.remove(&edge.dest, &edge);
     }
 
@@ -195,12 +199,18 @@ impl DigleData {
 
         if edge.kind == EdgeKind::Pseudo {
             // Pseudo-edges don't get marked as deleted, they just get removed.
-            let opposite_edge = Edge { dest: *src, kind: EdgeKind::Pseudo };
+            let opposite_edge = Edge {
+                dest: *src,
+                kind: EdgeKind::Pseudo,
+            };
             opposite_edges.remove(&edge.dest, &opposite_edge);
         } else {
             // To mark the edge as deleted, we actually remove it and then add it back in again
             // (because deleted edges appear in a different position in the map).
-            let mut opposite_edge = Edge { dest: *src, kind: EdgeKind::Live };
+            let mut opposite_edge = Edge {
+                dest: *src,
+                kind: EdgeKind::Live,
+            };
             opposite_edges.remove(&edge.dest, &opposite_edge);
             opposite_edge.kind = EdgeKind::Deleted;
             opposite_edges.insert(edge.dest, opposite_edge);
@@ -225,7 +235,10 @@ impl DigleData {
         // Unlike `delete_opposite_edge`, there's no change of encountering a pseudo-edge pointing
         // from `edge.dest` to `src` (because `src` was just undeleted, and while it was deleted no
         // pseudo-edges pointed at it).
-        let mut opposite_edge = Edge { dest: *src, kind: EdgeKind::Deleted };
+        let mut opposite_edge = Edge {
+            dest: *src,
+            kind: EdgeKind::Deleted,
+        };
         opposite_edges.remove(&edge.dest, &opposite_edge);
         opposite_edge.kind = EdgeKind::Live;
         opposite_edges.insert(edge.dest, opposite_edge);
@@ -255,10 +268,17 @@ impl DigleData {
     // `reason` was (and possibly still is) the representative of a component that got modified. We
     // can't trust any pseudo-edges coming from that component, so delete them all.
     fn delete_obsolete_reason(&mut self, reason: &LineId) {
-        let obsolete_pairs = self.reason_pseudo_edges.get(reason).cloned().collect::<Vec<_>>();
+        let obsolete_pairs = self
+            .reason_pseudo_edges
+            .get(reason)
+            .cloned()
+            .collect::<Vec<_>>();
 
         for (src, dest) in obsolete_pairs {
-            let e = Edge { dest: dest, kind: EdgeKind::Pseudo };
+            let e = Edge {
+                dest: dest,
+                kind: EdgeKind::Pseudo,
+            };
             self.internal_delete_edge(&src, &e);
             self.pseudo_edge_reasons.remove(&(src, dest), reason);
         }
@@ -267,7 +287,8 @@ impl DigleData {
 
     // Marks the component containing `id` as dirty.
     fn mark_dirty(&mut self, id: &LineId) {
-        self.dirty_reps.insert(self.deleted_partition.representative(*id));
+        self.dirty_reps
+            .insert(self.deleted_partition.representative(*id));
     }
 
     pub fn add_edge(&mut self, from: LineId, to: LineId) {
@@ -307,9 +328,9 @@ impl DigleData {
         // Each partition represented by a dirty rep needs to be rechecked, because it's possible
         // that it actually encompasses multiple connected components in the new digle.
         let digle = self.as_digle();
-        let sub_graph = digle.node_filtered(
-            |u| !digle.is_live(u)
-                && dirty_reps.contains(&self.deleted_partition.representative(*u)));
+        let sub_graph = digle.node_filtered(|u| {
+            !digle.is_live(u) && dirty_reps.contains(&self.deleted_partition.representative(*u))
+        });
         let components = sub_graph.weak_components().into_parts();
 
         // Remove all the messed up parts from the partition; later we'll re-add them from the
@@ -365,7 +386,9 @@ impl DigleData {
 
         // Find the representative of this connected component. The unwrap is ok because
         // `component` is non-empty.
-        let rep = self.deleted_partition.representative(*component.iter().next().unwrap());
+        let rep = self
+            .deleted_partition
+            .representative(*component.iter().next().unwrap());
         let sub_digle = digle.node_filtered(|u| neighborhood.contains(u));
 
         // This is the collection of all live lines that are adjacent to a particular connected
@@ -383,13 +406,25 @@ impl DigleData {
                             pairs.push((*u, dst));
                         }
                     }
-                    _ => {},
+                    _ => {}
                 }
             }
         }
         for (src, dest) in pairs {
-            self.edges.insert(src, Edge { dest, kind: EdgeKind::Pseudo });
-            self.back_edges.insert(dest, Edge { dest: src, kind: EdgeKind::Pseudo });
+            self.edges.insert(
+                src,
+                Edge {
+                    dest,
+                    kind: EdgeKind::Pseudo,
+                },
+            );
+            self.back_edges.insert(
+                dest,
+                Edge {
+                    dest: src,
+                    kind: EdgeKind::Pseudo,
+                },
+            );
             self.pseudo_edge_reasons.insert((src, dest), rep);
             self.reason_pseudo_edges.insert(rep, (src, dest));
         }
@@ -419,7 +454,10 @@ impl<'a> Digle<'a> {
     }
 
     pub fn in_edges<'b>(&'b self, line: &LineId) -> impl Iterator<Item = &'b Edge> + 'b {
-        self.data.back_edges.get(line).take_while(|e| e.not_deleted())
+        self.data
+            .back_edges
+            .get(line)
+            .take_while(|e| e.not_deleted())
     }
 
     pub fn all_in_edges<'b>(&'b self, line: &LineId) -> impl Iterator<Item = &'b Edge> + 'b {
@@ -439,9 +477,7 @@ impl<'a> Digle<'a> {
         // The live and deleted lines should be disjoint.
         assert!(self.data.lines.is_disjoint(&self.data.deleted_lines));
 
-        let node_exists = |id| {
-            self.data.lines.contains(id) || self.data.deleted_lines.contains(id)
-        };
+        let node_exists = |id| self.data.lines.contains(id) || self.data.deleted_lines.contains(id);
         // The source and destination of every edge should exist somewhere.
         // The destination should be deleted if and only if the edge kind is `Deleted`.
         // There should be a one-to-one correspondence between edges and back_edges.
@@ -456,12 +492,11 @@ impl<'a> Digle<'a> {
 
             let back_edge = Edge {
                 dest: *src,
-                kind:
-                    if edge.kind == EdgeKind::Pseudo {
-                        EdgeKind::Pseudo
-                    } else {
-                        EdgeKind::from_deleted(self.data.deleted_lines.contains(src))
-                    }
+                kind: if edge.kind == EdgeKind::Pseudo {
+                    EdgeKind::Pseudo
+                } else {
+                    EdgeKind::from_deleted(self.data.deleted_lines.contains(src))
+                },
             };
             assert!(self.data.back_edges.contains(&edge.dest, &back_edge));
             seen_back_edges.insert((edge.dest, back_edge));
@@ -534,7 +569,7 @@ impl<'a> graph::Graph for Digle<'a> {
     type Node = LineId;
     type Edge = LineId;
 
-    fn nodes<'b>(&'b self) -> Box<dyn Iterator<Item=Self::Node> + 'b> {
+    fn nodes<'b>(&'b self) -> Box<dyn Iterator<Item = Self::Node> + 'b> {
         Box::new(
             self.data
                 .lines
@@ -544,11 +579,11 @@ impl<'a> graph::Graph for Digle<'a> {
         )
     }
 
-    fn out_edges<'b>(&'b self, u: &LineId) -> Box<dyn Iterator<Item=Self::Node> + 'b> {
+    fn out_edges<'b>(&'b self, u: &LineId) -> Box<dyn Iterator<Item = Self::Node> + 'b> {
         Box::new(self.all_out_edges(u).map(|e| &e.dest).cloned())
     }
 
-    fn in_edges<'b>(&'b self, u: &LineId) -> Box<dyn Iterator<Item=Self::Node> + 'b> {
+    fn in_edges<'b>(&'b self, u: &LineId) -> Box<dyn Iterator<Item = Self::Node> + 'b> {
         Box::new(self.all_in_edges(u).map(|e| &e.dest).cloned())
     }
 }

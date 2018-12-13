@@ -27,7 +27,7 @@ impl<'a, G: Graph + ?Sized> Partition<'a, G> {
         self.sets.len()
     }
 
-    pub fn parts<'b>(&'b self) -> impl Iterator<Item=&'b HashSet<G::Node>> {
+    pub fn parts<'b>(&'b self) -> impl Iterator<Item = &'b HashSet<G::Node>> {
         self.sets.iter()
     }
 
