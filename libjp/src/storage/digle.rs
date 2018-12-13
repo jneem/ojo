@@ -301,7 +301,37 @@ impl DigleData {
     }
 
     pub fn resolve_pseudo_edges(&mut self) {
-        unimplemented!()
+        let mut dirty_reps = Set::new();
+        std::mem::swap(&mut dirty_reps, &mut self.dirty_reps);
+
+        // Each partition represented by a dirty rep needs to be rechecked, because it's possible
+        // that it actually encompasses multiple connected components in the new digle.
+        let digle = self.as_digle();
+        let sub_graph = digle.node_filtered(
+            |u| !digle.is_live(u)
+                && dirty_reps.contains(&self.deleted_partition.representative(*u)));
+        let components = sub_graph.weak_components().into_parts();
+
+        // Remove all the messed up parts from the partition; later we'll re-add them from the
+        // connected components we just computed.
+        for rep in dirty_reps {
+            self.deleted_partition.remove_part(rep);
+        }
+
+        // Add in the required pseudo-edges and fix up the partition.
+        for component in components {
+            self.add_component_pseudo_edges(&component);
+
+            // Add everything in the current component as a new component in deleted_partition.
+            let mut iter = component.into_iter();
+            // Unwrap is ok because the components are guaranteed to be non-empty.
+            let rep = iter.next().unwrap();
+            self.deleted_partition.insert(rep);
+            for u in iter {
+                self.deleted_partition.insert(u);
+                self.deleted_partition.merge(rep, u);
+            }
+        }
     }
 
     /// # Panics

@@ -30,6 +30,10 @@ impl<'a, G: Graph + ?Sized> Partition<'a, G> {
     pub fn parts<'b>(&'b self) -> impl Iterator<Item=&'b HashSet<G::Node>> {
         self.sets.iter()
     }
+
+    pub fn into_parts(self) -> Vec<HashSet<G::Node>> {
+        self.sets
+    }
 }
 
 impl<'a, G: Graph + ?Sized> Graph for Partition<'a, G> {
