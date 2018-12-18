@@ -8,7 +8,7 @@ use crate::Graph;
 /// those components are ordered topologically.
 pub struct Partition<'a, G: Graph + ?Sized> {
     g: &'a G,
-    sets: Vec<HashSet<G::Node>>,
+    pub(crate) sets: Vec<HashSet<G::Node>>,
     node_map: HashMap<G::Node, usize>,
 }
 
