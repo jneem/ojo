@@ -587,3 +587,136 @@ impl<'a> graph::Graph for Digle<'a> {
         Box::new(self.all_in_edges(u).map(|e| &e.dest).cloned())
     }
 }
+
+#[cfg(test)]
+pub mod tests {
+    use crate::{LineId, PatchId};
+    use crate::patch::{Change, Changes};
+    use super::*;
+
+    use byteorder::{LittleEndian, WriteBytesExt};
+    use proptest::prelude::*;
+    use proptest::collection::hash_set;
+    use proptest::sample::subsequence;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    prop_compose! {
+        // Creates an arbitrary digle with no deleted nodes.
+        fn arb_live_digle(max_nodes: usize)
+                         (num_nodes in 1..max_nodes)
+                         (edges in hash_set((0..num_nodes, 0..num_nodes), 0..(num_nodes * num_nodes)),
+                          num_nodes in Just(num_nodes))
+                         -> DigleData
+        {
+            let mut ret = DigleData::new();
+            for i in 0..num_nodes {
+                ret.lines.insert(LineId::cur(i as u64));
+            }
+            for (u, v) in edges {
+                if u != v {
+                    let u = LineId::cur(u as u64);
+                    let v = LineId::cur(v as u64);
+                    ret.edges.insert(u, Edge { dest: v, kind: EdgeKind::Live });
+                    ret.back_edges.insert(v, Edge { dest: u, kind: EdgeKind::Live });
+                }
+            }
+            ret
+        }
+    }
+
+    // When we create different `Changes`, we need to give each one a unique PatchId. We achieve
+    // this by simply incrementing a counter.
+    static CUR_ID: AtomicUsize = AtomicUsize::new(0);
+
+    // Create arbitrary patches on top of digles. Basically, an arbitrary patch consists of an
+    // arbitrary subset of nodes to delete, and an arbitrary set of nodes to add, with arbitrary
+    // edges between the new nodes, and also between the new nodes and the old ones.
+    fn arb_changes<'a>(digle: &'a DigleData, size: usize) -> BoxedStrategy<Changes> {
+        fn make_changes(
+            old_ids: Vec<LineId>,
+            nodes_to_delete: Vec<LineId>,
+            num_to_add: usize,
+            new_new_edges: HashSet<(usize, usize)>,
+            new_old_edges: HashSet<(usize, usize)>,
+            old_new_edges: HashSet<(usize, usize)>,
+        ) -> Changes
+        {
+            let patch_id_int = CUR_ID.fetch_add(1, Ordering::SeqCst);
+            let mut patch_id = PatchId::cur();
+            (&mut patch_id.data[..]).write_u64::<LittleEndian>(patch_id_int as u64).unwrap();
+
+            let new_ids = (0..num_to_add)
+                .map(|i| LineId { patch: patch_id, line: i as u64 })
+                .collect::<Vec<_>>();
+
+            let deletions = nodes_to_delete.iter()
+                .map(|u| Change::DeleteNode { id: *u });
+
+            let insertions = new_ids.iter()
+                .map(|u| Change::NewNode { id: *u, contents: vec![] });
+
+            let edges =
+                new_new_edges.into_iter().map(|(i, j)| (new_ids[i], new_ids[j]))
+                .chain(new_old_edges.into_iter().map(|(i, j)| (new_ids[i], old_ids[j])))
+                .chain(old_new_edges.into_iter().map(|(i, j)| (old_ids[i], new_ids[j])))
+                .filter(|(u, v)| u != v);
+            let edges = edges
+                .map(|(u, v)| Change::NewEdge { src: u, dst: v });
+
+            let changes = deletions.chain(insertions).chain(edges).collect::<Vec<_>>();
+            Changes { changes }
+        }
+
+        let old_ids = digle.lines.iter().cloned().collect::<Vec<_>>();
+        let num_to_add = 0..size.min(old_ids.len());
+
+        // Strategy returning a tuple
+        // (nodes_to_delete, num_to_add, new_new_edges, new_old_edges, old_new_edges)
+        let old = old_ids.clone();
+        let changes = num_to_add.prop_flat_map(move |n|
+            (subsequence(old.clone(), 0..n),
+             Just(n),
+             hash_set((0..n, 0..n), 0..(n * n)),
+             hash_set((0..n, 0..old.len()), 0..(n * old.len())),
+             hash_set((0..old.len(), 0..n), 0..(n * old.len())),
+             )
+            );
+        changes.prop_map(move |(del, n, nn, no, on)| make_changes(old_ids.clone(), del, n, nn, no, on)).boxed()
+    }
+
+    // Creates an arbitrary digle and a change that can be applied to it.
+    fn arb_digle_and_change(initial_size: usize, change_size: usize) -> BoxedStrategy<(DigleData, Changes)> {
+        let digle = arb_live_digle(initial_size);
+        digle.prop_flat_map(move |d| {
+            let ch = arb_changes(&d, change_size);
+            (Just(d), ch)
+        }).boxed()
+    }
+
+    proptest! {
+        #[test]
+        fn live_digles_consistent(ref d in arb_live_digle(20)) {
+            d.as_digle().assert_consistent();
+        }
+    }
+
+    fn apply_changes(digle: &mut DigleData, changes: &Changes) {
+        for ch in &changes.changes {
+            match *ch {
+                Change::NewNode { ref id, .. } => digle.add_node(id.clone()),
+                Change::DeleteNode { ref id } => digle.delete_node(&id),
+                Change::NewEdge { ref src, ref dst } => digle.add_edge(src.clone(), dst.clone()),
+            }
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn digle_then_change((ref d, ref ch) in arb_digle_and_change(20, 10)) {
+            let mut d = d.clone();
+            d.as_digle().assert_consistent();
+            apply_changes(&mut d, ch);
+            d.as_digle().assert_consistent();
+        }
+    }
+}

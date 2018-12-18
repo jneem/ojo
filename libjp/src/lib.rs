@@ -1,6 +1,10 @@
 #[macro_use]
 extern crate serde_derive;
 
+#[cfg(test)]
+#[macro_use]
+extern crate proptest;
+
 use std::fs::File;
 use std::path::{Path, PathBuf};
 

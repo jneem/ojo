@@ -17,4 +17,6 @@ serde_yaml = "0.7"
 sha2 = "0.7"
 
 [dev-dependencies]
+byteorder = "1.2"
+proptest = "0.7"
 
