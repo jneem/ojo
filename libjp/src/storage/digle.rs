@@ -600,11 +600,16 @@ pub mod tests {
     use proptest::sample::subsequence;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
+    // When generating digles, we could in principle put in as many as n^2 edges, but that's way
+    // too many to be realistic (a realistic value would be around 2). So we allow only up to
+    // n*MAX_AVG_DEGREE.
+    const MAX_AVG_DEGREE: usize = 5;
+
     prop_compose! {
         // Creates an arbitrary digle with no deleted nodes.
         fn arb_live_digle(max_nodes: usize)
                          (num_nodes in 1..max_nodes)
-                         (edges in hash_set((0..num_nodes, 0..num_nodes), 0..(num_nodes * num_nodes)),
+                         (edges in hash_set((0..num_nodes, 0..num_nodes), 0..(num_nodes * MAX_AVG_DEGREE)),
                           num_nodes in Just(num_nodes))
                          -> DigleData
         {
@@ -625,8 +630,9 @@ pub mod tests {
     }
 
     // When we create different `Changes`, we need to give each one a unique PatchId. We achieve
-    // this by simply incrementing a counter.
-    static CUR_ID: AtomicUsize = AtomicUsize::new(0);
+    // this by simply incrementing a counter. We start from 1, because by default the digles that
+    // we create use the id 0.
+    static CUR_ID: AtomicUsize = AtomicUsize::new(1);
 
     // Create arbitrary patches on top of digles. Basically, an arbitrary patch consists of an
     // arbitrary subset of nodes to delete, and an arbitrary set of nodes to add, with arbitrary
@@ -668,17 +674,17 @@ pub mod tests {
         }
 
         let old_ids = digle.lines.iter().cloned().collect::<Vec<_>>();
-        let num_to_add = 0..size.min(old_ids.len());
+        let num_to_add = 1..size;
 
         // Strategy returning a tuple
         // (nodes_to_delete, num_to_add, new_new_edges, new_old_edges, old_new_edges)
         let old = old_ids.clone();
         let changes = num_to_add.prop_flat_map(move |n|
-            (subsequence(old.clone(), 0..n),
+            (subsequence(old.clone(), 0..old.len()),
              Just(n),
-             hash_set((0..n, 0..n), 0..(n * n)),
-             hash_set((0..n, 0..old.len()), 0..(n * old.len())),
-             hash_set((0..old.len(), 0..n), 0..(n * old.len())),
+             hash_set((0..n, 0..n), 0..(MAX_AVG_DEGREE * n)),
+             hash_set((0..n, 0..old.len()), 0..(MAX_AVG_DEGREE * n.min(old.len()))),
+             hash_set((0..old.len(), 0..n), 0..(MAX_AVG_DEGREE * n.min(old.len()))),
              )
             );
         changes.prop_map(move |(del, n, nn, no, on)| make_changes(old_ids.clone(), del, n, nn, no, on)).boxed()
