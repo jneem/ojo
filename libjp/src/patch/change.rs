@@ -1,7 +1,7 @@
 use diff::LineDiff;
 
 use crate::storage::File;
-use crate::{LineId, PatchId};
+use crate::{NodeId, PatchId};
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[serde(transparent)]
@@ -13,12 +13,12 @@ pub struct Changes {
 // came from: either there wasn't one, or it came from one of the two files.
 enum LastLine<'a> {
     Start,
-    File1(&'a LineId),
-    File2(&'a LineId),
+    File1(&'a NodeId),
+    File2(&'a NodeId),
 }
 
 impl<'a> LastLine<'a> {
-    fn either(&self) -> Option<&LineId> {
+    fn either(&self) -> Option<&NodeId> {
         match *self {
             LastLine::File1(i) => Some(i),
             LastLine::File2(i) => Some(i),
@@ -34,7 +34,7 @@ impl Changes {
         for d in diff {
             match *d {
                 LineDiff::New(i) => {
-                    let id = file2.line_id(i);
+                    let id = file2.node_id(i);
                     changes.push(Change::NewNode {
                         id: id.clone(),
                         contents: file2.line(i).to_owned(),
@@ -51,7 +51,7 @@ impl Changes {
                     last = LastLine::File2(id);
                 }
                 LineDiff::Keep(i, _) => {
-                    let id = file1.line_id(i);
+                    let id = file1.node_id(i);
 
                     // If the last line came from the new file, we need to hook it up to this line.
                     if let LastLine::File2(last_id) = last {
@@ -63,7 +63,7 @@ impl Changes {
                     last = LastLine::File1(id);
                 }
                 LineDiff::Delete(i) => {
-                    let id = file1.line_id(i);
+                    let id = file1.node_id(i);
                     changes.push(Change::DeleteNode { id: id.clone() });
                 }
             }
@@ -80,9 +80,9 @@ impl Changes {
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum Change {
-    NewNode { id: LineId, contents: Vec<u8> },
-    DeleteNode { id: LineId },
-    NewEdge { src: LineId, dst: LineId },
+    NewNode { id: NodeId, contents: Vec<u8> },
+    DeleteNode { id: NodeId },
+    NewEdge { src: NodeId, dst: NodeId },
 }
 
 impl Change {
@@ -110,7 +110,7 @@ mod tests {
     use super::Change::*;
     use super::Changes;
     use crate::storage::File;
-    use crate::LineId;
+    use crate::NodeId;
     use diff::LineDiff::*;
 
     #[test]
@@ -120,7 +120,7 @@ mod tests {
         let diff = vec![New(0)];
 
         let expected = vec![NewNode {
-            id: LineId::cur(0),
+            id: NodeId::cur(0),
             contents: b"something".to_vec(),
         }];
         assert_eq!(Changes::from_diff(&file1, &file2, &diff).changes, expected);

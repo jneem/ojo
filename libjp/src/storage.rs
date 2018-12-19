@@ -1,5 +1,5 @@
 use crate::patch::{Change, Changes};
-use crate::{LineId, PatchId};
+use crate::{NodeId, PatchId};
 use multimap::MMap;
 use std::collections::{BTreeMap as Map, HashSet};
 
@@ -19,7 +19,7 @@ pub struct INode {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Storage {
     next_inode: u64,
-    contents: Map<LineId, Vec<u8>>,
+    contents: Map<NodeId, Vec<u8>>,
     branches: Map<String, INode>,
     digles: Map<INode, DigleData>,
 
@@ -65,17 +65,17 @@ impl Storage {
         ret
     }
 
-    pub fn contents(&self, id: &LineId) -> &[u8] {
+    pub fn contents(&self, id: &NodeId) -> &[u8] {
         self.contents.get(id).unwrap().as_slice()
     }
 
-    /// Panics if the line already has contents.
-    pub fn add_contents(&mut self, id: LineId, contents: Vec<u8>) {
+    /// Panics if the node already has contents.
+    pub fn add_contents(&mut self, id: NodeId, contents: Vec<u8>) {
         assert!(!self.contents.contains_key(&id));
         self.contents.insert(id, contents);
     }
 
-    pub fn remove_contents(&mut self, id: &LineId) {
+    pub fn remove_contents(&mut self, id: &NodeId) {
         self.contents.remove(id);
     }
 

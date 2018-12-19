@@ -56,22 +56,22 @@ impl Base64Slice {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
-pub struct LineId {
+pub struct NodeId {
     pub patch: PatchId,
-    pub line: u64,
+    pub node: u64,
 }
 
-impl LineId {
+impl NodeId {
     fn set_patch_id(&mut self, id: &PatchId) {
         if self.patch.is_cur() {
             self.patch = id.clone();
         }
     }
 
-    fn cur(line: u64) -> LineId {
-        LineId {
+    fn cur(node: u64) -> NodeId {
+        NodeId {
             patch: PatchId::cur(),
-            line: line,
+            node: node,
         }
     }
 }

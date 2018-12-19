@@ -1,24 +1,24 @@
 use crate::storage::Storage;
-use crate::LineId;
+use crate::NodeId;
 
 /// A File is a special case of a Digle, in which there is just a linear order.
 ///
 /// This struct offers convenient (read-only) access to a File, allowing the contents and ids of
-/// lines to be access by indexing.
+/// nodes to be access by indexing.
 #[derive(Clone, Debug)]
 pub struct File {
-    ids: Vec<LineId>,
+    ids: Vec<NodeId>,
     // The contents of the file, in one long vector.
     contents: Vec<u8>,
-    // The ith line is in contents[boundaries[i]..boundaries[i+1]]. In particular, boundaries is
+    // The ith node is in contents[boundaries[i]..boundaries[i+1]]. In particular, boundaries is
     // always one longer than ids.
     boundaries: Vec<usize>,
 }
 
 impl File {
-    /// Creates a `File` from a slice of line ids. The contents of those lines will be retrieved
+    /// Creates a `File` from a slice of node ids. The contents of those nodes will be retrieved
     /// from `storage`.
-    pub fn from_ids(ids: &[LineId], storage: &Storage) -> File {
+    pub fn from_ids(ids: &[NodeId], storage: &Storage) -> File {
         let mut contents = Vec::new();
         let mut boundaries = Vec::new();
         for id in ids {
@@ -35,7 +35,7 @@ impl File {
 
     /// Creates a `File` from the raw bytes, by dividing them into lines.
     ///
-    /// The `LineId`s will be synthesized: they will have empty `PatchId`s, and their line indices
+    /// The `NodeId`s will be synthesized: they will have empty `PatchId`s, and their node indices
     /// will be consecutive, starting from zero.
     pub fn from_bytes(bytes: &[u8]) -> File {
         let contents = bytes.to_owned();
@@ -57,7 +57,7 @@ impl File {
         }
 
         let ids = (0..(boundaries.len() as u64 - 1))
-            .map(LineId::cur)
+            .map(NodeId::cur)
             .collect();
 
         File {
@@ -78,7 +78,7 @@ impl File {
         &self.contents[start..end]
     }
 
-    pub fn line_id(&self, idx: usize) -> &LineId {
+    pub fn node_id(&self, idx: usize) -> &NodeId {
         &self.ids[idx]
     }
 }

@@ -1,7 +1,7 @@
 use clap::ArgMatches;
 use failure::Error;
 use graph::Graph;
-use libjp::LineId;
+use libjp::NodeId;
 use std::fs::File;
 use std::io::prelude::*;
 
@@ -12,7 +12,7 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     let digle = repo.storage().digle(inode);
 
     let mut output = File::create(output)?;
-    let node_id = |n: &LineId| format!("{}:{}", &n.patch.filename()[1..8], n.line);
+    let node_id = |n: &NodeId| format!("{}:{}", &n.patch.filename()[1..8], n.node);
     writeln!(output, "digraph {{")?;
     for node in digle.nodes() {
         let id = node_id(&node);

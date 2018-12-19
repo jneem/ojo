@@ -4,7 +4,7 @@ use partition::Partition;
 use std::collections::BTreeSet as Set;
 use std::collections::HashSet;
 
-use crate::LineId;
+use crate::NodeId;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub enum EdgeKind {
@@ -28,9 +28,9 @@ impl EdgeKind {
 
 /// This struct represents a directed edge in a digle graph.
 ///
-/// Note that we don't actually store the source line, only the destination. However, the main way
+/// Note that we don't actually store the source node, only the destination. However, the main way
 /// of getting access to an `Edge` is via the `Digle::out_edges` or `Digle::in_edges` functions, so
-/// usually you will only encounter an `Edge` if you already know what the source line is.
+/// usually you will only encounter an `Edge` if you already know what the source node is.
 ///
 /// Note that edges are ordered, and that live edges will always come before deleted edges. This
 /// helps ensure quick access to live edges.
@@ -38,7 +38,7 @@ impl EdgeKind {
 pub struct Edge {
     pub kind: EdgeKind,
     /// The destination of this (directed) edge.
-    pub dest: LineId,
+    pub dest: NodeId,
 }
 
 impl Edge {
@@ -50,30 +50,30 @@ impl Edge {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename = "Digle")]
 pub(crate) struct DigleData {
-    lines: Set<LineId>,
-    deleted_lines: Set<LineId>,
-    edges: MMap<LineId, Edge>,
-    back_edges: MMap<LineId, Edge>,
+    nodes: Set<NodeId>,
+    deleted_nodes: Set<NodeId>,
+    edges: MMap<NodeId, Edge>,
+    back_edges: MMap<NodeId, Edge>,
 
     // A partition of all the deleted nodes into weakly connected components.
-    deleted_partition: Partition<LineId>,
+    deleted_partition: Partition<NodeId>,
     // A map from pseudo-edges (the forward-pointing ones only) to the set of parts (identified by
     // their representative) that are responsible for the pseudo-edge.
-    pseudo_edge_reasons: MMap<(LineId, LineId), LineId>,
+    pseudo_edge_reasons: MMap<(NodeId, NodeId), NodeId>,
     // A map from "reasons" (i.e. representatives of a partition) to edges that are there because
     // of that reason.
-    reason_pseudo_edges: MMap<LineId, (LineId, LineId)>,
+    reason_pseudo_edges: MMap<NodeId, (NodeId, NodeId)>,
     // These are the component representatives whose components are dirty (i.e. we need to
     // recalculate the connectedness relation that they induce).
-    dirty_reps: Set<LineId>,
+    dirty_reps: Set<NodeId>,
 }
 
 // Two Digles compare as equal if they have the same nodes and edges (including pseudo-edges). We
 // don't check the rest of the fields, as they are only there for optimization.
 impl PartialEq<DigleData> for DigleData {
     fn eq(&self, other: &DigleData) -> bool {
-        self.lines.eq(&other.lines)
-            && self.deleted_lines.eq(&other.deleted_lines)
+        self.nodes.eq(&other.nodes)
+            && self.deleted_nodes.eq(&other.deleted_nodes)
             && self.edges.eq(&other.edges)
             && self.back_edges.eq(&other.back_edges)
     }
@@ -82,8 +82,8 @@ impl PartialEq<DigleData> for DigleData {
 impl DigleData {
     pub fn new() -> DigleData {
         DigleData {
-            lines: Set::new(),
-            deleted_lines: Set::new(),
+            nodes: Set::new(),
+            deleted_nodes: Set::new(),
             edges: MMap::new(),
             back_edges: MMap::new(),
             deleted_partition: Partition::new(),
@@ -97,21 +97,21 @@ impl DigleData {
         Digle { data: self }
     }
 
-    pub fn all_out_edges<'b>(&'b self, line: &LineId) -> impl Iterator<Item = &'b Edge> + 'b {
-        self.edges.get(line)
+    pub fn all_out_edges<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b Edge> + 'b {
+        self.edges.get(node)
     }
 
-    pub fn all_in_edges<'b>(&'b self, line: &LineId) -> impl Iterator<Item = &'b Edge> + 'b {
-        self.back_edges.get(line)
+    pub fn all_in_edges<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b Edge> + 'b {
+        self.back_edges.get(node)
     }
 
-    pub fn add_node(&mut self, id: LineId) {
-        self.lines.insert(id);
+    pub fn add_node(&mut self, id: NodeId) {
+        self.nodes.insert(id);
     }
 
     // Deletes an edge (both forward and back), but does nothing else to ensure consistency and
     // maintain invariants.
-    fn internal_delete_edge(&mut self, src: &LineId, edge: &Edge) {
+    fn internal_delete_edge(&mut self, src: &NodeId, edge: &Edge) {
         self.edges.remove(src, edge);
         let back_edge = Edge {
             dest: *src,
@@ -120,7 +120,7 @@ impl DigleData {
         self.back_edges.remove(&edge.dest, &back_edge);
     }
 
-    fn internal_delete_back_edge(&mut self, dest: &LineId, back_edge: &Edge) {
+    fn internal_delete_back_edge(&mut self, dest: &NodeId, back_edge: &Edge) {
         self.back_edges.remove(dest, back_edge);
         let edge = Edge {
             dest: *dest,
@@ -129,12 +129,12 @@ impl DigleData {
         self.edges.remove(&edge.dest, &edge);
     }
 
-    pub fn unadd_node(&mut self, id: &LineId) {
-        // If we are unadding a line, it means we are unapplying the patch in which the line was
+    pub fn unadd_node(&mut self, id: &NodeId) {
+        // If we are unadding a node, it means we are unapplying the patch in which the node was
         // introduced. Since we must have already unapplied any reverse-dependencies of the patch,
-        // the line must be live (it can't have been marked as deleted).
-        assert!(self.lines.contains(id));
-        self.lines.remove(id);
+        // the node must be live (it can't have been marked as deleted).
+        assert!(self.nodes.contains(id));
+        self.nodes.remove(id);
 
         // Remove all the edges that had anything to do with this node. (When unapplying a patch,
         // most of the edges would probably have already been deleted, but there might be lingering
@@ -148,7 +148,7 @@ impl DigleData {
             self.internal_delete_back_edge(id, &e);
         }
 
-        // Because we just unadded a line that was live, it can't have any effect on pseudo-edges,
+        // Because we just unadded a node that was live, it can't have any effect on pseudo-edges,
         // so no need to update them.
     }
 
@@ -157,10 +157,10 @@ impl DigleData {
     ///
     /// # Panics
     /// Panics if the node doesn't exist, or if exists but is not live.
-    pub fn delete_node(&mut self, id: &LineId) {
-        assert!(self.lines.contains(id));
-        self.lines.remove(id);
-        self.deleted_lines.insert(id.clone());
+    pub fn delete_node(&mut self, id: &NodeId) {
+        assert!(self.nodes.contains(id));
+        self.nodes.remove(id);
+        self.deleted_nodes.insert(id.clone());
         self.deleted_partition.insert(id.clone());
 
         // All the edges (both forward and backwards) pointing towards the newly deleted node need
@@ -175,10 +175,10 @@ impl DigleData {
         }
     }
 
-    pub fn undelete_node(&mut self, id: &LineId) {
-        assert!(self.deleted_lines.contains(id));
-        self.deleted_lines.remove(id);
-        self.lines.insert(id.clone());
+    pub fn undelete_node(&mut self, id: &NodeId) {
+        assert!(self.deleted_nodes.contains(id));
+        self.deleted_nodes.remove(id);
+        self.nodes.insert(id.clone());
 
         // All the edges (both forward and backwards) pointing towards the newly deleted node need
         // to be marked as live.
@@ -200,7 +200,7 @@ impl DigleData {
 
     // The node `src` has just been deleted, and `edge` is an edge pointing out from it (either
     // forwards or backwards). We want to delete the edge pointing from edge.dest to src.
-    fn delete_opposite_edge(&mut self, src: &LineId, edge: &Edge, edge_points_forwards: bool) {
+    fn delete_opposite_edge(&mut self, src: &NodeId, edge: &Edge, edge_points_forwards: bool) {
         // This is the edge_map that points in the opposite direction as `edge`.
         let opposite_edges = if edge_points_forwards {
             &mut self.back_edges
@@ -235,7 +235,7 @@ impl DigleData {
     }
 
     // The node `src` was just undeleted, and `edge` points out from `src`.
-    fn undelete_opposite_edge(&mut self, src: &LineId, edge: &Edge, edge_points_forwards: bool) {
+    fn undelete_opposite_edge(&mut self, src: &NodeId, edge: &Edge, edge_points_forwards: bool) {
         // This is the edge_map that points in the opposite direction as `edge`.
         let opposite_edges = if edge_points_forwards {
             &mut self.back_edges
@@ -262,7 +262,7 @@ impl DigleData {
     // `id` and `other` are two deleted nodes that have just been connected by an edge. We need to
     // mark them as being in the same connected component of deleted nodes. This also entails
     // marking the merged component as dirty, and removing any obsolete pseudo-edges.
-    fn merge_components(&mut self, id1: &LineId, id2: &LineId) {
+    fn merge_components(&mut self, id1: &NodeId, id2: &NodeId) {
         let rep1 = self.deleted_partition.representative(*id1);
         let rep2 = self.deleted_partition.representative(*id2);
         self.deleted_partition.merge(rep1, rep2);
@@ -278,7 +278,7 @@ impl DigleData {
 
     // `reason` was (and possibly still is) the representative of a component that got modified. We
     // can't trust any pseudo-edges coming from that component, so delete them all.
-    fn delete_obsolete_reason(&mut self, reason: &LineId) {
+    fn delete_obsolete_reason(&mut self, reason: &NodeId) {
         let obsolete_pairs = self
             .reason_pseudo_edges
             .get(reason)
@@ -297,16 +297,16 @@ impl DigleData {
     }
 
     // Marks the component containing `id` as dirty.
-    fn mark_dirty(&mut self, id: &LineId) {
+    fn mark_dirty(&mut self, id: &NodeId) {
         self.dirty_reps
             .insert(self.deleted_partition.representative(*id));
     }
 
-    pub fn add_edge(&mut self, from: LineId, to: LineId) {
-        let from_deleted = !self.lines.contains(&from);
-        let to_deleted = !self.lines.contains(&to);
-        assert!(!from_deleted || self.deleted_lines.contains(&from));
-        assert!(!to_deleted || self.deleted_lines.contains(&to));
+    pub fn add_edge(&mut self, from: NodeId, to: NodeId) {
+        let from_deleted = !self.nodes.contains(&from);
+        let to_deleted = !self.nodes.contains(&to);
+        assert!(!from_deleted || self.deleted_nodes.contains(&from));
+        assert!(!to_deleted || self.deleted_nodes.contains(&to));
 
         self.edges.insert(
             from.clone(),
@@ -368,13 +368,13 @@ impl DigleData {
 
     /// # Panics
     ///
-    /// Panics unless `from` and `to` are lines in this digle. In particular, if you're planning to
-    /// remove some lines and the edge between them, you need to remove the edge first.
-    pub fn unadd_edge(&mut self, from: &LineId, to: &LineId) {
-        let from_deleted = !self.lines.contains(&from);
-        let to_deleted = !self.lines.contains(&to);
-        assert!(!from_deleted || self.deleted_lines.contains(&from));
-        assert!(!to_deleted || self.deleted_lines.contains(&to));
+    /// Panics unless `from` and `to` are nodes in this digle. In particular, if you're planning to
+    /// remove some nodes and the edge between them, you need to remove the edge first.
+    pub fn unadd_edge(&mut self, from: &NodeId, to: &NodeId) {
+        let from_deleted = !self.nodes.contains(&from);
+        let to_deleted = !self.nodes.contains(&to);
+        assert!(!from_deleted || self.deleted_nodes.contains(&from));
+        assert!(!to_deleted || self.deleted_nodes.contains(&to));
 
         let forward_edge = Edge {
             kind: EdgeKind::from_deleted(to_deleted),
@@ -391,7 +391,7 @@ impl DigleData {
     // Adds all the pseudo-edges that are induced by a single connected component of deleted nodes.
     //
     // `component` must be a non-empty connected component of the deleted nodes.
-    fn add_component_pseudo_edges(&mut self, component: &HashSet<LineId>) {
+    fn add_component_pseudo_edges(&mut self, component: &HashSet<NodeId>) {
         let digle = self.as_digle();
         let neighborhood = digle.neighbor_set(component.iter());
 
@@ -402,9 +402,9 @@ impl DigleData {
             .representative(*component.iter().next().unwrap());
         let sub_digle = digle.node_filtered(|u| neighborhood.contains(u));
 
-        // This is the collection of all live lines that are adjacent to a particular connected
-        // component of deleted lines. We will compute the complete connectivity relation that
-        // the deleted lines induce on these boundary lines, and then we will add a pseudo-edge
+        // This is the collection of all live nodes that are adjacent to a particular connected
+        // component of deleted nodes. We will compute the complete connectivity relation that
+        // the deleted nodes induce on these boundary nodes, and then we will add a pseudo-edge
         // for each connected pair.
         let boundary = neighborhood.iter().filter(|u| digle.is_live(u));
 
@@ -445,10 +445,10 @@ impl DigleData {
     }
 
     pub fn assert_consistent(&self) {
-        // The live and deleted lines should be disjoint.
-        assert!(self.lines.is_disjoint(&self.deleted_lines));
+        // The live and deleted nodes should be disjoint.
+        assert!(self.nodes.is_disjoint(&self.deleted_nodes));
 
-        let node_exists = |id| self.lines.contains(id) || self.deleted_lines.contains(id);
+        let node_exists = |id| self.nodes.contains(id) || self.deleted_nodes.contains(id);
         // The source and destination of every edge should exist somewhere.
         // The destination should be deleted if and only if the edge kind is `Deleted`.
         // There should be a one-to-one correspondence between edges and back_edges.
@@ -457,7 +457,7 @@ impl DigleData {
             assert!(node_exists(src));
             assert!(node_exists(&edge.dest));
             assert_eq!(
-                self.deleted_lines.contains(&edge.dest),
+                self.deleted_nodes.contains(&edge.dest),
                 edge.kind == EdgeKind::Deleted
             );
 
@@ -466,7 +466,7 @@ impl DigleData {
                 kind: if edge.kind == EdgeKind::Pseudo {
                     EdgeKind::Pseudo
                 } else {
-                    EdgeKind::from_deleted(self.deleted_lines.contains(src))
+                    EdgeKind::from_deleted(self.deleted_nodes.contains(src))
                 },
             };
             assert!(self.back_edges.contains(&edge.dest, &back_edge));
@@ -480,7 +480,7 @@ impl DigleData {
 
         // The deleted partition should contain all of the deleted nodes (if the pseudo-edges
         // haven't been resolved yet, it may also contain nodes that have been undeleted).
-        for u in &self.deleted_lines {
+        for u in &self.deleted_nodes {
             assert!(self.deleted_partition.contains(*u));
         }
 
@@ -501,36 +501,36 @@ pub struct Digle<'a> {
 }
 
 impl<'a> Digle<'a> {
-    pub fn lines<'b>(&'b self) -> impl Iterator<Item = LineId> + 'b {
-        self.data.lines.iter().cloned()
+    pub fn nodes<'b>(&'b self) -> impl Iterator<Item = NodeId> + 'b {
+        self.data.nodes.iter().cloned()
     }
 
-    pub fn out_edges<'b>(&'b self, line: &LineId) -> impl Iterator<Item = &'b Edge> + 'b {
-        self.data.edges.get(line).take_while(|e| e.not_deleted())
+    pub fn out_edges<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b Edge> + 'b {
+        self.data.edges.get(node).take_while(|e| e.not_deleted())
     }
 
-    pub fn all_out_edges<'b>(&'b self, line: &LineId) -> impl Iterator<Item = &'b Edge> + 'b {
-        self.data.edges.get(line)
+    pub fn all_out_edges<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b Edge> + 'b {
+        self.data.edges.get(node)
     }
 
-    pub fn in_edges<'b>(&'b self, line: &LineId) -> impl Iterator<Item = &'b Edge> + 'b {
+    pub fn in_edges<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b Edge> + 'b {
         self.data
             .back_edges
-            .get(line)
+            .get(node)
             .take_while(|e| e.not_deleted())
     }
 
-    pub fn all_in_edges<'b>(&'b self, line: &LineId) -> impl Iterator<Item = &'b Edge> + 'b {
-        self.data.back_edges.get(line)
+    pub fn all_in_edges<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b Edge> + 'b {
+        self.data.back_edges.get(node)
     }
 
-    pub fn has_line(&self, line: &LineId) -> bool {
-        self.data.lines.contains(line) || self.data.deleted_lines.contains(line)
+    pub fn has_node(&self, node: &NodeId) -> bool {
+        self.data.nodes.contains(node) || self.data.deleted_nodes.contains(node)
     }
 
-    pub fn is_live(&self, line: &LineId) -> bool {
-        assert!(self.has_line(line));
-        self.data.lines.contains(line)
+    pub fn is_live(&self, node: &NodeId) -> bool {
+        assert!(self.has_node(node));
+        self.data.nodes.contains(node)
     }
 }
 
@@ -550,31 +550,31 @@ impl<'a> DigleMut<'a> {
         Digle { data: self.data }
     }
 
-    pub fn add_node(&mut self, id: LineId) {
+    pub fn add_node(&mut self, id: NodeId) {
         self.data.add_node(id);
     }
 
-    pub fn unadd_node(&mut self, id: &LineId) {
+    pub fn unadd_node(&mut self, id: &NodeId) {
         self.data.unadd_node(id);
     }
 
-    pub fn delete_node(&mut self, id: &LineId) {
+    pub fn delete_node(&mut self, id: &NodeId) {
         self.data.delete_node(id);
     }
 
-    pub fn undelete_node(&mut self, id: &LineId) {
+    pub fn undelete_node(&mut self, id: &NodeId) {
         self.data.undelete_node(id);
     }
 
-    pub fn add_edge(&mut self, from: LineId, to: LineId) {
+    pub fn add_edge(&mut self, from: NodeId, to: NodeId) {
         self.data.add_edge(from, to);
     }
 
     /// # Panics
     ///
-    /// Panics unless `from` and `to` are lines in this digle. In particular, if you're planning to
-    /// remove some lines and the edge between them, you need to remove the lines first.
-    pub fn unadd_edge(&mut self, from: &LineId, to: &LineId) {
+    /// Panics unless `from` and `to` are nodes in this digle. In particular, if you're planning to
+    /// remove some nodes and the edge between them, you need to remove the nodes first.
+    pub fn unadd_edge(&mut self, from: &NodeId, to: &NodeId) {
         self.data.unadd_edge(from, to);
     }
 }
@@ -586,24 +586,24 @@ impl<'a> From<&'a mut DigleData> for DigleMut<'a> {
 }
 
 impl<'a> graph::Graph for Digle<'a> {
-    type Node = LineId;
-    type Edge = LineId;
+    type Node = NodeId;
+    type Edge = NodeId;
 
     fn nodes<'b>(&'b self) -> Box<dyn Iterator<Item = Self::Node> + 'b> {
         Box::new(
             self.data
-                .lines
+                .nodes
                 .iter()
-                .chain(self.data.deleted_lines.iter())
+                .chain(self.data.deleted_nodes.iter())
                 .cloned(),
         )
     }
 
-    fn out_edges<'b>(&'b self, u: &LineId) -> Box<dyn Iterator<Item = Self::Node> + 'b> {
+    fn out_edges<'b>(&'b self, u: &NodeId) -> Box<dyn Iterator<Item = Self::Node> + 'b> {
         Box::new(self.all_out_edges(u).map(|e| &e.dest).cloned())
     }
 
-    fn in_edges<'b>(&'b self, u: &LineId) -> Box<dyn Iterator<Item = Self::Node> + 'b> {
+    fn in_edges<'b>(&'b self, u: &NodeId) -> Box<dyn Iterator<Item = Self::Node> + 'b> {
         Box::new(self.all_in_edges(u).map(|e| &e.dest).cloned())
     }
 }
@@ -612,7 +612,7 @@ impl<'a> graph::Graph for Digle<'a> {
 pub mod tests {
     use super::*;
     use crate::patch::{Change, Changes};
-    use crate::{LineId, PatchId};
+    use crate::{NodeId, PatchId};
 
     use byteorder::{LittleEndian, WriteBytesExt};
     use proptest::collection::hash_set;
@@ -635,12 +635,12 @@ pub mod tests {
         {
             let mut ret = DigleData::new();
             for i in 0..num_nodes {
-                ret.lines.insert(LineId::cur(i as u64));
+                ret.nodes.insert(NodeId::cur(i as u64));
             }
             for (u, v) in edges {
                 if u != v {
-                    let u = LineId::cur(u as u64);
-                    let v = LineId::cur(v as u64);
+                    let u = NodeId::cur(u as u64);
+                    let v = NodeId::cur(v as u64);
                     ret.edges.insert(u, Edge { dest: v, kind: EdgeKind::Live });
                     ret.back_edges.insert(v, Edge { dest: u, kind: EdgeKind::Live });
                 }
@@ -659,8 +659,8 @@ pub mod tests {
     // edges between the new nodes, and also between the new nodes and the old ones.
     fn arb_changes<'a>(digle: &'a DigleData, size: usize) -> BoxedStrategy<Changes> {
         fn make_changes(
-            old_ids: Vec<LineId>,
-            nodes_to_delete: Vec<LineId>,
+            old_ids: Vec<NodeId>,
+            nodes_to_delete: Vec<NodeId>,
             num_to_add: usize,
             new_new_edges: HashSet<(usize, usize)>,
             new_old_edges: HashSet<(usize, usize)>,
@@ -673,9 +673,9 @@ pub mod tests {
                 .unwrap();
 
             let new_ids = (0..num_to_add)
-                .map(|i| LineId {
+                .map(|i| NodeId {
                     patch: patch_id,
-                    line: i as u64,
+                    node: i as u64,
                 })
                 .collect::<Vec<_>>();
 
@@ -708,7 +708,7 @@ pub mod tests {
             Changes { changes }
         }
 
-        let old_ids = digle.lines.iter().cloned().collect::<Vec<_>>();
+        let old_ids = digle.nodes.iter().cloned().collect::<Vec<_>>();
         let num_to_add = 1..size;
 
         // Strategy returning a tuple
