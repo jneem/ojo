@@ -411,23 +411,66 @@ impl DigleData {
             }
         }
         for (src, dest) in pairs {
-            self.edges.insert(
-                src,
-                Edge {
+            // Only add a pseudo-edge if there is not already an edge present.
+            if self.edges.get(&src).next().is_none() {
+                self.edges.insert(
+                    src,
+                    Edge {
+                        dest,
+                        kind: EdgeKind::Pseudo,
+                    },
+                );
+                self.back_edges.insert(
                     dest,
-                    kind: EdgeKind::Pseudo,
-                },
-            );
-            self.back_edges.insert(
-                dest,
-                Edge {
-                    dest: src,
-                    kind: EdgeKind::Pseudo,
-                },
-            );
-            self.pseudo_edge_reasons.insert((src, dest), rep);
-            self.reason_pseudo_edges.insert(rep, (src, dest));
+                    Edge {
+                        dest: src,
+                        kind: EdgeKind::Pseudo,
+                    },
+                );
+                self.pseudo_edge_reasons.insert((src, dest), rep);
+                self.reason_pseudo_edges.insert(rep, (src, dest));
+            }
         }
+    }
+
+    pub fn assert_consistent(&self) {
+        // The live and deleted lines should be disjoint.
+        assert!(self.lines.is_disjoint(&self.deleted_lines));
+
+        let node_exists = |id| self.lines.contains(id) || self.deleted_lines.contains(id);
+        // The source and destination of every edge should exist somewhere.
+        // The destination should be deleted if and only if the edge kind is `Deleted`.
+        // There should be a one-to-one correspondence between edges and back_edges.
+        let mut seen_back_edges = HashSet::new();
+        for (src, edge) in self.edges.iter() {
+            assert!(node_exists(src));
+            assert!(node_exists(&edge.dest));
+            assert_eq!(
+                self.deleted_lines.contains(&edge.dest),
+                edge.kind == EdgeKind::Deleted
+            );
+
+            let back_edge = Edge {
+                dest: *src,
+                kind: if edge.kind == EdgeKind::Pseudo {
+                    EdgeKind::Pseudo
+                } else {
+                    EdgeKind::from_deleted(self.deleted_lines.contains(src))
+                },
+            };
+            assert!(self.back_edges.contains(&edge.dest, &back_edge));
+            seen_back_edges.insert((edge.dest, back_edge));
+        }
+        // We've checked that every forward edge corresponds to a backward edge; now check that
+        // every backward edge was encountered in this way.
+        for (src, back_edge) in self.back_edges.iter() {
+            assert!(seen_back_edges.contains(&(*src, *back_edge)));
+        }
+
+        // TODO:
+        // - check that deleted_partition is indeed a partition of the deleted nodes into
+        //   connected components.
+        // - check that the ordering induced by the pseudo-edges is the right one
     }
 }
 
@@ -473,45 +516,6 @@ impl<'a> Digle<'a> {
         self.data.lines.contains(line)
     }
 
-    pub fn assert_consistent(&self) {
-        // The live and deleted lines should be disjoint.
-        assert!(self.data.lines.is_disjoint(&self.data.deleted_lines));
-
-        let node_exists = |id| self.data.lines.contains(id) || self.data.deleted_lines.contains(id);
-        // The source and destination of every edge should exist somewhere.
-        // The destination should be deleted if and only if the edge kind is `Deleted`.
-        // There should be a one-to-one correspondence between edges and back_edges.
-        let mut seen_back_edges = HashSet::new();
-        for (src, edge) in self.data.edges.iter() {
-            assert!(node_exists(src));
-            assert!(node_exists(&edge.dest));
-            assert_eq!(
-                self.data.deleted_lines.contains(&edge.dest),
-                edge.kind == EdgeKind::Deleted
-            );
-
-            let back_edge = Edge {
-                dest: *src,
-                kind: if edge.kind == EdgeKind::Pseudo {
-                    EdgeKind::Pseudo
-                } else {
-                    EdgeKind::from_deleted(self.data.deleted_lines.contains(src))
-                },
-            };
-            assert!(self.data.back_edges.contains(&edge.dest, &back_edge));
-            seen_back_edges.insert((edge.dest, back_edge));
-        }
-        // We've checked that every forward edge corresponds to a backward edge; now check that
-        // every backward edge was encountered in this way.
-        for (src, back_edge) in self.data.back_edges.iter() {
-            assert!(seen_back_edges.contains(&(*src, *back_edge)));
-        }
-
-        // TODO:
-        // - check that deleted_partition is indeed a partition of the deleted nodes into
-        //   connected components.
-        // - check that the ordering induced by the pseudo-edges is the right one
-    }
 }
 
 impl<'a> From<&'a DigleData> for Digle<'a> {
@@ -702,10 +706,11 @@ pub mod tests {
     proptest! {
         #[test]
         fn live_digles_consistent(ref d in arb_live_digle(20)) {
-            d.as_digle().assert_consistent();
+            d.assert_consistent();
         }
     }
 
+    // These two functions are basically copy&paste from `Storage`. TODO: consider refactoring
     fn apply_changes(digle: &mut DigleData, changes: &Changes) {
         for ch in &changes.changes {
             match *ch {
@@ -716,13 +721,41 @@ pub mod tests {
         }
     }
 
+    fn unapply_changes(digle: &mut DigleData, changes: &Changes) {
+        for ch in &changes.changes {
+            match *ch {
+                Change::DeleteNode { ref id } => digle.undelete_node(id),
+                Change::NewEdge { ref src, ref dst } => digle.unadd_edge(src, dst),
+                Change::NewNode { .. } => {}
+            }
+        }
+        for ch in &changes.changes {
+            if let Change::NewNode { ref id, .. } = *ch {
+                digle.unadd_node(id);
+            }
+        }
+    }
+
+
     proptest! {
         #[test]
         fn digle_then_change((ref d, ref ch) in arb_digle_and_change(20, 10)) {
             let mut d = d.clone();
-            d.as_digle().assert_consistent();
+            d.assert_consistent();
+
             apply_changes(&mut d, ch);
-            d.as_digle().assert_consistent();
+            d.assert_consistent();
+
+            d.resolve_pseudo_edges();
+            d.assert_consistent();
+
+            unapply_changes(&mut d, ch);
+            d.assert_consistent();
+
+            d.resolve_pseudo_edges();
+            d.assert_consistent();
         }
     }
+
+    // TODO: create a digle and a sequence of changes
 }
