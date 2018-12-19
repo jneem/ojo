@@ -97,6 +97,10 @@ impl<T: Copy + Ord> Partition<T> {
         self.representative(elt1) == self.representative(elt2)
     }
 
+    pub fn contains(&self, elt: T) -> bool {
+        self.ranks.contains_key(&elt)
+    }
+
     pub fn remove_part(&mut self, elt: T) {
         let elts = self.iter_part(elt).collect::<Vec<_>>();
         for e in elts {

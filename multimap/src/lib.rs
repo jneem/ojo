@@ -7,7 +7,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::borrow::Borrow;
 use std::collections::{BTreeMap, BTreeSet};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MMap<K: Ord, V: Ord> {
     map: BTreeMap<K, BTreeSet<V>>,
     // hackity
@@ -46,7 +46,14 @@ impl<K: Ord, V: Ord> MMap<K, V> {
         R: Ord + ?Sized,
     {
         if let Some(set) = self.map.get_mut(&key) {
-            set.remove(val)
+            let ret = set.remove(val);
+            // Remove empty sets entirely. Partly because it seems reasonable to get rid of unused
+            // entries, but mostly because it makes the auto-derived PartialEq implementation
+            // correct.
+            if set.is_empty() {
+                self.map.remove(key);
+            }
+            ret
         } else {
             false
         }

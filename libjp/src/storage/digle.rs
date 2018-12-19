@@ -68,6 +68,17 @@ pub(crate) struct DigleData {
     dirty_reps: Set<LineId>,
 }
 
+// Two Digles compare as equal if they have the same nodes and edges (including pseudo-edges). We
+// don't check the rest of the fields, as they are only there for optimization.
+impl PartialEq<DigleData> for DigleData {
+    fn eq(&self, other: &DigleData) -> bool {
+        self.lines.eq(&other.lines)
+            && self.deleted_lines.eq(&other.deleted_lines)
+            && self.edges.eq(&other.edges)
+            && self.back_edges.eq(&other.back_edges)
+    }
+}
+
 impl DigleData {
     pub fn new() -> DigleData {
         DigleData {
@@ -467,6 +478,12 @@ impl DigleData {
             assert!(seen_back_edges.contains(&(*src, *back_edge)));
         }
 
+        // The deleted partition should contain all of the deleted nodes (if the pseudo-edges
+        // haven't been resolved yet, it may also contain nodes that have been undeleted).
+        for u in &self.deleted_lines {
+            assert!(self.deleted_partition.contains(*u));
+        }
+
         // TODO:
         // - check that deleted_partition is indeed a partition of the deleted nodes into
         //   connected components.
@@ -515,7 +532,6 @@ impl<'a> Digle<'a> {
         assert!(self.has_line(line));
         self.data.lines.contains(line)
     }
-
 }
 
 impl<'a> From<&'a DigleData> for Digle<'a> {
@@ -594,13 +610,13 @@ impl<'a> graph::Graph for Digle<'a> {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::{LineId, PatchId};
-    use crate::patch::{Change, Changes};
     use super::*;
+    use crate::patch::{Change, Changes};
+    use crate::{LineId, PatchId};
 
     use byteorder::{LittleEndian, WriteBytesExt};
-    use proptest::prelude::*;
     use proptest::collection::hash_set;
+    use proptest::prelude::*;
     use proptest::sample::subsequence;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -649,29 +665,44 @@ pub mod tests {
             new_new_edges: HashSet<(usize, usize)>,
             new_old_edges: HashSet<(usize, usize)>,
             old_new_edges: HashSet<(usize, usize)>,
-        ) -> Changes
-        {
+        ) -> Changes {
             let patch_id_int = CUR_ID.fetch_add(1, Ordering::SeqCst);
             let mut patch_id = PatchId::cur();
-            (&mut patch_id.data[..]).write_u64::<LittleEndian>(patch_id_int as u64).unwrap();
+            (&mut patch_id.data[..])
+                .write_u64::<LittleEndian>(patch_id_int as u64)
+                .unwrap();
 
             let new_ids = (0..num_to_add)
-                .map(|i| LineId { patch: patch_id, line: i as u64 })
+                .map(|i| LineId {
+                    patch: patch_id,
+                    line: i as u64,
+                })
                 .collect::<Vec<_>>();
 
-            let deletions = nodes_to_delete.iter()
+            let deletions = nodes_to_delete
+                .iter()
                 .map(|u| Change::DeleteNode { id: *u });
 
-            let insertions = new_ids.iter()
-                .map(|u| Change::NewNode { id: *u, contents: vec![] });
+            let insertions = new_ids.iter().map(|u| Change::NewNode {
+                id: *u,
+                contents: vec![],
+            });
 
-            let edges =
-                new_new_edges.into_iter().map(|(i, j)| (new_ids[i], new_ids[j]))
-                .chain(new_old_edges.into_iter().map(|(i, j)| (new_ids[i], old_ids[j])))
-                .chain(old_new_edges.into_iter().map(|(i, j)| (old_ids[i], new_ids[j])))
+            let edges = new_new_edges
+                .into_iter()
+                .map(|(i, j)| (new_ids[i], new_ids[j]))
+                .chain(
+                    new_old_edges
+                        .into_iter()
+                        .map(|(i, j)| (new_ids[i], old_ids[j])),
+                )
+                .chain(
+                    old_new_edges
+                        .into_iter()
+                        .map(|(i, j)| (old_ids[i], new_ids[j])),
+                )
                 .filter(|(u, v)| u != v);
-            let edges = edges
-                .map(|(u, v)| Change::NewEdge { src: u, dst: v });
+            let edges = edges.map(|(u, v)| Change::NewEdge { src: u, dst: v });
 
             let changes = deletions.chain(insertions).chain(edges).collect::<Vec<_>>();
             Changes { changes }
@@ -683,24 +714,32 @@ pub mod tests {
         // Strategy returning a tuple
         // (nodes_to_delete, num_to_add, new_new_edges, new_old_edges, old_new_edges)
         let old = old_ids.clone();
-        let changes = num_to_add.prop_flat_map(move |n|
-            (subsequence(old.clone(), 0..old.len()),
-             Just(n),
-             hash_set((0..n, 0..n), 0..(MAX_AVG_DEGREE * n)),
-             hash_set((0..n, 0..old.len()), 0..(MAX_AVG_DEGREE * n.min(old.len()))),
-             hash_set((0..old.len(), 0..n), 0..(MAX_AVG_DEGREE * n.min(old.len()))),
-             )
-            );
-        changes.prop_map(move |(del, n, nn, no, on)| make_changes(old_ids.clone(), del, n, nn, no, on)).boxed()
+        let changes = num_to_add.prop_flat_map(move |n| {
+            (
+                subsequence(old.clone(), 0..old.len()),
+                Just(n),
+                hash_set((0..n, 0..n), 0..(MAX_AVG_DEGREE * n)),
+                hash_set((0..n, 0..old.len()), 0..(MAX_AVG_DEGREE * n.min(old.len()))),
+                hash_set((0..old.len(), 0..n), 0..(MAX_AVG_DEGREE * n.min(old.len()))),
+            )
+        });
+        changes
+            .prop_map(move |(del, n, nn, no, on)| make_changes(old_ids.clone(), del, n, nn, no, on))
+            .boxed()
     }
 
     // Creates an arbitrary digle and a change that can be applied to it.
-    fn arb_digle_and_change(initial_size: usize, change_size: usize) -> BoxedStrategy<(DigleData, Changes)> {
+    fn arb_digle_and_change(
+        initial_size: usize,
+        change_size: usize,
+    ) -> BoxedStrategy<(DigleData, Changes)> {
         let digle = arb_live_digle(initial_size);
-        digle.prop_flat_map(move |d| {
-            let ch = arb_changes(&d, change_size);
-            (Just(d), ch)
-        }).boxed()
+        digle
+            .prop_flat_map(move |d| {
+                let ch = arb_changes(&d, change_size);
+                (Just(d), ch)
+            })
+            .boxed()
     }
 
     proptest! {
@@ -736,7 +775,6 @@ pub mod tests {
         }
     }
 
-
     proptest! {
         #[test]
         fn digle_then_change((ref d, ref ch) in arb_digle_and_change(20, 10)) {
@@ -757,5 +795,71 @@ pub mod tests {
         }
     }
 
-    // TODO: create a digle and a sequence of changes
+    // Creates an arbitrary digle and a sequence of changes, which can be applied to the digle
+    // one-by-one.
+    fn arb_digle_and_change_seq(
+        initial_size: usize,
+        change_size: usize,
+        num_changes: usize,
+    ) -> BoxedStrategy<(DigleData, Vec<Changes>)> {
+        fn recurse(
+            orig: DigleData,
+            change_size: usize,
+            num_changes: usize,
+            cur: DigleData,
+            changes: Vec<Changes>,
+        ) -> BoxedStrategy<(DigleData, Vec<Changes>)> {
+            if num_changes == 0 {
+                Just((orig, changes)).boxed()
+            } else {
+                let next_change = arb_changes(&cur, change_size);
+                (Just(orig), Just(cur), Just(changes), next_change)
+                    .prop_flat_map(move |(orig, mut cur, mut changes, ch)| {
+                        apply_changes(&mut cur, &ch);
+                        changes.push(ch);
+                        recurse(orig, change_size, num_changes - 1, cur, changes)
+                    })
+                    .boxed()
+            }
+        }
+        let digle = arb_live_digle(initial_size);
+        let num_changes = 1..(num_changes + 1);
+        (digle, num_changes)
+            .prop_flat_map(move |(d, n)| recurse(d.clone(), change_size, n, d, vec![]))
+            .boxed()
+    }
+
+    proptest! {
+        #[test]
+        fn digle_and_change_seq((ref d, ref chs) in arb_digle_and_change_seq(5, 2, 2)) {
+            // Apply all the changes one-by-one. At each step, check that reversing the change
+            // produces the previous digle.
+            let mut cur = d.clone();
+            for ch in chs {
+                let mut next = cur.clone();
+                apply_changes(&mut next, ch);
+                next.resolve_pseudo_edges();
+                next.assert_consistent();
+
+                let mut unapplied = next.clone();
+                unapply_changes(&mut unapplied, ch);
+                unapplied.resolve_pseudo_edges();
+                unapplied.assert_consistent();
+                assert_eq!(cur, unapplied);
+
+                cur = next;
+            }
+
+            // Try applying *all* of the changes, and then resolving. It shouldn't affect the
+            // answer.
+            let mut all_at_once = d.clone();
+            for ch in chs {
+                apply_changes(&mut all_at_once, ch);
+            }
+            all_at_once.assert_consistent();
+            all_at_once.resolve_pseudo_edges();
+            all_at_once.assert_consistent();
+            assert_eq!(cur, all_at_once);
+        }
+    }
 }
