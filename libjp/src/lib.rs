@@ -16,7 +16,7 @@ pub use crate::error::Error;
 pub use crate::patch::{Change, Changes, Patch, PatchId, UnidentifiedPatch};
 pub use crate::storage::Digle;
 
-// NOTE: this is temporary, because eventually this functionality is supposed to be in serde
+// FIXME: use serde(with) for this (see https://github.com/serde-rs/json/issues/360)
 pub(crate) enum Base64Slice {}
 impl Base64Slice {
     pub fn serialize<S>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error>

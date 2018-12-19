@@ -32,10 +32,6 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
         }
     }
 
-    // The unwrap is ok, because if the branch didn't exist then the previous line would already
-    // have failed.
-    repo.digle(&branch).unwrap().assert_consistent();
-
     repo.write()?;
     Ok(())
 }
