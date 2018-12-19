@@ -77,6 +77,8 @@ pub trait Graph {
                         components.push(cur_component);
                         cur_component = HashSet::new();
                         cur_component.insert(u);
+                    } else {
+                        cur_component.insert(u);
                     }
                 }
                 Visit::Retreat { .. } => {}
@@ -242,8 +244,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::Graph;
     use proptest::prelude::*;
+    use std::collections::HashSet;
+
+    use super::Graph;
 
     #[derive(Clone, Debug)]
     pub struct Node {
@@ -414,6 +418,7 @@ mod tests {
             for part1 in &partition.sets {
                 for part2 in &partition.sets {
                     if part1 != part2 {
+                        assert!(part1.is_disjoint(part2));
                         for u in part1 {
                             for v in part2 {
                                 assert!(!g.has_edge(*u, *v));
@@ -422,6 +427,10 @@ mod tests {
                     }
                 }
             }
+
+            // Check that every node appears in some component.
+            let union = partition.sets.iter().fold(HashSet::new(), |a, b| a.union(b).cloned().collect());
+            assert_eq!(g.nodes().collect::<HashSet<_>>(), union);
         }
     }
 }
