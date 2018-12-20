@@ -36,11 +36,11 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
 
         // Now that we know the patch's id, move it to a location given by that name.
         let mut patch_path = repo.patch_dir.clone();
-        patch_path.push(patch.id.filename());
+        patch_path.push(patch.id.to_base64());
         repo.register_patch(&patch)?;
         out.persist(&patch_path)
             .with_context(|_| format!("saving patch to {:?}", patch_path))?;
-        eprintln!("Created patch {}", &patch.id.filename());
+        eprintln!("Created patch {}", &patch.id.to_base64());
     } else {
         // There was an error rendering the target branch to a file. In order to print an
         // informative message, we need to check whether the reason for failure was that the branch

@@ -42,8 +42,8 @@ pub fn diff(repo: &Repo) -> Result<Diff, Error> {
     let fs_lines = lines(&fs_file_contents);
 
     if let Some(repo_file) = repo.file("master") {
-        let repo_lines = (0..repo_file.num_lines())
-            .map(|i| repo_file.line(i).to_owned())
+        let repo_lines = (0..repo_file.num_nodes())
+            .map(|i| repo_file.node(i).to_owned())
             .collect::<Vec<_>>();
         let line_diffs = diff::diff(&repo_lines, &fs_lines);
         let ret = Diff {

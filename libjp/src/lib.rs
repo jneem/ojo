@@ -12,7 +12,7 @@ mod error;
 pub mod patch;
 pub mod storage;
 
-pub use crate::error::Error;
+pub use crate::error::{Error, PatchIdError};
 pub use crate::patch::{Change, Changes, Patch, PatchId, UnidentifiedPatch};
 pub use crate::storage::Digle;
 
@@ -231,7 +231,7 @@ impl Repo {
 
     fn patch_path(&self, id: &PatchId) -> PathBuf {
         let mut ret = self.patch_dir.clone();
-        ret.push(id.filename());
+        ret.push(id.to_base64());
         ret
     }
 
@@ -240,7 +240,7 @@ impl Repo {
     }
 
     pub fn open_patch(&self, name: &str) -> Result<Patch, Error> {
-        self.open_patch_by_id(&PatchId::from_filename(name)?)
+        self.open_patch_by_id(&PatchId::from_base64(name)?)
     }
 
     pub fn register_patch(&mut self, patch: &Patch) -> Result<(), Error> {
@@ -251,7 +251,7 @@ impl Repo {
             if &old_patch == patch {
                 return Ok(());
             } else {
-                return Err(Error::PatchCollision(patch.id.clone()));
+                return Err(PatchIdError::Collision(patch.id.clone()).into());
             }
         }
 

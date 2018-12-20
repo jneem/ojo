@@ -6,8 +6,44 @@ use std::{self, fmt, io};
 use crate::PatchId;
 
 #[derive(Debug)]
-pub enum Error {
+pub enum PatchIdError {
     Base64Decode(base64::DecodeError),
+    InvalidLength(usize),
+    Collision(crate::PatchId),
+}
+
+impl From<base64::DecodeError> for PatchIdError {
+    fn from(e: base64::DecodeError) -> PatchIdError {
+        PatchIdError::Base64Decode(e)
+    }
+}
+
+impl fmt::Display for PatchIdError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use self::PatchIdError::*;
+
+        match self {
+            Base64Decode(e) => e.fmt(f),
+            InvalidLength(n) => write!(f, "Found the wrong number of bytes: {}", n),
+            Collision(p) => write!(f, "Encountered a collision between patch hashes: {}", p.to_base64())
+        }
+    }
+}
+
+impl std::error::Error for PatchIdError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        use self::PatchIdError::*;
+
+        match self {
+            Base64Decode(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum Error {
+    PatchId(PatchIdError),
     BranchExists(String),
     CurrentBranch(String),
     DbCorruption,
@@ -16,7 +52,6 @@ pub enum Error {
     NoFilename(PathBuf),
     NoParent(PathBuf),
     NonUtfFilename(OsString),
-    PatchCollision(crate::PatchId),
     RepoExists(PathBuf),
     RepoNotFound(PathBuf),
     Serde(serde_yaml::Error),
@@ -29,12 +64,7 @@ impl fmt::Display for Error {
             Error::CurrentBranch(b) => write!(f, "\"{}\" is the current branch", b),
             Error::DbCorruption => write!(f, "Found corruption in the database"),
             Error::Io(e, msg) => write!(f, "I/O error: {}. Details: {}", msg, e),
-            Error::Base64Decode(e) => write!(f, "Error decoding base64: {}", e),
-            Error::PatchCollision(id) => write!(
-                f,
-                "Encountered a collision between patch hashes: {}",
-                base64::encode_config(&id.data[..], base64::URL_SAFE)
-            ),
+            Error::PatchId(_) => write!(f, "Found a broken PatchId"),
             Error::Serde(e) => e.fmt(f),
             Error::RepoNotFound(p) => write!(
                 f,
@@ -42,7 +72,7 @@ impl fmt::Display for Error {
                 p
             ),
             Error::RepoExists(p) => write!(f, "There is already a repository in {:?}", p),
-            Error::MissingDep(id) => write!(f, "Missing a dependency: {}", id.filename()),
+            Error::MissingDep(id) => write!(f, "Missing a dependency: {}", id.to_base64()),
             Error::NoParent(p) => write!(f, "I could not find the parent directory of: {:?}", p),
             Error::NoFilename(p) => write!(f, "This path didn't end in a filename: {:?}", p),
             Error::NonUtfFilename(p) => {
@@ -55,35 +85,25 @@ impl fmt::Display for Error {
 }
 
 impl std::error::Error for Error {
-    fn description(&self) -> &str {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Error::BranchExists(_) => "branch already exists",
-            Error::CurrentBranch(_) => "current branch",
-            Error::DbCorruption => "found corruption in the database",
-            Error::Io(e, _) => e.description(),
-            Error::Base64Decode(e) => e.description(),
-            Error::PatchCollision(_) => "patch collision detected",
-            Error::Serde(e) => e.description(),
-            Error::RepoNotFound(_) => "repository not found",
-            Error::RepoExists(_) => "repository exists",
-            Error::MissingDep(_) => "missing patch dependency",
-            Error::NoParent(_) => "no parent path",
-            Error::NoFilename(_) => "no filename",
-            Error::NonUtfFilename(_) => "filename not UTF-8",
-            Error::UnknownBranch(_) => "unknown branch",
+            Error::Io(e, _) => Some(e),
+            Error::PatchId(e) => Some(e),
+            Error::Serde(e) => Some(e),
+            _ => None,
         }
+    }
+}
+
+impl From<PatchIdError> for Error {
+    fn from(e: PatchIdError) -> Error {
+        Error::PatchId(e)
     }
 }
 
 impl From<io::Error> for Error {
     fn from(e: io::Error) -> Error {
         Error::Io(e, "".to_owned())
-    }
-}
-
-impl From<base64::DecodeError> for Error {
-    fn from(e: base64::DecodeError) -> Error {
-        Error::Base64Decode(e)
     }
 }
 

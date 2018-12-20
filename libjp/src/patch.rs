@@ -1,9 +1,11 @@
+use chrono::{DateTime, Utc};
 use serde_yaml;
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::io::{self, prelude::*};
 
 use crate::Error;
+use crate::error::PatchIdError;
 
 mod change;
 pub use self::change::{Change, Changes};
@@ -47,26 +49,34 @@ pub struct PatchId {
 }
 
 impl PatchId {
+    /// There is a special reserved `PatchId` for patches that are under construction, but not yet
+    /// finished (see [`UnidentifiedPatch`] for more details). This function returns that special id.
     pub fn cur() -> PatchId {
         PatchId { data: [0; 32] }
     }
 
+    /// Checks whether this `PatchId` is the one decribed in [`PatchId::cur`].
     pub fn is_cur(&self) -> bool {
         self.data == [0; 32]
     }
 
-    pub fn filename(&self) -> String {
+    /// Represents this `PatchId` in base64 (using the `URL_SAFE`) encoding.
+    pub fn to_base64(&self) -> String {
         // We encode the filename in the URL_SAFE encoding because it needs to be a valid path
         // (e.g. no slashes).
         base64::encode_config(&self.data[..], base64::URL_SAFE)
     }
 
-    pub fn from_filename<S: ?Sized + AsRef<[u8]>>(name: &S) -> Result<PatchId, Error> {
+    /// Converts from base64 (in the `URL_SAFE`) encoding to a `PatchId`.
+    pub fn from_base64<S: ?Sized + AsRef<[u8]>>(name: &S) -> Result<PatchId, PatchIdError> {
         let data = base64::decode_config(name, base64::URL_SAFE)?;
         let mut ret = PatchId::cur();
-        ret.data.copy_from_slice(&data);
-        // TODO: check that the size is right
-        Ok(ret)
+        if data.len() != ret.data.len() {
+            Err(PatchIdError::InvalidLength(data.len()))
+        } else {
+            ret.data.copy_from_slice(&data);
+            Ok(ret)
+        }
     }
 }
 
@@ -76,19 +86,29 @@ impl PatchId {
 /// cycle is by separating "unidentified" patches (those without an id yet) from completed patches
 /// with an id.
 ///
-/// This is an unidentified patch; it does not have an id field, and any changes in the `changes`
-/// array that need to refer to this patch use the all-zeros placeholder as their patch id.
+/// This is an unidentified patch; it does not have an id field, and any changes that need
+/// to refer to contents of this patch use the placeholder id returned by [`PatchId::cur`].
 ///
 /// This patch *cannot* be applied to a repository, because doing so would require an id. However,
 /// it can be serialized to a file, and it can be turned into an identified patch.
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct UnidentifiedPatch {
-    pub header: PatchHeader,
-    pub changes: Changes,
-    pub deps: Vec<PatchId>,
+    changes: Changes,
+
+    // Various metadata associated with this patch.
+    //
+    // Note that the metadata is hashed together will all the other contents of this patch. So,
+    // for example, if you change the author of a patch then the resulting patch id will also
+    // change.
+    header: PatchHeader,
+
+    // The list of other patches on which this depends. This should coincide with the set of all
+    // other PatchIds that are referenced in `changes`.
+    deps: Vec<PatchId>,
 }
 
 impl UnidentifiedPatch {
+    /// Creates a new `UnidentifiedPatch` from some metadata and a set of changes.
     pub fn new(author: String, description: String, changes: Changes) -> UnidentifiedPatch {
         // The dependencies of this patch consist of all patches that are referred to by the list
         // of changes.
@@ -116,12 +136,14 @@ impl UnidentifiedPatch {
             header: PatchHeader {
                 author,
                 description,
+                timestamp: Utc::now(),
             },
             changes,
             deps: deps.into_iter().collect(),
         }
     }
 
+    // Assigns an id to this UnidentifiedPatch, and in doing so turns it into a Patch.
     fn set_id(self, id: PatchId) -> Patch {
         let mut ret = Patch {
             id,
@@ -134,6 +156,10 @@ impl UnidentifiedPatch {
         ret
     }
 
+    /// Writes out a patch.
+    ///
+    /// While writing out the patch, we compute the hash of its contents and use that to derive an
+    /// id for this patch. Assuming that the writing succeeds, we return the resulting [`Patch`].
     pub fn write_out<W: Write>(self, writer: W) -> Result<Patch, serde_yaml::Error> {
         let mut w = HashingWriter::new(writer);
         serde_yaml::to_writer(&mut w, &self)?;
@@ -160,19 +186,16 @@ impl Patch {
         // TODO: should we verify that the id matches the hash of the input?
         Ok(up.set_id(id))
     }
-
-    pub fn write_out<W: Write>(&self, mut writer: W) -> Result<(), serde_yaml::Error> {
-        let up = UnidentifiedPatch {
-            header: self.header.clone(),
-            changes: self.changes.clone(),
-            deps: self.deps.clone(),
-        };
-        serde_yaml::to_writer(&mut writer, &up)
-    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct PatchHeader {
+    /// Author of the patch.
     pub author: String,
+
+    /// A description of the patch.
     pub description: String,
+
+    /// The time at which the patch was created.
+    pub timestamp: DateTime<Utc>,
 }

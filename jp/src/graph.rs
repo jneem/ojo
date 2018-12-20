@@ -12,7 +12,7 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     let digle = repo.storage().digle(inode);
 
     let mut output = File::create(output)?;
-    let node_id = |n: &NodeId| format!("{}:{}", &n.patch.filename()[1..8], n.node);
+    let node_id = |n: &NodeId| format!("{}:{}", &n.patch.to_base64()[1..8], n.node);
     writeln!(output, "digraph {{")?;
     for node in digle.nodes() {
         let id = node_id(&node);

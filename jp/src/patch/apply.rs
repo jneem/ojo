@@ -5,7 +5,7 @@ use libjp::PatchId;
 pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     // The unwrap is ok because this is a required argument.
     let patch_id = m.value_of("PATCH").unwrap();
-    let patch_id = PatchId::from_filename(patch_id)?;
+    let patch_id = PatchId::from_base64(patch_id)?;
 
     let mut repo = crate::open_repo()?;
     let branch = crate::branch(&repo, m);
@@ -17,7 +17,7 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
         } else {
             eprintln!("Unapplied:");
             for u in unapplied {
-                eprintln!("  {}", u.filename());
+                eprintln!("  {}", u.to_base64());
             }
         }
     } else {
@@ -27,7 +27,7 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
         } else {
             eprintln!("Applied:");
             for a in applied {
-                eprintln!("  {}", a.filename());
+                eprintln!("  {}", a.to_base64());
             }
         }
     }
