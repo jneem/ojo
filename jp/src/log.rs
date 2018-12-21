@@ -8,11 +8,11 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     for patch_id in repo.patches(&branch) {
         let patch = repo.open_patch_by_id(patch_id)?;
         println!("patch {}", patch_id.to_base64());
-        println!("Author: {}", patch.header.author);
+        println!("Author: {}", patch.header().author);
         println!("");
         // TODO: dates and sorting.
         // TODO: better display for multi-line description.
-        println!("\t{}", patch.header.description);
+        println!("\t{}", patch.header().description);
         println!("");
     }
     Ok(())

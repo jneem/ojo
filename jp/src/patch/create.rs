@@ -1,8 +1,6 @@
 use clap::ArgMatches;
 use failure::{Error, ResultExt};
-use libjp::patch::UnidentifiedPatch;
-use libjp::storage;
-use libjp::Changes;
+use libjp::{Changes, UnidentifiedPatch};
 use std::io::prelude::*;
 
 pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
@@ -18,7 +16,7 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     let mut f = repo.open_file()?;
     let mut contents = Vec::new();
     f.read_to_end(&mut contents)?;
-    let new_file = storage::File::from_bytes(&contents);
+    let new_file = libjp::File::from_bytes(&contents);
     if let Some(old_file) = repo.file(&branch) {
         let changes = Changes::from_diff(&old_file, &new_file, &diff.changes);
 
@@ -36,11 +34,11 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
 
         // Now that we know the patch's id, move it to a location given by that name.
         let mut patch_path = repo.patch_dir.clone();
-        patch_path.push(patch.id.to_base64());
+        patch_path.push(patch.id().to_base64());
         repo.register_patch(&patch)?;
         out.persist(&patch_path)
             .with_context(|_| format!("saving patch to {:?}", patch_path))?;
-        eprintln!("Created patch {}", &patch.id.to_base64());
+        eprintln!("Created patch {}", &patch.id().to_base64());
     } else {
         // There was an error rendering the target branch to a file. In order to print an
         // informative message, we need to check whether the reason for failure was that the branch

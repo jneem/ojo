@@ -8,8 +8,7 @@ use std::io::prelude::*;
 pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     let output = m.value_of("out").unwrap_or("out.dot");
     let repo = super::open_repo()?;
-    let inode = repo.storage().inode("master").unwrap();
-    let digle = repo.storage().digle(inode);
+    let digle = repo.digle("master")?;
 
     let mut output = File::create(output)?;
     let node_id = |n: &NodeId| format!("{}:{}", &n.patch.to_base64()[1..8], n.node);
@@ -17,7 +16,7 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     for node in digle.nodes() {
         let id = node_id(&node);
 
-        let mut label = String::from_utf8_lossy(repo.storage().contents(&node)).to_string();
+        let mut label = String::from_utf8_lossy(repo.contents(&node)).to_string();
         label.push('\n');
         label.push_str(&id);
 

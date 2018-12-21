@@ -11,29 +11,53 @@ pub use self::file::File;
 
 use self::digle::DigleData;
 
+/// A unique identifier for a [`Digle`] in this repository.
+///
+/// Since we currently only support a single Digle per branch, `INode`s are in one-to-one
+/// correspondence with branches. However, branches may be renamed while `INode`s are immutable.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct INode {
     n: u64,
 }
 
+// This contains all of the "large" data in the repository; that is, all the parts that grow as the
+// repository history grows. A real implementation would need to page in this storage on-demand
+// and would also need to implement copy-on-write in various important places. For now, though, we
+// just serialize and deserialize as a giant chunk.
 #[derive(Debug, Deserialize, Serialize)]
-pub struct Storage {
+pub(crate) struct Storage {
+    // We generate unique INodes by assigning numbers in an increasing sequence. This is the next
+    // one to be assigned.
     next_inode: u64,
+
+    // These are the actual, textual contents of the lines. If we wanted to be clever, we could do
+    // deduplication and/or compression.
     contents: Map<NodeId, Vec<u8>>,
+
+    // This is a map from the names of branches to the inodes where those branches' data is stored.
     branches: Map<String, INode>,
+
+    // This is a map from inodes to the actual data contained in them.
     digles: Map<INode, DigleData>,
 
-    pub(crate) patches: HashSet<PatchId>,
+    // A list of all the patches that we know about, and have ever known about. The contents of the
+    // patches are not stored here; they live in a different directory, with one patch per file.
+    pub patches: HashSet<PatchId>,
+
     // If this contains the key-value pair (branch, patch), it means that the named branch contains
     // the named patch.
-    pub(crate) branch_patches: MMap<String, PatchId>,
-    pub(crate) patch_deps: MMap<PatchId, PatchId>,
-    pub(crate) patch_rev_deps: MMap<PatchId, PatchId>,
+    pub branch_patches: MMap<String, PatchId>,
+
+    // If this contains the key-value pair (p1, p2), it means that patch p1 depends on patch p2.
+    // (The same information can be obtained by reading the file containing patch p1, but it's more
+    // convenient to keep a copy here.)
+    pub patch_deps: MMap<PatchId, PatchId>,
+
+    // This is the reverse of `patch_deps`: if this contains the key-value pair (p1, p2), it means
+    // that patch p2 depends on patch p1.
+    pub patch_rev_deps: MMap<PatchId, PatchId>,
 }
 
-// Everything in storage should be copy-on-write. That is, I should be able to get a read-only
-// copy, then I should be able to get a writable copy from that. I should store the writable copy
-// back in the storage.
 impl Storage {
     pub fn new() -> Storage {
         Storage {

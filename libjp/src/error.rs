@@ -25,7 +25,11 @@ impl fmt::Display for PatchIdError {
         match self {
             Base64Decode(e) => e.fmt(f),
             InvalidLength(n) => write!(f, "Found the wrong number of bytes: {}", n),
-            Collision(p) => write!(f, "Encountered a collision between patch hashes: {}", p.to_base64())
+            Collision(p) => write!(
+                f,
+                "Encountered a collision between patch hashes: {}",
+                p.to_base64()
+            ),
         }
     }
 }
@@ -44,6 +48,7 @@ impl std::error::Error for PatchIdError {
 #[derive(Debug)]
 pub enum Error {
     PatchId(PatchIdError),
+    IdMismatch(PatchId, PatchId),
     BranchExists(String),
     CurrentBranch(String),
     DbCorruption,
@@ -65,6 +70,12 @@ impl fmt::Display for Error {
             Error::DbCorruption => write!(f, "Found corruption in the database"),
             Error::Io(e, msg) => write!(f, "I/O error: {}. Details: {}", msg, e),
             Error::PatchId(_) => write!(f, "Found a broken PatchId"),
+            Error::IdMismatch(actual, expected) => write!(
+                f,
+                "Expected {}, found {}",
+                expected.to_base64(),
+                actual.to_base64()
+            ),
             Error::Serde(e) => e.fmt(f),
             Error::RepoNotFound(p) => write!(
                 f,

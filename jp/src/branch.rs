@@ -35,7 +35,7 @@ fn delete_run(m: &ArgMatches<'_>) -> Result<(), Error> {
 
 fn list_run(_m: &ArgMatches<'_>) -> Result<(), Error> {
     let repo = crate::open_repo()?;
-    let mut branches = repo.storage().branches().collect::<Vec<_>>();
+    let mut branches = repo.branches().collect::<Vec<_>>();
     branches.sort();
     for b in branches {
         if b == &repo.current_branch {

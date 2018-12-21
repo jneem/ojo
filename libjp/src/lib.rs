@@ -5,16 +5,16 @@ extern crate serde_derive;
 #[macro_use]
 extern crate proptest;
 
-use std::fs::File;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 mod error;
-pub mod patch;
-pub mod storage;
+mod patch;
+mod storage;
 
 pub use crate::error::{Error, PatchIdError};
 pub use crate::patch::{Change, Changes, Patch, PatchId, UnidentifiedPatch};
-pub use crate::storage::Digle;
+pub use crate::storage::{Digle, File};
 
 // FIXME: use serde(with) for this (see https://github.com/serde-rs/json/issues/360)
 pub(crate) enum Base64Slice {}
@@ -118,17 +118,17 @@ impl Repo {
         Ok(ret)
     }
 
-    pub fn open_file(&self) -> Result<File, Error> {
+    pub fn open_file(&self) -> Result<fs::File, Error> {
         let mut path = self.root_dir.clone();
         path.push(&self.file_name);
-        Ok(File::open(path)?)
+        Ok(fs::File::open(path)?)
     }
 
     /// Opens the existing repository with the given root directory.
     pub fn open<P: AsRef<Path>>(dir: P) -> Result<Repo, Error> {
         let db_path = Repo::db_path(dir.as_ref())?;
         let patch_dir = Repo::patch_dir(dir.as_ref())?;
-        let db_file = File::open(&db_path)?;
+        let db_file = fs::File::open(&db_path)?;
         let db: Db = serde_yaml::from_reader(db_file)?;
         Ok(Repo {
             root_dir: dir.as_ref().to_owned(),
@@ -184,49 +184,45 @@ impl Repo {
         };
         self.try_create_dir(&self.repo_dir)?;
         self.try_create_dir(&self.patch_dir)?;
-        let db_file = File::create(&self.db_path)?;
+        let db_file = fs::File::create(&self.db_path)?;
         serde_yaml::to_writer(db_file, &db)?;
         Ok(())
     }
 
-    pub fn storage(&self) -> &storage::Storage {
-        &self.storage
-    }
-
-    pub fn storage_mut(&mut self) -> &mut storage::Storage {
-        &mut self.storage
-    }
-
     pub fn inode(&self, branch: &str) -> Result<storage::INode, Error> {
         Ok(self
-            .storage()
+            .storage
             .inode(branch)
             .ok_or_else(|| Error::UnknownBranch(branch.to_owned()))?)
     }
 
     pub fn digle<'a>(&'a self, branch: &str) -> Result<storage::Digle<'a>, Error> {
         let inode = self
-            .storage()
+            .storage
             .inode(branch)
             .ok_or_else(|| Error::UnknownBranch(branch.to_owned()))?;
-        Ok(self.storage().digle(inode))
+        Ok(self.storage.digle(inode))
     }
 
     pub fn digle_mut<'a>(&'a mut self, branch: &str) -> Result<storage::DigleMut<'a>, Error> {
         let inode = self
-            .storage()
+            .storage
             .inode(branch)
             .ok_or_else(|| Error::UnknownBranch(branch.to_owned()))?;
-        Ok(self.storage_mut().digle_mut(inode))
+        Ok(self.storage.digle_mut(inode))
     }
 
-    pub fn file(&self, branch: &str) -> Option<storage::File> {
+    pub fn file(&self, branch: &str) -> Option<File> {
         use graph::Graph;
         let inode = self.storage.inode(branch)?;
         self.storage
             .digle(inode)
             .linear_order()
-            .map(|order| storage::File::from_ids(&order, &self.storage))
+            .map(|order| File::from_ids(&order, &self.storage))
+    }
+
+    pub fn contents(&self, id: &NodeId) -> &[u8] {
+        self.storage.contents(id)
     }
 
     fn patch_path(&self, id: &PatchId) -> PathBuf {
@@ -236,7 +232,12 @@ impl Repo {
     }
 
     pub fn open_patch_by_id(&self, id: &PatchId) -> Result<Patch, Error> {
-        Patch::from_reader(File::open(self.patch_path(id))?, id.clone())
+        let ret = Patch::from_reader(fs::File::open(self.patch_path(id))?)?;
+        if ret.id() != id {
+            Err(Error::IdMismatch(*ret.id(), *id))
+        } else {
+            Ok(ret)
+        }
     }
 
     pub fn open_patch(&self, name: &str) -> Result<Patch, Error> {
@@ -246,29 +247,29 @@ impl Repo {
     pub fn register_patch(&mut self, patch: &Patch) -> Result<(), Error> {
         // If the patch already exists in our repository then there's nothing to do. But if there's
         // a file there which doesn't match this one then something's really wrong.
-        if self.storage.patches.contains(&patch.id) {
-            let old_patch = self.open_patch_by_id(&patch.id)?;
+        if self.storage.patches.contains(patch.id()) {
+            let old_patch = self.open_patch_by_id(patch.id())?;
             if &old_patch == patch {
                 return Ok(());
             } else {
-                return Err(PatchIdError::Collision(patch.id.clone()).into());
+                return Err(PatchIdError::Collision(patch.id().clone()).into());
             }
         }
 
         // Record the deps and reverse-deps.
-        for dep in &patch.deps {
+        for dep in patch.deps() {
             if !self.storage.patches.contains(dep) {
                 return Err(Error::MissingDep(dep.clone()));
             }
             self.storage
                 .patch_deps
-                .insert(patch.id.clone(), dep.clone());
+                .insert(patch.id().clone(), dep.clone());
             self.storage
                 .patch_rev_deps
-                .insert(dep.clone(), patch.id.clone());
+                .insert(dep.clone(), patch.id().clone());
         }
 
-        self.storage.patches.insert(patch.id.clone());
+        self.storage.patches.insert(patch.id().clone());
         Ok(())
     }
 
@@ -277,17 +278,17 @@ impl Repo {
     // Panics if not all of the dependencies are already present.
     fn apply_one_patch(&mut self, branch: &str, patch_id: &PatchId) -> Result<(), Error> {
         let patch = self.open_patch_by_id(patch_id)?;
-        // NOTE: this can probably be disabled in release builds.
-        for dep in &patch.deps {
-            if !self.storage.branch_patches.contains(branch, dep) {
-                panic!("tried to apply a patch while it was missing a dependency");
-            }
+        for dep in patch.deps() {
+            debug_assert!(
+                self.storage.branch_patches.contains(branch, dep),
+                "tried to apply a patch while it was missing a dependency"
+            );
         }
         let inode = self.storage.inode(branch).unwrap();
-        self.storage.apply_changes(inode, &patch.changes);
+        self.storage.apply_changes(inode, patch.changes());
         self.storage
             .branch_patches
-            .insert(branch.to_owned(), patch.id.clone());
+            .insert(branch.to_owned(), patch.id().clone());
         Ok(())
     }
 
@@ -330,8 +331,8 @@ impl Repo {
     fn unapply_one_patch(&mut self, branch: &str, patch_id: &PatchId) -> Result<(), Error> {
         let patch = self.open_patch_by_id(patch_id)?;
         let inode = self.inode(branch)?;
-        self.storage.unapply_changes(inode, &patch.changes);
-        self.storage.branch_patches.remove(branch, &patch.id);
+        self.storage.unapply_changes(inode, patch.changes());
+        self.storage.branch_patches.remove(branch, patch.id());
         Ok(())
     }
 
@@ -383,6 +384,10 @@ impl Repo {
             }
         }
         Ok(())
+    }
+
+    pub fn branches(&self) -> impl Iterator<Item = &str> {
+        self.storage.branches()
     }
 
     pub fn create_branch(&mut self, branch: &str) -> Result<(), Error> {
