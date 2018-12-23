@@ -16,45 +16,6 @@ pub use crate::error::{Error, PatchIdError};
 pub use crate::patch::{Change, Changes, Patch, PatchId, UnidentifiedPatch};
 pub use crate::storage::{Digle, File};
 
-// FIXME: use serde(with) for this (see https://github.com/serde-rs/json/issues/360)
-pub(crate) enum Base64Slice {}
-impl Base64Slice {
-    pub fn serialize<S>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&base64::encode_config(bytes, base64::URL_SAFE))
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<[u8; 32], D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        struct Base64Visitor;
-
-        impl<'de> serde::de::Visitor<'de> for Base64Visitor {
-            type Value = [u8; 32];
-
-            fn expecting(&self, formatter: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-                write!(formatter, "base64 ASCII text")
-            }
-
-            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-            where
-                E: serde::de::Error,
-            {
-                let mut ret = [0; 32];
-                let vec =
-                    base64::decode_config(v, base64::URL_SAFE).map_err(serde::de::Error::custom)?;
-                ret.copy_from_slice(&vec[..]);
-                Ok(ret)
-            }
-        }
-
-        deserializer.deserialize_str(Base64Visitor)
-    }
-}
-
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct NodeId {
     pub patch: PatchId,

@@ -59,6 +59,38 @@ impl<R: Read> Read for HashingReader<R> {
     }
 }
 
+// PatchId contains a [u8; 32], which by default serializes to an array in yaml (and other
+// human-readable formats). To make the output more compact and readable, it's better to convert it
+// to a base64 string.
+mod patch_id_base64 {
+    pub fn serialize<S>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        if serializer.is_human_readable() {
+            serializer.serialize_str(&base64::encode_config(bytes, base64::URL_SAFE))
+        } else {
+            serializer.serialize_bytes(bytes)
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<[u8; 32], D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        if deserializer.is_human_readable() {
+            let s = <String as serde::Deserialize>::deserialize(deserializer)?;
+            let mut ret = [0; 32];
+            let vec =
+                base64::decode_config(&s, base64::URL_SAFE).map_err(serde::de::Error::custom)?;
+            ret.copy_from_slice(&vec[..]);
+            Ok(ret)
+        } else {
+            <[u8; 32] as serde::Deserialize>::deserialize(deserializer)
+        }
+    }
+}
+
 /// A global identifier for a patch.
 ///
 /// A `PatchId` is derived from a patch by hashing its contents. It must be unique: a repository
@@ -66,7 +98,7 @@ impl<R: Read> Read for HashingReader<R> {
 #[derive(Copy, Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
 pub struct PatchId {
-    #[serde(with = "crate::Base64Slice")]
+    #[serde(with = "patch_id_base64")]
     pub(crate) data: [u8; 32],
 }
 
