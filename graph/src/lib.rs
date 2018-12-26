@@ -57,11 +57,11 @@ pub trait Graph {
         dfs::Dfs::new_from(self, root)
     }
 
-    fn tarjan<'a>(&'a self) -> Partition<'a, Self> {
+    fn tarjan(&self) -> Partition<Self> {
         tarjan::Tarjan::from_graph(self).run()
     }
 
-    fn weak_components<'a>(&'a self) -> Partition<'a, Self> {
+    fn weak_components(&self) -> Partition<Self> {
         use self::dfs::Visit;
 
         let mut cur_component: HashSet<Self::Node> = HashSet::new();

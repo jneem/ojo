@@ -6,21 +6,33 @@ use crate::Graph;
 ///
 /// Tarjan's algorithm decomposes a directed graph into strongly connected components.  Moreover,
 /// those components are ordered topologically.
-pub struct Partition<'a, G: Graph + ?Sized> {
-    g: &'a G,
+pub struct Partition<G: Graph + ?Sized> {
     pub(crate) sets: Vec<HashSet<G::Node>>,
     node_map: HashMap<G::Node, usize>,
+    edges: HashMap<usize, Vec<usize>>,
+    back_edges: HashMap<usize, Vec<usize>>,
 }
 
-impl<'a, G: Graph + ?Sized> Partition<'a, G> {
-    pub(crate) fn new(g: &'a G, sets: Vec<HashSet<G::Node>>) -> Partition<'a, G> {
+impl<G: Graph + ?Sized> Partition<G> {
+    pub(crate) fn new(g: &G, sets: Vec<HashSet<G::Node>>) -> Partition<G> {
         let mut node_map = HashMap::new();
         for (i, component) in sets.iter().enumerate() {
             for u in component {
                 node_map.insert(*u, i);
             }
         }
-        Partition { g, sets, node_map }
+
+        let mut edges = HashMap::new();
+        let mut back_edges = HashMap::new();
+        for u in g.nodes() {
+            let u_idx = node_map[&u];
+            for v in g.out_neighbors(&u) {
+                let v_idx = node_map[&v];
+                edges.entry(u_idx).or_insert(Vec::new()).push(v_idx);
+                back_edges.entry(v_idx).or_insert(Vec::new()).push(u_idx);
+            }
+        }
+        Partition { sets, node_map, edges, back_edges }
     }
 
     pub fn num_components(&self) -> usize {
@@ -31,38 +43,32 @@ impl<'a, G: Graph + ?Sized> Partition<'a, G> {
         self.sets.iter()
     }
 
+    pub fn part(&self, i: usize) -> &HashSet<G::Node> {
+        &self.sets[i]
+    }
+
+    pub fn index_of(&self, u: &G::Node) -> usize {
+        self.node_map[&u]
+    }
+
     pub fn into_parts(self) -> Vec<HashSet<G::Node>> {
         self.sets
     }
 }
 
-impl<'a, G: Graph + ?Sized> Graph for Partition<'a, G> {
+impl<G: Graph + ?Sized> Graph for Partition<G> {
     type Node = usize;
     type Edge = usize;
 
-    fn nodes<'b>(&'b self) -> Box<dyn Iterator<Item = usize>> {
+    fn nodes<'a>(&'a self) -> Box<dyn Iterator<Item = usize>> {
         Box::new(0..self.num_components())
     }
 
-    fn out_edges<'b>(&'b self, u: &usize) -> Box<dyn Iterator<Item = usize>> {
-        let mut neighbors = self.sets[*u]
-            .iter()
-            .flat_map(|u| self.g.out_neighbors(u))
-            .map(|v| self.node_map[&v])
-            .collect::<Vec<_>>();
-        neighbors.sort_unstable();
-        neighbors.dedup();
-        Box::new(neighbors.into_iter())
+    fn out_edges<'a>(&'a self, u: &usize) -> Box<dyn Iterator<Item = usize> + 'a> {
+        Box::new(self.edges[&*u].iter().cloned())
     }
 
-    fn in_edges<'b>(&'b self, u: &usize) -> Box<dyn Iterator<Item = usize>> {
-        let mut neighbors = self.sets[*u]
-            .iter()
-            .flat_map(|u| self.g.out_neighbors(u))
-            .map(|v| self.node_map[&v])
-            .collect::<Vec<_>>();
-        neighbors.sort_unstable();
-        neighbors.dedup();
-        Box::new(neighbors.into_iter())
+    fn in_edges<'a>(&'a self, u: &usize) -> Box<dyn Iterator<Item = usize> + 'a> {
+        Box::new(self.back_edges[&*u].iter().cloned())
     }
 }

@@ -39,7 +39,7 @@ impl<'a, G: Graph + ?Sized> Tarjan<'a, G> {
         }
     }
 
-    pub fn run(mut self) -> Partition<'a, G> {
+    pub fn run(mut self) -> Partition<G> {
         let mut ret = Vec::new();
 
         for visit in self.dfs {
