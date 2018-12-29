@@ -106,8 +106,6 @@ impl<'a, G: Graph + ?Sized> Tarjan<'a, G> {
 
 #[cfg(test)]
 mod tests {
-    use proptest::prelude::*;
-
     use super::*;
     use crate::tests::{arb_dag, arb_graph, graph};
     use crate::Graph;
@@ -168,6 +166,12 @@ mod tests {
                     }
                 }
             }
+        }
+
+        #[test]
+        fn tarjan_scc_dag(ref g in arb_graph()) {
+            let sccs = g.tarjan();
+            assert!(sccs.top_sort().is_some());
         }
     }
 }

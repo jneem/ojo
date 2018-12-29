@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 
 mod error;
 mod patch;
+pub mod resolver;
 mod storage;
 
 pub use crate::error::{Error, PatchIdError};

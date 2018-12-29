@@ -509,6 +509,14 @@ impl<'a> Digle<'a> {
         self.data.edges.get(node).take_while(|e| e.not_deleted())
     }
 
+    pub fn out_neighbors<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b NodeId> + 'b {
+        self.out_edges(node).map(|e| &e.dest)
+    }
+
+    pub fn in_neighbors<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b NodeId> + 'b {
+        self.in_edges(node).map(|e| &e.dest)
+    }
+
     pub fn all_out_edges<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b Edge> + 'b {
         self.data.edges.get(node)
     }
@@ -624,6 +632,33 @@ pub mod tests {
     // too many to be realistic (a realistic value would be around 2). So we allow only up to
     // n*MAX_AVG_DEGREE.
     const MAX_AVG_DEGREE: usize = 5;
+
+    // Given a string like "0-3, 1-2, 3-4, 2-3", creates a digle with those edges.
+    pub(crate) fn make_digle(s: &str) -> DigleData {
+        let pairs = s
+            .split(',')
+            .map(|elt| {
+                let dash_idx = elt.find('-').unwrap();
+                let u: usize = elt[..dash_idx].trim().parse().unwrap();
+                let v: usize = elt[(dash_idx + 1)..].trim().parse().unwrap();
+                (u, v)
+            })
+            .collect::<Vec<_>>();
+        let max_elt = pairs
+            .iter()
+            .flat_map(|pair| vec![pair.0, pair.1].into_iter())
+            .max()
+            .unwrap();
+
+        let mut ret = DigleData::new();
+        for i in 0..=max_elt {
+            ret.add_node(NodeId::cur(i as u64));
+        }
+        for (u, v) in pairs {
+            ret.add_edge(NodeId::cur(u as u64), NodeId::cur(v as u64));
+        }
+        ret
+    }
 
     prop_compose! {
         // Creates an arbitrary digle with no deleted nodes.

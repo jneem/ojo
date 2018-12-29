@@ -22,14 +22,17 @@ impl<G: Graph + ?Sized> Partition<G> {
             }
         }
 
-        let mut edges = HashMap::new();
-        let mut back_edges = HashMap::new();
+        let mut edges = (0..sets.len()).map(|u| (u, Vec::new())).collect::<HashMap<_,_>>();
+        let mut back_edges = (0..sets.len()).map(|u| (u, Vec::new())).collect::<HashMap<_,_>>();
         for u in g.nodes() {
             let u_idx = node_map[&u];
             for v in g.out_neighbors(&u) {
                 let v_idx = node_map[&v];
-                edges.entry(u_idx).or_insert(Vec::new()).push(v_idx);
-                back_edges.entry(v_idx).or_insert(Vec::new()).push(u_idx);
+
+                if u_idx != v_idx {
+                    edges.get_mut(&u_idx).unwrap().push(v_idx);
+                    back_edges.get_mut(&v_idx).unwrap().push(u_idx);
+                }
             }
         }
         Partition { sets, node_map, edges, back_edges }
