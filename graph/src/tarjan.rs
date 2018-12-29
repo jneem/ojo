@@ -63,9 +63,7 @@ impl<'a, G: Graph + ?Sized> Tarjan<'a, G> {
                             // in the stack. Since we stop the loop whenever we find u, we're
                             // guaranteed never to run out of stack.
                             let v = self.stack.pop().unwrap();
-                            self.node_states
-                                .entry(v)
-                                .and_modify(|s| s.on_stack = false);
+                            self.node_states.entry(v).and_modify(|s| s.on_stack = false);
                             scc.insert(v.clone());
                             if v == u {
                                 break;
@@ -131,11 +129,7 @@ mod tests {
         "0-1, 1-2, 2-0, 2-3, 3-4, 4-5, 5-3",
         [[0, 1, 2], [3, 4, 5]]
     );
-    tarjan_test!(
-        diamond,
-        "0-1, 0-2, 1-3, 2-3",
-        [[0], [2], [1], [3]]
-    );
+    tarjan_test!(diamond, "0-1, 0-2, 1-3, 2-3", [[0], [2], [1], [3]]);
 
     proptest! {
         #[test]
@@ -175,4 +169,3 @@ mod tests {
         }
     }
 }
-

@@ -9,7 +9,7 @@ base64 = "0.9"
 chrono = { version = "0.4", features = ["serde"] }
 diff = { path = "../diff" }
 graph = { path = "../graph" }
-itertools = "0.7"
+itertools = "0.8"
 multimap = { path = "../multimap" }
 partition = { path = "../partition" }
 serde = "1.0"

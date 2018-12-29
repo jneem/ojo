@@ -1,6 +1,5 @@
 use clap::ArgMatches;
 use failure::Error;
-use graph::Graph;
 use libjp::NodeId;
 use std::fs::File;
 use std::io::prelude::*;

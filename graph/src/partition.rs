@@ -22,8 +22,12 @@ impl<G: Graph + ?Sized> Partition<G> {
             }
         }
 
-        let mut edges = (0..sets.len()).map(|u| (u, Vec::new())).collect::<HashMap<_,_>>();
-        let mut back_edges = (0..sets.len()).map(|u| (u, Vec::new())).collect::<HashMap<_,_>>();
+        let mut edges = (0..sets.len())
+            .map(|u| (u, Vec::new()))
+            .collect::<HashMap<_, _>>();
+        let mut back_edges = (0..sets.len())
+            .map(|u| (u, Vec::new()))
+            .collect::<HashMap<_, _>>();
         for u in g.nodes() {
             let u_idx = node_map[&u];
             for v in g.out_neighbors(&u) {
@@ -35,7 +39,12 @@ impl<G: Graph + ?Sized> Partition<G> {
                 }
             }
         }
-        Partition { sets, node_map, edges, back_edges }
+        Partition {
+            sets,
+            node_map,
+            edges,
+            back_edges,
+        }
     }
 
     pub fn num_components(&self) -> usize {

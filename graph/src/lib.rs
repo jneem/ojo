@@ -62,8 +62,10 @@ pub trait Graph {
 
         for visit in self.dfs_from(u) {
             match visit {
-                Visit::Edge { dst, .. } if &dst == v => { return true; }
-                _ => {},
+                Visit::Edge { dst, .. } if &dst == v => {
+                    return true;
+                }
+                _ => {}
             }
         }
         false
