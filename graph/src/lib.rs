@@ -57,6 +57,18 @@ pub trait Graph {
         dfs::Dfs::new_from(self, root)
     }
 
+    fn has_path(&self, u: &Self::Node, v: &Self::Node) -> bool {
+        use self::dfs::Visit;
+
+        for visit in self.dfs_from(u) {
+            match visit {
+                Visit::Edge { dst, .. } if &dst == v => { return true; }
+                _ => {},
+            }
+        }
+        false
+    }
+
     fn tarjan(&self) -> Partition<Self> {
         tarjan::Tarjan::from_graph(self).run()
     }
@@ -356,7 +368,7 @@ mod tests {
 
     // A strategy for generating arbitrary graphs (with up to 20 nodes and up to 40 edges).
     prop_compose! {
-        fn graph_data()
+        [pub(crate)] fn arb_graph()
         (size in 1u32..20)
         (edges in proptest::collection::vec((0..size, 0..size), 1..40), size in Just(size))
         -> GraphData {
@@ -372,9 +384,34 @@ mod tests {
         }
     }
 
+    // A strategy for generating arbitrary DAGs (with up to 20 nodes and up to 40 edges).
+    prop_compose! {
+        [pub(crate)] fn arb_dag()
+        (size in 1u32..20)
+        (edges in proptest::collection::vec((0..size, 0..size), 1..40), size in Just(size))
+        -> GraphData {
+            let mut ret = GraphData {
+                ids: (0..size).collect(),
+                nodes: vec![Node { prev: vec![], next: vec![] }; size as usize],
+            };
+            for (u, v) in edges {
+                // We ensure this is a DAG by making sure that the usual ordering from low to high
+                // is a topological sort.
+                if u < v {
+                    ret.nodes[u as usize].next.push(v);
+                    ret.nodes[v as usize].prev.push(u);
+                } else if v < u {
+                    ret.nodes[v as usize].next.push(u);
+                    ret.nodes[u as usize].prev.push(v);
+                }
+            }
+            ret
+        }
+    }
+
     proptest! {
         #[test]
-        fn top_sort_proptest(ref g in graph_data()) {
+        fn top_sort_proptest(ref g in arb_graph()) {
             if let Some(sort) = g.top_sort() {
                 for i in 0..sort.len() {
                     for j in (i+1)..sort.len() {
@@ -389,7 +426,7 @@ mod tests {
         }
 
         #[test]
-        fn doubled_proptest(ref g in graph_data()) {
+        fn doubled_proptest(ref g in arb_graph()) {
             let d = g.doubled();
 
             // Every edge of the original graph appears in both directions in the doubled graph.
@@ -410,7 +447,7 @@ mod tests {
         }
 
         #[test]
-        fn weak_components_proptest(ref g in graph_data()) {
+        fn weak_components_proptest(ref g in arb_graph()) {
             // This is not a complete test of the correctness of weak_components: it checks that
             // no two parts of the partition have an edge between them, but it doesn't check that
             // every two elements of a part are weakly connected.
