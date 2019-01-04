@@ -37,6 +37,12 @@ subcommands:
                         help: name of the branch to switch to
                         required: true
                         takes_value: true
+    - clear:
+        about: Deletes all patches from a branch (mainly for debugging)
+        args:
+            - branch:
+                help: branch to clear
+                takes_value: true
     - diff:
         about: Shows changes between commits
     - graph:
@@ -94,4 +100,15 @@ subcommands:
                     - branch:
                         help: branch to compare against (defaults to the current branch)
                         takes_value: true
-
+    - resolve:
+        about: Interactive utility to make the file totally ordered
+        args:
+            - branch:
+                help: branch to work on
+                takes_value: true
+            - author:
+                help: the person doing the resolving
+                short: a
+                long: author
+                required: true
+                takes_value: true

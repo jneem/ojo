@@ -8,9 +8,12 @@ edition = "2018"
 colored = "1.6"
 diff = { path = "../diff" }
 failure = "0.1.3"
+flexi_logger = "0.10"
 graph = { path = "../graph" }
 libjp = { path = "../libjp" }
+log = "0.4"
 tempfile = "3"
+termion = "1.5"
 
 [dependencies.clap]
 version = "2"

@@ -1,6 +1,6 @@
 use clap::ArgMatches;
 use failure::{Error, ResultExt};
-use libjp::{Changes, UnidentifiedPatch};
+use libjp::{Changes, PatchId, Repo, UnidentifiedPatch};
 use std::io::prelude::*;
 
 pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
@@ -25,20 +25,8 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
             return Ok(());
         }
 
-        let patch = UnidentifiedPatch::new(author.to_owned(), msg.to_owned(), changes);
-
-        // Write the patch to a temporary file, and get back the identified patch.
-        let mut out = tempfile::NamedTempFile::new_in(&repo.patch_dir)
-            .context("trying to create a named temp file")?;
-        let patch = patch.write_out(&mut out)?;
-
-        // Now that we know the patch's id, move it to a location given by that name.
-        let mut patch_path = repo.patch_dir.clone();
-        patch_path.push(patch.id().to_base64());
-        repo.register_patch(&patch)?;
-        out.persist(&patch_path)
-            .with_context(|_| format!("saving patch to {:?}", patch_path))?;
-        eprintln!("Created patch {}", &patch.id().to_base64());
+        let id = write_changes_as_patch(&mut repo, author.to_owned(), msg.to_owned(), changes)?;
+        eprintln!("Created patch {}", id.to_base64());
     } else {
         // There was an error rendering the target branch to a file. In order to print an
         // informative message, we need to check whether the reason for failure was that the branch
@@ -50,4 +38,27 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
         }
     };
     Ok(())
+}
+
+pub fn write_changes_as_patch(
+    repo: &mut Repo,
+    author: String,
+    msg: String,
+    changes: Changes,
+) -> Result<PatchId, Error> {
+    let patch = UnidentifiedPatch::new(author.to_owned(), msg.to_owned(), changes);
+
+    // Write the patch to a temporary file, and get back the identified patch.
+    let mut out = tempfile::NamedTempFile::new_in(&repo.patch_dir)
+        .context("trying to create a named temp file")?;
+    let patch = patch.write_out(&mut out)?;
+
+    // Now that we know the patch's id, move it to a location given by that name.
+    let mut patch_path = repo.patch_dir.clone();
+    patch_path.push(patch.id().to_base64());
+    repo.register_patch(&patch)?;
+    out.persist(&patch_path)
+        .with_context(|_| format!("saving patch to {:?}", patch_path))?;
+
+    Ok(patch.id().clone())
 }
