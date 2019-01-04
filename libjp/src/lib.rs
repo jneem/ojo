@@ -138,6 +138,15 @@ impl Repo {
         })
     }
 
+    /// Clears a branch, removing all of its patches.
+    pub fn clear(&mut self, branch: &str) -> Result<(), Error> {
+        let inode = self.inode(branch)?;
+        self.storage.branch_patches.remove_all(branch);
+        self.storage.remove_digle(inode);
+        self.storage.set_digle(inode, storage::digle::DigleData::new());
+        Ok(())
+    }
+
     pub fn write(&self) -> Result<(), Error> {
         let db = DbRef {
             file_name: &self.file_name,
@@ -248,6 +257,7 @@ impl Repo {
         }
         let inode = self.storage.inode(branch).unwrap();
         self.storage.apply_changes(inode, patch.changes());
+        self.storage.patches.insert(patch.id().clone());
         self.storage
             .branch_patches
             .insert(branch.to_owned(), patch.id().clone());

@@ -3,6 +3,8 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{Change, Changes, Digle, NodeId};
 
+// TODO: implement undo
+
 pub struct CycleResolver<'a> {
     digle: Digle<'a>,
     sccs: graph::Partition<Digle<'a>>,
@@ -74,14 +76,15 @@ impl<'a> CycleResolver<'a> {
             .nodes()
             .map(|u| (u, self.sccs.in_edges(&u).count()))
             .collect::<HashMap<_, _>>();
+        // Is there a natural order to put the candidates in?
         let candidates = in_edge_count
             .iter()
             .filter(|&(_, &count)| count == 0)
             .map(|(u, _)| *u)
-            .collect::<HashSet<_>>();
+            .collect::<Vec<_>>();
 
         OrderResolver {
-            digle: self.digle,
+            digle: self.digle.clone(),
             ordered: vec![],
             seen: HashSet::new(),
             sccs: self.sccs,
@@ -89,6 +92,42 @@ impl<'a> CycleResolver<'a> {
             remaining_in_edges: in_edge_count,
             candidates,
         }
+    }
+}
+
+/// A sequence of nodes that might come next in the file.
+///
+/// While interactively resolving the order of a file, there could be several choices for the next
+/// node (let's call these candidates). Moreover, each candidate might have a sequence of nodes
+/// that naturally (but don't necessarily) come after it. This candidate, plus the sequence of
+/// nodes that follow it, make up a `CandidateChain`.
+///
+/// For example, suppose we have a digle like this:
+///
+/// ```text
+///    -> B -> C -> D 
+///  /               \
+/// A                 -> H
+///  \               /
+///    -> E -> F -> G
+/// ```
+///
+/// If `A` has already been chosen then `B` would be the head of a candidate chain containing `B`,
+/// `C`, and `D`.
+pub struct CandidateChain<'a> {
+    digle: Digle<'a>,
+    id: NodeId,
+}
+
+impl<'a> CandidateChain<'a> {
+    /// Returns the first element of this chain.
+    pub fn first(&self) -> NodeId {
+        self.id
+    }
+
+    /// Returns an iterator over all elements of this chain (including the first).
+    pub fn iter(&self) -> impl Iterator<Item = NodeId> + 'a {
+        ChainIter::new(self.digle, self.id)
     }
 }
 
@@ -104,7 +143,7 @@ pub struct OrderResolver<'a> {
     scc_reps: Vec<NodeId>,
 
     seen: HashSet<usize>,
-    candidates: HashSet<usize>,
+    candidates: Vec<usize>,
     remaining_in_edges: HashMap<usize, usize>,
 }
 
@@ -113,23 +152,28 @@ impl<'a> OrderResolver<'a> {
         &self.ordered[..]
     }
 
-    pub fn candidates<'b>(
-        &'b self,
-    ) -> impl Iterator<Item = impl Iterator<Item = NodeId> + 'a> + 'b {
-        self.candidates
-            .iter()
-            .map(move |&i| ChainIter::new(self.digle, self.scc_reps[i]))
+    pub fn candidates<'b>(&'b self) -> impl Iterator<Item = CandidateChain<'a>> + 'b {
+        self.candidates.iter().map(move |u| CandidateChain { digle: self.digle, id: self.scc_reps[*u] })
     }
 
-    fn advance_past(&mut self, node_idx: usize) {
-        self.candidates.remove(&node_idx);
-        for u in self.sccs.out_neighbors(&node_idx) {
+    fn advance_past(&mut self, scc: usize) {
+        // We're removing a candidate, and potentially adding some more. For continuity in the
+        // user-interface, we insert the new candidates in the same position as the old ones. This
+        // could be made more efficient, but it's probably mostly ok because the list of candidates
+        // should be short.
+        let idx = self
+            .candidates
+            .iter()
+            .position(|x| *x == scc)
+            .expect("tried to remove a non-candidate");
+        self.candidates.remove(idx);
+        for u in self.sccs.out_neighbors(&scc) {
             // The unwrap is ok because remaining_in_edges contains every node as a key.
             let remaining = self.remaining_in_edges.get_mut(&u).unwrap();
             assert!(*remaining >= 1);
             *remaining -= 1;
             if *remaining == 0 {
-                self.candidates.insert(u);
+                self.candidates.insert(idx, u);
             }
         }
     }
@@ -258,28 +302,32 @@ mod tests {
         println!("{:?}", res.candidates);
         assert_eq!(res.candidates().count(), 1);
         assert_eq!(
-            res.candidates().next().unwrap().collect::<Vec<_>>(),
+            res.candidates().next().unwrap().iter().collect::<Vec<_>>(),
             vec![NodeId::cur(0)]
         );
 
         res.choose(&NodeId::cur(0));
         assert_eq!(res.candidates().count(), 2);
         assert_eq!(
-            res.candidates().flatten().sorted().collect::<Vec<_>>(),
+            res.candidates()
+                .map(|x| x.iter())
+                .flatten()
+                .sorted()
+                .collect::<Vec<_>>(),
             vec![NodeId::cur(1), NodeId::cur(2)]
         );
 
         res.choose(&NodeId::cur(1));
         assert_eq!(res.candidates().count(), 1);
         assert_eq!(
-            res.candidates().next().unwrap().collect::<Vec<_>>(),
+            res.candidates().next().unwrap().iter().collect::<Vec<_>>(),
             vec![NodeId::cur(2)]
         );
 
         res.choose(&NodeId::cur(2));
         assert_eq!(res.candidates().count(), 1);
         assert_eq!(
-            res.candidates().next().unwrap().collect::<Vec<_>>(),
+            res.candidates().next().unwrap().iter().collect::<Vec<_>>(),
             vec![NodeId::cur(3)]
         );
 

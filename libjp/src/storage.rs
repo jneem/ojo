@@ -93,10 +93,14 @@ impl Storage {
         self.contents.get(id).unwrap().as_slice()
     }
 
-    /// Panics if the node already has contents.
+    /// Panics if the node already has contents that differ from the current ones.
     pub fn add_contents(&mut self, id: NodeId, contents: Vec<u8>) {
-        assert!(!self.contents.contains_key(&id));
-        self.contents.insert(id, contents);
+        use std::collections::btree_map::Entry;
+
+        match self.contents.entry(id) {
+            Entry::Occupied(o) => assert_eq!(o.get(), &contents, "contents mismatch"),
+            Entry::Vacant(v) => { v.insert(contents); }
+        }
     }
 
     pub fn remove_contents(&mut self, id: &NodeId) {
@@ -130,6 +134,10 @@ impl Storage {
 
     pub fn remove_digle(&mut self, inode: INode) {
         self.digles.remove(&inode);
+    }
+
+    pub fn set_digle(&mut self, inode: INode, digle: DigleData) {
+        self.digles.insert(inode, digle);
     }
 
     pub fn branches(&self) -> impl Iterator<Item = &str> {
