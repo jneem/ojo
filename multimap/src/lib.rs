@@ -1,12 +1,13 @@
 // This is just a hacked-up multimap. Eventually, we'll need to move to a fully persistent (in the
 // functional-data-structure sense), on-disk multimap.
 
-use serde::de::{MapAccess, Visitor};
-use serde::ser::SerializeMap;
+use serde::de::{SeqAccess, Visitor};
+use serde::ser::SerializeSeq;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::borrow::Borrow;
 use std::collections::{BTreeMap, BTreeSet};
 
+// FIXME: the derived PartialEq is not correct, because of empty sets.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MMap<K: Ord, V: Ord> {
     map: BTreeMap<K, BTreeSet<V>>,
@@ -89,17 +90,17 @@ impl<K: Ord, V: Ord> MMap<K, V> {
 
 impl<K: Ord + Serialize, V: Ord + Serialize> Serialize for MMap<K, V> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut map = serializer.serialize_map(None)?;
+        let mut seq = serializer.serialize_seq(None)?;
         for (k, v) in self.iter() {
-            map.serialize_entry(k, v)?;
+            seq.serialize_element(&(k, v))?;
         }
-        map.end()
+        seq.end()
     }
 }
 
 impl<'de, K: Ord + Deserialize<'de>, V: Ord + Deserialize<'de>> Deserialize<'de> for MMap<K, V> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        deserializer.deserialize_map(MMapVisitor {
+        deserializer.deserialize_seq(MMapVisitor {
             x: std::marker::PhantomData,
         })
     }
@@ -113,12 +114,12 @@ impl<'de, K: Ord + Deserialize<'de>, V: Ord + Deserialize<'de>> Visitor<'de> for
     type Value = MMap<K, V>;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "a map")
+        write!(formatter, "a sequence of tuples")
     }
 
-    fn visit_map<M: MapAccess<'de>>(self, mut access: M) -> Result<Self::Value, M::Error> {
+    fn visit_seq<S: SeqAccess<'de>>(self, mut access: S) -> Result<Self::Value, S::Error> {
         let mut ret = MMap::new();
-        while let Some((key, val)) = access.next_entry()? {
+        while let Some((key, val)) = access.next_element()? {
             ret.insert(key, val);
         }
         Ok(ret)
@@ -156,5 +157,17 @@ mod tests {
         assert!(map.contains(&1, &2));
         assert!(!map.contains(&2, &1));
         assert!(!map.contains(&1, &4));
+    }
+
+    #[test]
+    fn serde() {
+        let mut map = MMap::new();
+        map.insert(1, 2);
+        map.insert(1, 3);
+
+        let mut buf = Vec::new();
+        serde_yaml::to_writer(&mut buf, &map).unwrap();
+        let map2: MMap<_, _> = serde_yaml::from_reader(&buf[..]).unwrap();
+        assert_eq!(map, map2);
     }
 }
