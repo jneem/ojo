@@ -57,6 +57,7 @@ pub enum Error {
     NoFilename(PathBuf),
     NoParent(PathBuf),
     NonUtfFilename(OsString),
+    PersistError(tempfile::PersistError),
     RepoExists(PathBuf),
     RepoNotFound(PathBuf),
     Serde(serde_yaml::Error),
@@ -76,6 +77,7 @@ impl fmt::Display for Error {
                 expected.to_base64(),
                 actual.to_base64()
             ),
+            Error::PersistError(e) => e.fmt(f),
             Error::Serde(e) => e.fmt(f),
             Error::RepoNotFound(p) => write!(
                 f,
@@ -100,6 +102,7 @@ impl std::error::Error for Error {
         match self {
             Error::Io(e, _) => Some(e),
             Error::PatchId(e) => Some(e),
+            Error::PersistError(e) => Some(e),
             Error::Serde(e) => Some(e),
             _ => None,
         }
@@ -109,6 +112,12 @@ impl std::error::Error for Error {
 impl From<PatchIdError> for Error {
     fn from(e: PatchIdError) -> Error {
         Error::PatchId(e)
+    }
+}
+
+impl From<tempfile::PersistError> for Error {
+    fn from(e: tempfile::PersistError) -> Error {
+        Error::PersistError(e)
     }
 }
 

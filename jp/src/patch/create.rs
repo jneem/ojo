@@ -1,6 +1,6 @@
 use clap::ArgMatches;
-use failure::{Error, ResultExt};
-use libjp::{Changes, PatchId, Repo, UnidentifiedPatch};
+use failure::Error;
+use libjp::Changes;
 use std::io::prelude::*;
 
 pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
@@ -10,10 +10,11 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
 
     let mut repo = crate::open_repo()?;
     let branch = crate::branch(&repo, m);
-    let diff = crate::diff::diff(&repo)?;
+    let path = crate::file_path(m);
+    let diff = crate::diff::diff(&repo, &path)?;
 
     // TODO: this is not very efficient: we're reading the file twice.
-    let mut f = repo.open_file()?;
+    let mut f = repo.open_file(&path)?;
     let mut contents = Vec::new();
     f.read_to_end(&mut contents)?;
     let new_file = libjp::File::from_bytes(&contents);
@@ -25,7 +26,7 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
             return Ok(());
         }
 
-        let id = write_changes_as_patch(&mut repo, author.to_owned(), msg.to_owned(), changes)?;
+        let id = repo.create_patch(author, msg, changes)?;
         eprintln!("Created patch {}", id.to_base64());
     } else {
         // There was an error rendering the target branch to a file. In order to print an
@@ -38,27 +39,4 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
         }
     };
     Ok(())
-}
-
-pub fn write_changes_as_patch(
-    repo: &mut Repo,
-    author: String,
-    msg: String,
-    changes: Changes,
-) -> Result<PatchId, Error> {
-    let patch = UnidentifiedPatch::new(author.to_owned(), msg.to_owned(), changes);
-
-    // Write the patch to a temporary file, and get back the identified patch.
-    let mut out = tempfile::NamedTempFile::new_in(&repo.patch_dir)
-        .context("trying to create a named temp file")?;
-    let patch = patch.write_out(&mut out)?;
-
-    // Now that we know the patch's id, move it to a location given by that name.
-    let mut patch_path = repo.patch_dir.clone();
-    patch_path.push(patch.id().to_base64());
-    repo.register_patch(&patch)?;
-    out.persist(&patch_path)
-        .with_context(|_| format!("saving patch to {:?}", patch_path))?;
-
-    Ok(patch.id().clone())
 }

@@ -19,10 +19,10 @@ mod graph;
 mod init;
 mod log;
 pub mod patch;
+mod render;
 mod resolve;
+mod synthesize;
 
-// TODO:
-// - output files
 fn main() {
     let yml = load_yaml!("main.yaml");
     let m = App::from_yaml(yml).get_matches();
@@ -40,7 +40,9 @@ fn main() {
         Some("init") => init::run(m.subcommand_matches("init").unwrap()),
         Some("log") => log::run(m.subcommand_matches("log").unwrap()),
         Some("patch") => patch::run(m.subcommand_matches("patch").unwrap()),
+        Some("render") => render::run(m.subcommand_matches("render").unwrap()),
         Some("resolve") => resolve::run(m.subcommand_matches("resolve").unwrap()),
+        Some("synthesize") => synthesize::run(m.subcommand_matches("synthesize").unwrap()),
         _ => panic!("Unknown subcommand"),
     };
 
@@ -71,4 +73,8 @@ fn branch(repo: &Repo, m: &ArgMatches<'_>) -> String {
     m.value_of("branch")
         .unwrap_or(&repo.current_branch)
         .to_owned()
+}
+
+fn file_path(m: &ArgMatches<'_>) -> String {
+    m.value_of("path").unwrap_or("jp_file.txt").to_owned()
 }

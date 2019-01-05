@@ -30,7 +30,7 @@ impl NodeId {
         }
     }
 
-    fn cur(node: u64) -> NodeId {
+    pub fn cur(node: u64) -> NodeId {
         NodeId {
             patch: PatchId::cur(),
             node: node,
@@ -48,8 +48,6 @@ pub struct Repo {
     pub db_path: PathBuf,
     /// The path to the directory where patches are stored.
     pub patch_dir: PathBuf,
-    /// The name of the file that is being tracked.
-    pub file_name: String,
     pub current_branch: String,
 
     storage: storage::Storage,
@@ -80,9 +78,9 @@ impl Repo {
         Ok(ret)
     }
 
-    pub fn open_file(&self) -> Result<fs::File, Error> {
+    pub fn open_file(&self, file_name: &str) -> Result<fs::File, Error> {
         let mut path = self.root_dir.clone();
-        path.push(&self.file_name);
+        path.push(file_name);
         Ok(fs::File::open(path)?)
     }
 
@@ -97,32 +95,20 @@ impl Repo {
             repo_dir: Repo::repo_dir(dir.as_ref())?,
             db_path,
             patch_dir,
-            file_name: db.file_name,
             current_branch: db.current_branch,
             storage: db.storage,
         })
     }
 
-    /// Creates a repo for tracking the given file.
+    /// Creates a repo at the given path (which should point to a directory).
     pub fn init<P: AsRef<Path>>(path: P) -> Result<Repo, Error> {
-        let root_dir = path
-            .as_ref()
-            .parent()
-            .ok_or_else(|| Error::NoParent(path.as_ref().to_owned()))?
-            .to_owned();
+        let root_dir = path.as_ref().to_owned();
         let repo_dir = Repo::repo_dir(&root_dir)?;
         let db_path = Repo::db_path(&root_dir)?;
         if db_path.exists() {
             return Err(Error::RepoExists(repo_dir.clone()));
         }
         let patch_dir = Repo::patch_dir(&root_dir)?;
-        let file_name = path
-            .as_ref()
-            .file_name()
-            .ok_or_else(|| Error::NoFilename(path.as_ref().to_owned()))?;
-        let file_name = file_name
-            .to_str()
-            .ok_or_else(|| Error::NonUtfFilename(file_name.to_owned()))?;
 
         let mut storage = storage::Storage::new();
         let master_inode = storage.allocate_inode();
@@ -132,7 +118,6 @@ impl Repo {
             repo_dir,
             db_path: db_path,
             patch_dir: patch_dir,
-            file_name: file_name.to_owned(),
             current_branch: "master".to_owned(),
             storage: storage,
         })
@@ -143,13 +128,13 @@ impl Repo {
         let inode = self.inode(branch)?;
         self.storage.branch_patches.remove_all(branch);
         self.storage.remove_digle(inode);
-        self.storage.set_digle(inode, storage::digle::DigleData::new());
+        self.storage
+            .set_digle(inode, storage::digle::DigleData::new());
         Ok(())
     }
 
     pub fn write(&self) -> Result<(), Error> {
         let db = DbRef {
-            file_name: &self.file_name,
             current_branch: &self.current_branch,
             storage: &self.storage,
         };
@@ -348,6 +333,27 @@ impl Repo {
         self.storage.branch_patches.get(branch)
     }
 
+    pub fn create_patch(
+        &mut self,
+        author: &str,
+        msg: &str,
+        changes: Changes,
+    ) -> Result<PatchId, Error> {
+        let patch = UnidentifiedPatch::new(author.to_owned(), msg.to_owned(), changes);
+
+        // Write the patch to a temporary file, and get back the identified patch.
+        let mut out = tempfile::NamedTempFile::new_in(&self.patch_dir)?;
+        let patch = patch.write_out(&mut out)?;
+
+        // Now that we know the patch's id, move it to a location given by that name.
+        let mut patch_path = self.patch_dir.clone();
+        patch_path.push(patch.id().to_base64());
+        self.register_patch(&patch)?;
+        out.persist(&patch_path)?;
+
+        Ok(patch.id().clone())
+    }
+
     fn try_create_dir(&self, dir: &Path) -> Result<(), Error> {
         if let Err(e) = std::fs::create_dir(dir) {
             // If the directory already exists, just swallow the error.
@@ -425,17 +431,14 @@ impl Repo {
 /// This struct, serialized, is the contents of the database.
 #[derive(Debug, Deserialize, Serialize)]
 struct Db {
-    // Path (relative to the repository's root directory) to the file being tracked.
-    file_name: String,
     current_branch: String,
     storage: storage::Storage,
 }
 
-// I *think* that the auto-generated Serialize implementation here is compatible with the
-// auto-generated Seserialize implementation for Db.
+// The auto-generated Serialize implementation here should be compatible with the auto-generated
+// Seserialize implementation for Db.
 #[derive(Debug, Serialize)]
 struct DbRef<'a> {
-    file_name: &'a str,
     current_branch: &'a str,
     storage: &'a storage::Storage,
 }

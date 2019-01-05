@@ -39,12 +39,7 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     std::io::stdout().flush()?;
 
     if let Some(changes) = changes {
-        let id = crate::patch::create::write_changes_as_patch(
-            &mut repo,
-            author.to_owned(),
-            "Resolve to a file".to_owned(),
-            changes,
-        )?;
+        let id = repo.create_patch(author, "Resolve to a file", changes)?;
         eprintln!("Created patch {}", id.to_base64());
     } else {
         eprintln!("No patch created");
@@ -116,13 +111,13 @@ impl<'a> CycleResolverState<'a> {
                         } else if c == 'k' && offset > 0 {
                             offset -= 10;
                         }
-                    },
+                    }
                     Key::Esc => {
                         return Ok(None);
-                    },
+                    }
                     _ => {
                         debug!("unknown key");
-                    },
+                    }
                 }
             }
         }
@@ -150,7 +145,7 @@ impl<'a> CycleResolverState<'a> {
                 ("j", "show next"),
                 ("ESC", "quit"),
             ],
-            self.width
+            self.width,
         )?;
 
         self.screen.flush()?;
@@ -210,10 +205,12 @@ impl<'a> OrderResolverState<'a> {
                 .ok_or(failure::err_msg("Unexpected end of input"))??;
             match key {
                 Key::Char(c) => {
-                    let chosen = |x: usize| if x < 5 && self.shown_first + x < candidates.len() {
-                        Some(&candidates[self.shown_first + x])
-                    } else {
-                        None
+                    let chosen = |x: usize| {
+                        if x < 5 && self.shown_first + x < candidates.len() {
+                            Some(&candidates[self.shown_first + x])
+                        } else {
+                            None
+                        }
                     };
 
                     if let Some(x) = NUMBERS.iter().position(|&a| a == c as u8) {
@@ -294,10 +291,7 @@ impl<'a> OrderResolverState<'a> {
         Ok(())
     }
 
-    fn redraw_one_choice(
-        &mut self,
-        candidate: &CandidateChain,
-    ) -> Result<(), Error> {
+    fn redraw_one_choice(&mut self, candidate: &CandidateChain) -> Result<(), Error> {
         self.write_candidate_chain(candidate, 1, self.width)?;
         self.draw_keybindings(vec![
             ("1", "take one"),
@@ -308,10 +302,7 @@ impl<'a> OrderResolverState<'a> {
         Ok(())
     }
 
-    fn redraw_two_choices(
-        &mut self,
-        candidates: Vec<CandidateChain>,
-    ) -> Result<(), Error> {
+    fn redraw_two_choices(&mut self, candidates: Vec<CandidateChain>) -> Result<(), Error> {
         let divider_col = (self.width + 1) / 2;
         let divider_row = self.height - 5;
 
@@ -348,10 +339,7 @@ impl<'a> OrderResolverState<'a> {
         ])
     }
 
-    fn redraw_many_choices(
-        &mut self,
-        candidates: Vec<CandidateChain>,
-    ) -> Result<(), Error> {
+    fn redraw_many_choices(&mut self, candidates: Vec<CandidateChain>) -> Result<(), Error> {
         let divider_row = self.height - 5;
         let num_candidates = 5.min(candidates.len() - self.shown_first);
         let mut row = divider_row;
@@ -370,7 +358,13 @@ impl<'a> OrderResolverState<'a> {
                 unbold = style::NoBold,
             )?;
             let u = candidates[cand_idx].first();
-            write_truncated(&mut self.screen, self.repo.contents(&u), 3, row, self.width - 2)?;
+            write_truncated(
+                &mut self.screen,
+                self.repo.contents(&u),
+                3,
+                row,
+                self.width - 2,
+            )?;
         }
 
         let mut choose_range = b"1-5".to_owned();
@@ -384,9 +378,18 @@ impl<'a> OrderResolverState<'a> {
 
         let mut keybindings = vec![
             (std::str::from_utf8(&choose_range[..]).unwrap(), "take line"),
-            (std::str::from_utf8(&delete_range[..]).unwrap(), "delete line"),
-            (std::str::from_utf8(&choose_all_range[..]).unwrap(), "take lines"),
-            (std::str::from_utf8(&delete_all_range[..]).unwrap(), "delete lines"),
+            (
+                std::str::from_utf8(&delete_range[..]).unwrap(),
+                "delete line",
+            ),
+            (
+                std::str::from_utf8(&choose_all_range[..]).unwrap(),
+                "take lines",
+            ),
+            (
+                std::str::from_utf8(&delete_all_range[..]).unwrap(),
+                "delete lines",
+            ),
         ];
 
         if self.shown_first > 0 {
@@ -420,7 +423,11 @@ impl<'a> OrderResolverState<'a> {
     }
 }
 
-fn draw_keybindings(screen: &mut Screen, bindings: Vec<(&str, &str)>, width: u16) -> Result<(), Error> {
+fn draw_keybindings(
+    screen: &mut Screen,
+    bindings: Vec<(&str, &str)>,
+    width: u16,
+) -> Result<(), Error> {
     let mut row = 1;
     for (key, msg) in bindings {
         write!(

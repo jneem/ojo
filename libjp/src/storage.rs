@@ -99,7 +99,9 @@ impl Storage {
 
         match self.contents.entry(id) {
             Entry::Occupied(o) => assert_eq!(o.get(), &contents, "contents mismatch"),
-            Entry::Vacant(v) => { v.insert(contents); }
+            Entry::Vacant(v) => {
+                v.insert(contents);
+            }
         }
     }
 

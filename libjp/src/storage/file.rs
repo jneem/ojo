@@ -90,6 +90,11 @@ impl File {
     pub fn node_id(&self, idx: usize) -> &NodeId {
         &self.ids[idx]
     }
+
+    /// Gets the whole file, as an array of bytes.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.contents[..]
+    }
 }
 
 #[cfg(test)]

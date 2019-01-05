@@ -45,6 +45,10 @@ subcommands:
                 takes_value: true
     - diff:
         about: Shows changes between commits
+        args:
+            - path:
+                help: path to the file (defaults to 'jp_file.txt')
+                takes_value: true
     - graph:
         about: Creates a .dot file for visualizing the stored file
         args:
@@ -55,10 +59,6 @@ subcommands:
                 takes_value: true
     - init:
         about: Creates a new jp repository
-        args:
-            - PATH:
-                help: path to the file we want to track
-                required: true
     - log:
         about: Prints all of the patches present on a branch
         args:
@@ -83,7 +83,7 @@ subcommands:
                         short: R
                         long: revert
             - create:
-                about: Creates a patch with the changes in the current working directory
+                about: Creates a patch by comparing against a file
                 args:
                     - description:
                         help: message describing the patch
@@ -100,6 +100,17 @@ subcommands:
                     - branch:
                         help: branch to compare against (defaults to the current branch)
                         takes_value: true
+                    - path:
+                        help: path to the file (defaults to 'jp_file.txt')
+                        takes_value: true
+    - render:
+        about: Outputs the tracked data to a file
+        args:
+            - branch:
+                help: branch to output (defaults to the current branch)
+            - path:
+                help: path of the output (defaults to 'jp_file.txt')
+                takes_value: true
     - resolve:
         about: Interactive utility to make the file totally ordered
         args:
@@ -112,3 +123,5 @@ subcommands:
                 long: author
                 required: true
                 takes_value: true
+    - synthesize:
+        about: Synthesizes a repository with an arbitrary graph (for testing)

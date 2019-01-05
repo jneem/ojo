@@ -105,7 +105,7 @@ impl<'a> CycleResolver<'a> {
 /// For example, suppose we have a digle like this:
 ///
 /// ```text
-///    -> B -> C -> D 
+///    -> B -> C -> D
 ///  /               \
 /// A                 -> H
 ///  \               /
@@ -153,7 +153,10 @@ impl<'a> OrderResolver<'a> {
     }
 
     pub fn candidates<'b>(&'b self) -> impl Iterator<Item = CandidateChain<'a>> + 'b {
-        self.candidates.iter().map(move |u| CandidateChain { digle: self.digle, id: self.scc_reps[*u] })
+        self.candidates.iter().map(move |u| CandidateChain {
+            digle: self.digle,
+            id: self.scc_reps[*u],
+        })
     }
 
     fn advance_past(&mut self, scc: usize) {

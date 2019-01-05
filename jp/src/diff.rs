@@ -35,8 +35,8 @@ impl fmt::Display for Diff {
 
 // TODO: we should refactor some of this into libjp. In particular, it's probably useful to
 // have a method for taking a file and producing a diff.
-pub fn diff(repo: &Repo) -> Result<Diff, Error> {
-    let mut fs_file = repo.open_file()?;
+pub fn diff(repo: &Repo, file_name: &str) -> Result<Diff, Error> {
+    let mut fs_file = repo.open_file(file_name)?;
     let mut fs_file_contents = Vec::new();
     fs_file.read_to_end(&mut fs_file_contents)?;
     let fs_lines = lines(&fs_file_contents);
@@ -57,10 +57,11 @@ pub fn diff(repo: &Repo) -> Result<Diff, Error> {
     }
 }
 
-pub fn run(_m: &ArgMatches<'_>) -> Result<(), Error> {
+pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     let repo = super::open_repo()?;
+    let file_name = super::file_path(m);
 
-    let diff = diff(&repo)?;
+    let diff = diff(&repo, &file_name)?;
     print!("{}", diff);
 
     Ok(())
