@@ -56,7 +56,7 @@ impl Changes {
                     if let Some(last_id) = last.either() {
                         changes.push(Change::NewEdge {
                             src: last_id.clone(),
-                            dst: id.clone(),
+                            dest: id.clone(),
                         });
                     }
                     last = LastLine::File2(id);
@@ -68,7 +68,7 @@ impl Changes {
                     if let LastLine::File2(last_id) = last {
                         changes.push(Change::NewEdge {
                             src: last_id.clone(),
-                            dst: id.clone(),
+                            dest: id.clone(),
                         });
                     }
                     last = LastLine::File1(id);
@@ -93,16 +93,29 @@ impl Changes {
 /// A single change.
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum Change {
-    /// A change which adds a new node to the digle, with an id that must be unique, and with the
+    /// A change which adds a new node to the digle, with an ID that must be unique, and with the
     /// given contents.
-    NewNode { id: NodeId, contents: Vec<u8> },
+    NewNode {
+        /// The ID of the new node.
+        id: NodeId,
+        /// The contents of the new node.
+        contents: Vec<u8>,
+    },
     /// Marks a node as deleted. Note that deleted nodes are never actually removed; they remain
     /// but they are simply marked as deleted.
-    DeleteNode { id: NodeId },
+    DeleteNode {
+        /// The ID of the node to delete.
+        id: NodeId,
+    },
     /// Adds a new edge (i.e. a new ordering relation) between two nodes. Those nodes must either
     /// already exist in the digle at the time this change is applied. (If this `Change` is part of
     /// a `Changes` that adds some nodes and also an edge between them, then that's ok too.)
-    NewEdge { src: NodeId, dst: NodeId },
+    NewEdge {
+        /// The source of the new edge (i.e. the one that comes first in the ordering).
+        src: NodeId,
+        /// The destination of the new edge.
+        dest: NodeId,
+    },
 }
 
 impl Change {
@@ -114,10 +127,10 @@ impl Change {
             }
             Change::NewEdge {
                 ref mut src,
-                ref mut dst,
+                ref mut dest,
             } => {
                 src.set_patch_id(new_id);
-                dst.set_patch_id(new_id);
+                dest.set_patch_id(new_id);
             }
             Change::DeleteNode { ref mut id } => {
                 id.set_patch_id(new_id);

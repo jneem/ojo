@@ -6,7 +6,7 @@ use std::collections::{BTreeMap as Map, HashSet};
 pub mod digle;
 pub mod file;
 
-pub use self::digle::{Digle, DigleMut};
+pub use self::digle::Digle;
 pub use self::file::File;
 
 use self::digle::DigleData;
@@ -126,10 +126,6 @@ impl Storage {
         digle.resolve_pseudo_edges();
     }
 
-    pub fn digle_mut<'a>(&'a mut self, inode: INode) -> DigleMut<'a> {
-        self.digles.get_mut(&inode).unwrap().into()
-    }
-
     pub fn digle<'a>(&'a self, inode: INode) -> Digle<'a> {
         self.digles.get(&inode).unwrap().into()
     }
@@ -152,7 +148,7 @@ impl Storage {
             match *ch {
                 Change::NewNode { ref id, .. } => digle.add_node(id.clone()),
                 Change::DeleteNode { ref id } => digle.delete_node(&id),
-                Change::NewEdge { ref src, ref dst } => digle.add_edge(src.clone(), dst.clone()),
+                Change::NewEdge { ref src, ref dest } => digle.add_edge(src.clone(), dest.clone()),
             }
         }
 
@@ -177,7 +173,7 @@ impl Storage {
         for ch in &changes.changes {
             match *ch {
                 Change::DeleteNode { ref id } => digle.undelete_node(id),
-                Change::NewEdge { ref src, ref dst } => digle.unadd_edge(src, dst),
+                Change::NewEdge { ref src, ref dest } => digle.unadd_edge(src, dest),
                 Change::NewNode { .. } => {}
             }
         }

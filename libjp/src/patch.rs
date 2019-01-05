@@ -183,12 +183,12 @@ impl UnidentifiedPatch {
                         deps.insert(id.patch.clone());
                     }
                 }
-                Change::NewEdge { ref src, ref dst } => {
+                Change::NewEdge { ref src, ref dest } => {
                     if !src.patch.is_cur() {
                         deps.insert(src.patch.clone());
                     }
-                    if !dst.patch.is_cur() {
-                        deps.insert(dst.patch.clone());
+                    if !dest.patch.is_cur() {
+                        deps.insert(dest.patch.clone());
                     }
                 }
                 _ => {}

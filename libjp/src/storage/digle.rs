@@ -495,32 +495,50 @@ impl DigleData {
 // then pass around `&Digle`s. The thing is that we want to implement `Graph` for `&Digle`, and I
 // had some problems with that for some reason (can no longer remember why...). Certainly, the lack
 // of ATCs means we can't implement `Graph` for `Digle`.
+/// A digle is like a file, except that its lines are not necessarily in a linear order (rather,
+/// they form a directed graph).
+///
+/// This is a read-only view into a digle. It implements [`Graph`](graph::Graph), so you may
+/// apply graph-based algorithms on it.
+///
+/// Note that lines in a digle may be either live or deleted (nodes that are ``deleted'' are not
+/// actually removed, but they are simply marked as being deleted). Some of the methods on `Digle`
+/// ignore the deleted lines, while others expose them.
+//
+// TODO: should explain back-edges and pseudo-edges here
 #[derive(Clone, Copy, Debug)]
 pub struct Digle<'a> {
     data: &'a DigleData,
 }
 
 impl<'a> Digle<'a> {
+    /// Returns an iterator over all live nodes of this digle.
     pub fn nodes<'b>(&'b self) -> impl Iterator<Item = NodeId> + 'b {
         self.data.nodes.iter().cloned()
     }
 
+    /// Returns an iterator over all edges pointing from `node` to another live node.
     pub fn out_edges<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b Edge> + 'b {
         self.data.edges.get(node).take_while(|e| e.not_deleted())
     }
 
+    /// Returns an iterator over all live out-neighbors of `node`.
     pub fn out_neighbors<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b NodeId> + 'b {
         self.out_edges(node).map(|e| &e.dest)
     }
 
+    /// Returns an iterator over all live in-neighbors of `node`.
     pub fn in_neighbors<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b NodeId> + 'b {
         self.in_edges(node).map(|e| &e.dest)
     }
 
+    /// Returns an iterator over all edges pointing out of `node`, including those that point to
+    /// deleted edges.
     pub fn all_out_edges<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b Edge> + 'b {
         self.data.edges.get(node)
     }
 
+    /// Returns an iterator over all backwards edges pointing from `node` to another live node.
     pub fn in_edges<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b Edge> + 'b {
         self.data
             .back_edges
@@ -528,14 +546,22 @@ impl<'a> Digle<'a> {
             .take_while(|e| e.not_deleted())
     }
 
+    /// Returns an iterator over all backwards edges pointing out of `node`, including those that
+    /// point to deleted edges.
     pub fn all_in_edges<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b Edge> + 'b {
         self.data.back_edges.get(node)
     }
 
+    /// Returns `true` if `node` belongs to this digle (whether it is live or deleted).
     pub fn has_node(&self, node: &NodeId) -> bool {
         self.data.nodes.contains(node) || self.data.deleted_nodes.contains(node)
     }
 
+    /// Returns `true` if `node` is live.
+    ///
+    /// # Panics
+    ///
+    /// Panics unless `node` belongs to this digle.
     pub fn is_live(&self, node: &NodeId) -> bool {
         assert!(self.has_node(node));
         self.data.nodes.contains(node)
@@ -545,51 +571,6 @@ impl<'a> Digle<'a> {
 impl<'a> From<&'a DigleData> for Digle<'a> {
     fn from(d: &'a DigleData) -> Digle<'a> {
         Digle { data: d }
-    }
-}
-
-#[derive(Debug)]
-pub struct DigleMut<'a> {
-    data: &'a mut DigleData,
-}
-
-impl<'a> DigleMut<'a> {
-    pub fn as_digle<'b>(&'b self) -> Digle<'b> {
-        Digle { data: self.data }
-    }
-
-    pub fn add_node(&mut self, id: NodeId) {
-        self.data.add_node(id);
-    }
-
-    pub fn unadd_node(&mut self, id: &NodeId) {
-        self.data.unadd_node(id);
-    }
-
-    pub fn delete_node(&mut self, id: &NodeId) {
-        self.data.delete_node(id);
-    }
-
-    pub fn undelete_node(&mut self, id: &NodeId) {
-        self.data.undelete_node(id);
-    }
-
-    pub fn add_edge(&mut self, from: NodeId, to: NodeId) {
-        self.data.add_edge(from, to);
-    }
-
-    /// # Panics
-    ///
-    /// Panics unless `from` and `to` are nodes in this digle. In particular, if you're planning to
-    /// remove some nodes and the edge between them, you need to remove the nodes first.
-    pub fn unadd_edge(&mut self, from: &NodeId, to: &NodeId) {
-        self.data.unadd_edge(from, to);
-    }
-}
-
-impl<'a> From<&'a mut DigleData> for DigleMut<'a> {
-    fn from(d: &'a mut DigleData) -> DigleMut<'a> {
-        DigleMut { data: d }
     }
 }
 
@@ -737,7 +718,7 @@ pub mod tests {
                         .map(|(i, j)| (old_ids[i], new_ids[j])),
                 )
                 .filter(|(u, v)| u != v);
-            let edges = edges.map(|(u, v)| Change::NewEdge { src: u, dst: v });
+            let edges = edges.map(|(u, v)| Change::NewEdge { src: u, dest: v });
 
             let changes = deletions.chain(insertions).chain(edges).collect::<Vec<_>>();
             Changes { changes }
@@ -790,7 +771,7 @@ pub mod tests {
             match *ch {
                 Change::NewNode { ref id, .. } => digle.add_node(id.clone()),
                 Change::DeleteNode { ref id } => digle.delete_node(&id),
-                Change::NewEdge { ref src, ref dst } => digle.add_edge(src.clone(), dst.clone()),
+                Change::NewEdge { ref src, ref dest } => digle.add_edge(src.clone(), dest.clone()),
             }
         }
     }
@@ -799,7 +780,7 @@ pub mod tests {
         for ch in &changes.changes {
             match *ch {
                 Change::DeleteNode { ref id } => digle.undelete_node(id),
-                Change::NewEdge { ref src, ref dst } => digle.unadd_edge(src, dst),
+                Change::NewEdge { ref src, ref dest } => digle.unadd_edge(src, dest),
                 Change::NewNode { .. } => {}
             }
         }

@@ -1,3 +1,12 @@
+//! This module implements some tools that can be used to create interactive tools for resolving
+//! non-linearly-ordered digles into linearly-ordered files.
+//!
+//! There are essentially two reasons that a digle can fail to be linearly ordered: it can have
+//! cycles (i.e. too many edges) or it can have nodes with no prescribed edge between them (i.e.
+//! too few edges). The tools here implement a two-stage process: first, we deal with any cycles
+//! using [`CycleResolver`](crate::resolver::CycleResolver); then, we add any necessary edges using
+//! [`OrderResolver`](crate::resolver::OrderResolver).
+
 use graph::Graph;
 use std::collections::{HashMap, HashSet};
 
@@ -5,6 +14,11 @@ use crate::{Change, Changes, Digle, NodeId};
 
 // TODO: implement undo
 
+/// A utility for interactively removing cycles from a digle.
+///
+/// Since you can never actually delete edges from a digle, cycles are resolved by deleting nodes.
+/// Specifically, we divide a digle into its strongly connected components. From each strongly
+/// connected component, you must select exactly one node to survive.
 pub struct CycleResolver<'a> {
     digle: Digle<'a>,
     sccs: graph::Partition<Digle<'a>>,
@@ -19,6 +33,7 @@ pub struct CycleResolver<'a> {
 }
 
 impl<'a> CycleResolver<'a> {
+    /// Creates a new resolver for eliminating cycles in the given digle.
     pub fn new(digle: Digle<'a>) -> CycleResolver<'a> {
         let sccs = digle.tarjan();
         let large_sccs = sccs
@@ -36,6 +51,8 @@ impl<'a> CycleResolver<'a> {
         }
     }
 
+    /// If there are any strongly connected components remaining, returns the next one that needs
+    /// to be resolved.
     pub fn next_component(&self) -> Option<&HashSet<NodeId>> {
         self.large_sccs.last().map(|i| self.sccs.part(*i))
     }
@@ -47,12 +64,21 @@ impl<'a> CycleResolver<'a> {
         *self.large_sccs.last().unwrap()
     }
 
+    /// Resolves the current strongly connected component by deleting all nodes in it except for
+    /// `rep`.
+    ///
+    /// # Panics
+    ///
+    /// Panics unless `rep` is an element of the current component (as returned by
+    /// [`next_component`](CycleResolver::next_component)).
     pub fn resolve_component(&mut self, rep: NodeId) {
         assert!(self.sccs.part(self.cur()).contains(&rep));
         let cur = self.large_sccs.pop().unwrap();
         self.scc_reps.insert(cur, rep);
     }
 
+    /// Assuming that all cycles have already been taken care of, moves to the next stage of
+    /// resolution.
     pub fn into_order_resolver(self) -> OrderResolver<'a> {
         assert!(self.large_sccs.is_empty());
 
@@ -131,6 +157,10 @@ impl<'a> CandidateChain<'a> {
     }
 }
 
+/// A utility for interactively imposing a linear order on a digle with no cycles.
+///
+/// You will usually create this struct using [`CycleResolver::into_order_resolver`],
+/// which will ensure that there are no cycles remaining.
 pub struct OrderResolver<'a> {
     digle: Digle<'a>,
     ordered: Vec<NodeId>,
@@ -148,10 +178,15 @@ pub struct OrderResolver<'a> {
 }
 
 impl<'a> OrderResolver<'a> {
+    /// Returns a slice containing the nodes that have already been put in order.
     pub fn ordered_nodes(&self) -> &[NodeId] {
         &self.ordered[..]
     }
 
+    /// Returns an iterator over the current set of candidates.
+    ///
+    /// Each of the returned values represents a node (or sequence of nodes) that could go next in
+    /// the output.
     pub fn candidates<'b>(&'b self) -> impl Iterator<Item = CandidateChain<'a>> + 'b {
         self.candidates.iter().map(move |u| CandidateChain {
             digle: self.digle,
@@ -181,6 +216,16 @@ impl<'a> OrderResolver<'a> {
         }
     }
 
+    /// Chooses a node to go next in the ordered output.
+    ///
+    /// The chosen node must be a valid choice, meaning that there cannot be an edge from the
+    /// chosen node to a node that has not yet been chosen. If the chosen node was taken from the
+    /// head of one of the chains returned by [`OrderResolver::candidates`], it is guaranteed to be
+    /// a valid choice.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the chosen node is not a valid choice.
     pub fn choose(&mut self, next: &NodeId) {
         let next_idx = self.sccs.index_of(next);
         assert!(self.candidates.contains(&next_idx));
@@ -191,6 +236,13 @@ impl<'a> OrderResolver<'a> {
         self.advance_past(next_idx);
     }
 
+    /// Deletes a node, instead of including it in the ordered output.
+    ///
+    /// The chosen node must be valid in the sense described in [`OrderResolver::choose`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if the chosen node is not a valid choice.
     pub fn delete(&mut self, u: &NodeId) {
         let u_idx = self.sccs.index_of(u);
         assert!(self.candidates.contains(&u_idx));
@@ -200,10 +252,14 @@ impl<'a> OrderResolver<'a> {
     // TODO:
     // pub fn insert(&mut self, ...)
 
+    /// Returns true if the entire digle has already been put in order.
     pub fn is_finished(&self) -> bool {
         self.candidates.is_empty()
     }
 
+    /// Assuming that the entire digle has already been put in order, returns a [`Changes`] that,
+    /// when applied to the digle, will turn it from the original digle into the linear order that
+    /// we have just created (and which can be retrieved by [`OrderResolver::ordered_nodes`]).
     pub fn changes(&self) -> Changes {
         let mut changes = vec![];
 
@@ -220,7 +276,7 @@ impl<'a> OrderResolver<'a> {
             let u = self.ordered[i - 1];
             let v = self.ordered[i];
             if !self.digle.out_neighbors(&u).any(|w| *w == v) {
-                changes.push(Change::NewEdge { src: u, dst: v });
+                changes.push(Change::NewEdge { src: u, dest: v });
             }
         }
 
@@ -342,7 +398,7 @@ mod tests {
             Changes {
                 changes: vec![Change::NewEdge {
                     src: NodeId::cur(1),
-                    dst: NodeId::cur(2)
+                    dest: NodeId::cur(2)
                 }]
             }
         );

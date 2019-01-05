@@ -1,3 +1,12 @@
+#![deny(missing_docs)]
+
+//! A library for creating, reading, and manipulating `jp` repositories.
+//!
+//! `jp` is a toy implementation of a version control system inspired by the same ideas as
+//! [`pijul`](https://pijul.com). These ideas, and eventually the implementation of `jp`,
+//! are documented in some [`blog posts`](https://jneem.github.io). This crate itself it not so
+//! well documented, but doing so is one of my goals.
+
 #[macro_use]
 extern crate serde_derive;
 
@@ -17,9 +26,14 @@ pub use crate::error::{Error, PatchIdError};
 pub use crate::patch::{Change, Changes, Patch, PatchId, UnidentifiedPatch};
 pub use crate::storage::{Digle, File};
 
+/// A globally unique ID for identifying a node.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct NodeId {
+    /// The ID of the patch that first introduced this node.
     pub patch: PatchId,
+    /// The index of this node within the patch.
+    ///
+    /// If a patch introduces `n` nodes, they are given `node` values of `0` through `n-1`.
     pub node: u64,
 }
 
@@ -30,6 +44,10 @@ impl NodeId {
         }
     }
 
+    /// Creates a new `NodeId` for referring to a node that is being introduced in the current
+    /// patch.
+    ///
+    /// See [`PatchId`] for more information on the current patch and its ID.
     pub fn cur(node: u64) -> NodeId {
         NodeId {
             patch: PatchId::cur(),
@@ -38,6 +56,10 @@ impl NodeId {
     }
 }
 
+/// This is the main interface to a `jp` repository.
+///
+/// Be aware that any modifications made to a repository will not be saved unless [`Repo::write`]
+/// is called.
 #[derive(Debug)]
 pub struct Repo {
     /// The path to the root directory of the repository.
@@ -48,6 +70,7 @@ pub struct Repo {
     pub db_path: PathBuf,
     /// The path to the directory where patches are stored.
     pub patch_dir: PathBuf,
+    /// The name of the current branch.
     pub current_branch: String,
 
     storage: storage::Storage,
@@ -78,6 +101,7 @@ impl Repo {
         Ok(ret)
     }
 
+    /// Opens the file of the given name, interpreted relative to the repository root.
     pub fn open_file(&self, file_name: &str) -> Result<fs::File, Error> {
         let mut path = self.root_dir.clone();
         path.push(file_name);
@@ -133,6 +157,9 @@ impl Repo {
         Ok(())
     }
 
+    /// Persists the repository to disk.
+    ///
+    /// Any modifications that were previously made become permanent.
     pub fn write(&self) -> Result<(), Error> {
         let db = DbRef {
             current_branch: &self.current_branch,
@@ -145,13 +172,14 @@ impl Repo {
         Ok(())
     }
 
-    pub fn inode(&self, branch: &str) -> Result<storage::INode, Error> {
+    fn inode(&self, branch: &str) -> Result<storage::INode, Error> {
         Ok(self
             .storage
             .inode(branch)
             .ok_or_else(|| Error::UnknownBranch(branch.to_owned()))?)
     }
 
+    /// Returns a read-only view to the data associated with a branch.
     pub fn digle<'a>(&'a self, branch: &str) -> Result<storage::Digle<'a>, Error> {
         let inode = self
             .storage
@@ -160,14 +188,8 @@ impl Repo {
         Ok(self.storage.digle(inode))
     }
 
-    pub fn digle_mut<'a>(&'a mut self, branch: &str) -> Result<storage::DigleMut<'a>, Error> {
-        let inode = self
-            .storage
-            .inode(branch)
-            .ok_or_else(|| Error::UnknownBranch(branch.to_owned()))?;
-        Ok(self.storage.digle_mut(inode))
-    }
-
+    /// Retrieves the data associated with a branch, assuming that it represents a totally ordered
+    /// file.
     pub fn file(&self, branch: &str) -> Option<File> {
         use graph::Graph;
         let inode = self.storage.inode(branch)?;
@@ -177,6 +199,7 @@ impl Repo {
             .map(|order| File::from_ids(&order, &self.storage))
     }
 
+    /// Retrieves the contents associated with a node.
     pub fn contents(&self, id: &NodeId) -> &[u8] {
         self.storage.contents(id)
     }
@@ -187,7 +210,12 @@ impl Repo {
         ret
     }
 
-    pub fn open_patch_by_id(&self, id: &PatchId) -> Result<Patch, Error> {
+    /// Opens a patch.
+    ///
+    /// The patch must already be known to the repository, either because it was created locally
+    /// (i.e. with [`Repo::create_patch`]) or because it was (possibly created elsewhere but) registered
+    /// locally with [`Repo::register_patch`].
+    pub fn open_patch(&self, id: &PatchId) -> Result<Patch, Error> {
         let ret = Patch::from_reader(fs::File::open(self.patch_path(id))?)?;
         if ret.id() != id {
             Err(Error::IdMismatch(*ret.id(), *id))
@@ -196,15 +224,15 @@ impl Repo {
         }
     }
 
-    pub fn open_patch(&self, name: &str) -> Result<Patch, Error> {
-        self.open_patch_by_id(&PatchId::from_base64(name)?)
-    }
-
+    /// Introduces a patch to the repository.
+    ///
+    /// After registering a patch, its data will be stored in the repository and you will be able
+    /// to access it by its ID.
     pub fn register_patch(&mut self, patch: &Patch) -> Result<(), Error> {
         // If the patch already exists in our repository then there's nothing to do. But if there's
-        // a file there which doesn't match this one then something's really wrong.
+        // a file there with the same hash but different contents then something's really wrong.
         if self.storage.patches.contains(patch.id()) {
-            let old_patch = self.open_patch_by_id(patch.id())?;
+            let old_patch = self.open_patch(patch.id())?;
             if &old_patch == patch {
                 return Ok(());
             } else {
@@ -233,7 +261,7 @@ impl Repo {
     //
     // Panics if not all of the dependencies are already present.
     fn apply_one_patch(&mut self, branch: &str, patch_id: &PatchId) -> Result<(), Error> {
-        let patch = self.open_patch_by_id(patch_id)?;
+        let patch = self.open_patch(patch_id)?;
         for dep in patch.deps() {
             debug_assert!(
                 self.storage.branch_patches.contains(branch, dep),
@@ -286,7 +314,7 @@ impl Repo {
     }
 
     fn unapply_one_patch(&mut self, branch: &str, patch_id: &PatchId) -> Result<(), Error> {
-        let patch = self.open_patch_by_id(patch_id)?;
+        let patch = self.open_patch(patch_id)?;
         let inode = self.inode(branch)?;
         self.storage.unapply_changes(inode, patch.changes());
         self.storage.branch_patches.remove(branch, patch.id());
@@ -329,10 +357,15 @@ impl Repo {
         Ok(unapplied)
     }
 
+    /// Returns an iterator over all of the patches being used in a branch.
     pub fn patches(&self, branch: &str) -> impl Iterator<Item = &PatchId> {
         self.storage.branch_patches.get(branch)
     }
 
+    /// Creates a new patch with the given changes and metadata and returns its ID.
+    ///
+    /// The newly created patch will be automatically registered in the current repository, so
+    /// there is no need to call [`Repo::register_patch`] on it.
     pub fn create_patch(
         &mut self,
         author: &str,
@@ -364,10 +397,12 @@ impl Repo {
         Ok(())
     }
 
+    /// Returns an iterator over the names of all branches.
     pub fn branches(&self) -> impl Iterator<Item = &str> {
         self.storage.branches()
     }
 
+    /// Creates a new, empty branch.
     pub fn create_branch(&mut self, branch: &str) -> Result<(), Error> {
         if self.storage.inode(branch).is_some() {
             Err(Error::BranchExists(branch.to_owned()))
@@ -378,6 +413,7 @@ impl Repo {
         }
     }
 
+    /// Copies data to a new branch (which must not already exist).
     pub fn clone_branch(&mut self, from: &str, to: &str) -> Result<(), Error> {
         if self.storage.inode(to).is_some() {
             Err(Error::BranchExists(to.to_owned()))
@@ -404,6 +440,7 @@ impl Repo {
         }
     }
 
+    /// Deletes the branch named `branch`.
     pub fn delete_branch(&mut self, branch: &str) -> Result<(), Error> {
         if branch == &self.current_branch {
             return Err(Error::CurrentBranch(branch.to_owned()));
@@ -418,6 +455,7 @@ impl Repo {
         Ok(())
     }
 
+    /// Changes the current branch to the one named `branch` (which must already exist).
     pub fn switch_branch(&mut self, branch: &str) -> Result<(), Error> {
         if self.storage.inode(branch).is_none() {
             Err(Error::UnknownBranch(branch.to_owned()))

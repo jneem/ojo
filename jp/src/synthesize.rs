@@ -36,7 +36,7 @@ pub fn run(_m: &ArgMatches<'_>) -> Result<(), Error> {
     });
     let new_edges = edges.into_iter().map(|(i, j)| Change::NewEdge {
         src: NodeId::cur(i as u64),
-        dst: NodeId::cur(j as u64),
+        dest: NodeId::cur(j as u64),
     });
     let changes = Changes {
         changes: new_nodes.chain(new_edges).collect::<Vec<_>>(),

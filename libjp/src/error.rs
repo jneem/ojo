@@ -1,3 +1,7 @@
+// Allow missing docs in this module, for now, because we need to think more about the types of
+// errors we're exposing.
+#![allow(missing_docs)]
+
 use serde_yaml;
 use std::ffi::OsString;
 use std::path::PathBuf;
