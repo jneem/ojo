@@ -469,6 +469,7 @@ fn write_truncated(
         truncated += "...";
         data = std::borrow::Cow::from(truncated);
     }
-    write!(screen, "{}{}", cursor::Goto(col, row), data)?;
+    // Trim the string, because if it ends with a '\n' then it will mess up our formatting.
+    write!(screen, "{}{}", cursor::Goto(col, row), data.trim_end())?;
     Ok(())
 }
