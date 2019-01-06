@@ -8,7 +8,7 @@ use std::borrow::Borrow;
 use std::collections::{BTreeMap, BTreeSet};
 
 // FIXME: the derived PartialEq is not correct, because of empty sets.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct MMap<K: Ord, V: Ord> {
     map: BTreeMap<K, BTreeSet<V>>,
     // hackity
@@ -35,7 +35,7 @@ impl<K: Ord, V: Ord> MMap<K, V> {
     pub fn insert(&mut self, key: K, val: V) {
         self.map
             .entry(key)
-            .or_insert_with(|| BTreeSet::new())
+            .or_insert_with(BTreeSet::new)
             .insert(val);
     }
 

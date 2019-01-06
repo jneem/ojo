@@ -1,6 +1,7 @@
 [workspace]
 
 members = [
+    "collection_traits",
     "diff",
     "graph",
     "jp",
