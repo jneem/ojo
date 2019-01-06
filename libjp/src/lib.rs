@@ -4,7 +4,7 @@
 //!
 //! `jp` is a toy implementation of a version control system inspired by the same ideas as
 //! [`pijul`](https://pijul.com). These ideas, and eventually the implementation of `jp`,
-//! are documented in some [`blog posts`](https://jneem.github.io). This crate itself it not so
+//! are documented in some [`blog posts`](https://jneem.github.io). This crate itself is not so
 //! well documented, but doing so is one of my goals.
 
 #[macro_use]
