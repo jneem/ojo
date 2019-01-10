@@ -1,10 +1,10 @@
 [workspace]
 
 members = [
-    "collection_traits",
     "diff",
     "graph",
     "jp",
+    "jp_storage",
     "libjp",
     "multimap",
     "partition",

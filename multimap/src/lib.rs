@@ -8,11 +8,17 @@ use std::borrow::Borrow;
 use std::collections::{BTreeMap, BTreeSet};
 
 // FIXME: the derived PartialEq is not correct, because of empty sets.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MMap<K: Ord, V: Ord> {
     map: BTreeMap<K, BTreeSet<V>>,
     // hackity
     empty_set: BTreeSet<V>,
+}
+
+impl<K: Ord, V: Ord> Default for MMap<K, V> {
+    fn default() -> MMap<K, V> {
+        MMap::new()
+    }
 }
 
 impl<K: Ord, V: Ord> MMap<K, V> {
@@ -24,12 +30,15 @@ impl<K: Ord, V: Ord> MMap<K, V> {
     }
 
     /// Returns an iterator over all the values associated with this key.
-    pub fn get<Q>(&self, key: &Q) -> impl Iterator<Item = &V>
+    // FIXME: I don't understand why the one with the Box works, but the one without gives lifetime
+    // errors downstream.
+    //pub fn get<Q>(&'_ self, key: &Q) -> impl Iterator<Item = &'_ V> + '_
+    pub fn get<Q>(&'_ self, key: &Q) -> Box<dyn Iterator<Item = &'_ V> + '_>
     where
         K: Borrow<Q>,
         Q: Ord + ?Sized,
     {
-        self.map.get(key).unwrap_or(&self.empty_set).iter()
+        Box::new(self.map.get(key).unwrap_or(&self.empty_set).iter())
     }
 
     pub fn insert(&mut self, key: K, val: V) {
