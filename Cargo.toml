@@ -4,7 +4,6 @@ members = [
     "diff",
     "graph",
     "jp",
-    "jp_storage",
     "libjp",
     "multimap",
     "partition",

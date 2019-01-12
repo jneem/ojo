@@ -12,7 +12,6 @@ flexi_logger = "0.10"
 graph = { path = "../graph" }
 libjp = { path = "../libjp" }
 log = "0.4"
-tempfile = "3"
 termion = "1.5"
 
 [dependencies.clap]

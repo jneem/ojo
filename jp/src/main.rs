@@ -69,6 +69,12 @@ fn open_repo() -> Result<libjp::Repo, Error> {
     }
 }
 
+fn open_file(repo: &Repo, file_name: &str) -> Result<std::fs::File, Error> {
+    let mut path = repo.root_dir.clone();
+    path.push(file_name);
+    Ok(std::fs::File::open(path)?)
+}
+
 fn branch(repo: &Repo, m: &ArgMatches<'_>) -> String {
     m.value_of("branch")
         .unwrap_or(&repo.current_branch)

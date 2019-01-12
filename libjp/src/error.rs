@@ -61,11 +61,11 @@ pub enum Error {
     NoFilename(PathBuf),
     NoParent(PathBuf),
     NonUtfFilename(OsString),
-    PersistError(tempfile::PersistError),
     RepoExists(PathBuf),
     RepoNotFound(PathBuf),
     Serde(serde_yaml::Error),
     UnknownBranch(String),
+    UnknownPatch(PatchId),
 }
 
 impl fmt::Display for Error {
@@ -81,7 +81,6 @@ impl fmt::Display for Error {
                 expected.to_base64(),
                 actual.to_base64()
             ),
-            Error::PersistError(e) => e.fmt(f),
             Error::Serde(e) => e.fmt(f),
             Error::RepoNotFound(p) => write!(
                 f,
@@ -96,6 +95,7 @@ impl fmt::Display for Error {
                 write!(f, "This filename couldn't be converted to UTF-8: {:?}", p)
             }
             Error::UnknownBranch(b) => write!(f, "There is no branch named {:?}", b),
+            Error::UnknownPatch(p) => write!(f, "There is no patch with hash {:?}", p.to_base64()),
             Error::BranchExists(b) => write!(f, "The branch \"{}\" already exists", b),
         }
     }
@@ -106,7 +106,6 @@ impl std::error::Error for Error {
         match self {
             Error::Io(e, _) => Some(e),
             Error::PatchId(e) => Some(e),
-            Error::PersistError(e) => Some(e),
             Error::Serde(e) => Some(e),
             _ => None,
         }
@@ -116,12 +115,6 @@ impl std::error::Error for Error {
 impl From<PatchIdError> for Error {
     fn from(e: PatchIdError) -> Error {
         Error::PatchId(e)
-    }
-}
-
-impl From<tempfile::PersistError> for Error {
-    fn from(e: tempfile::PersistError) -> Error {
-        Error::PersistError(e)
     }
 }
 

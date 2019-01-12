@@ -69,7 +69,6 @@ pub struct Repo {
     /// The path to the database containing all the history, and so on.
     pub db_path: PathBuf,
     /// The path to the directory where patches are stored.
-    pub patch_dir: PathBuf,
     /// The name of the current branch.
     pub current_branch: String,
 
@@ -93,32 +92,15 @@ impl Repo {
         Ok(ret)
     }
 
-    /// Given the path of the root directory of a repository, returns the path containing all the
-    /// patches contained in the repository.
-    fn patch_dir(file_path: &Path) -> Result<PathBuf, Error> {
-        let mut ret = Repo::repo_dir(file_path)?;
-        ret.push("patches");
-        Ok(ret)
-    }
-
-    /// Opens the file of the given name, interpreted relative to the repository root.
-    pub fn open_file(&self, file_name: &str) -> Result<fs::File, Error> {
-        let mut path = self.root_dir.clone();
-        path.push(file_name);
-        Ok(fs::File::open(path)?)
-    }
-
     /// Opens the existing repository with the given root directory.
     pub fn open<P: AsRef<Path>>(dir: P) -> Result<Repo, Error> {
         let db_path = Repo::db_path(dir.as_ref())?;
-        let patch_dir = Repo::patch_dir(dir.as_ref())?;
         let db_file = fs::File::open(&db_path)?;
         let db: Db = serde_yaml::from_reader(db_file)?;
         Ok(Repo {
             root_dir: dir.as_ref().to_owned(),
             repo_dir: Repo::repo_dir(dir.as_ref())?,
             db_path,
-            patch_dir,
             current_branch: db.current_branch,
             storage: db.storage,
         })
@@ -132,7 +114,6 @@ impl Repo {
         if db_path.exists() {
             return Err(Error::RepoExists(repo_dir.clone()));
         }
-        let patch_dir = Repo::patch_dir(&root_dir)?;
 
         let mut storage = storage::Storage::new();
         let master_inode = storage.allocate_inode();
@@ -141,7 +122,6 @@ impl Repo {
             root_dir,
             repo_dir,
             db_path: db_path,
-            patch_dir: patch_dir,
             current_branch: "master".to_owned(),
             storage: storage,
         })
@@ -166,7 +146,6 @@ impl Repo {
             storage: &self.storage,
         };
         self.try_create_dir(&self.repo_dir)?;
-        self.try_create_dir(&self.patch_dir)?;
         let db_file = fs::File::create(&self.db_path)?;
         serde_yaml::to_writer(db_file, &db)?;
         Ok(())
@@ -204,19 +183,16 @@ impl Repo {
         self.storage.contents(id)
     }
 
-    fn patch_path(&self, id: &PatchId) -> PathBuf {
-        let mut ret = self.patch_dir.clone();
-        ret.push(id.to_base64());
-        ret
-    }
-
     /// Opens a patch.
     ///
     /// The patch must already be known to the repository, either because it was created locally
     /// (i.e. with [`Repo::create_patch`]) or because it was (possibly created elsewhere but) registered
     /// locally with [`Repo::register_patch`].
     pub fn open_patch(&self, id: &PatchId) -> Result<Patch, Error> {
-        let ret = Patch::from_reader(fs::File::open(self.patch_path(id))?)?;
+        let patch_data = self.storage.patches
+            .get(id)
+            .ok_or(Error::UnknownPatch(*id))?;
+        let ret = Patch::from_reader(&patch_data[..])?;
         if ret.id() != id {
             Err(Error::IdMismatch(*ret.id(), *id))
         } else {
@@ -224,6 +200,7 @@ impl Repo {
         }
     }
 
+    /*
     /// Introduces a patch to the repository.
     ///
     /// After registering a patch, its data will be stored in the repository and you will be able
@@ -231,7 +208,7 @@ impl Repo {
     pub fn register_patch(&mut self, patch: &Patch) -> Result<(), Error> {
         // If the patch already exists in our repository then there's nothing to do. But if there's
         // a file there with the same hash but different contents then something's really wrong.
-        if self.storage.patches.contains(patch.id()) {
+        if self.storage.patches.contains_key(patch.id()) {
             let old_patch = self.open_patch(patch.id())?;
             if &old_patch == patch {
                 return Ok(());
@@ -242,7 +219,7 @@ impl Repo {
 
         // Record the deps and reverse-deps.
         for dep in patch.deps() {
-            if !self.storage.patches.contains(dep) {
+            if !self.storage.patches.contains_key(dep) {
                 return Err(Error::MissingDep(dep.clone()));
             }
             self.storage
@@ -256,6 +233,7 @@ impl Repo {
         self.storage.patches.insert(patch.id().clone());
         Ok(())
     }
+    */
 
     // Applies a single patch to a branch.
     //
@@ -270,7 +248,6 @@ impl Repo {
         }
         let inode = self.storage.inode(branch).unwrap();
         self.storage.apply_changes(inode, patch.changes());
-        self.storage.patches.insert(patch.id().clone());
         self.storage
             .branch_patches
             .insert(branch.to_owned(), patch.id().clone());
@@ -372,17 +349,28 @@ impl Repo {
         msg: &str,
         changes: Changes,
     ) -> Result<PatchId, Error> {
+        use std::collections::hash_map::Entry;
+
         let patch = UnidentifiedPatch::new(author.to_owned(), msg.to_owned(), changes);
 
-        // Write the patch to a temporary file, and get back the identified patch.
-        let mut out = tempfile::NamedTempFile::new_in(&self.patch_dir)?;
-        let patch = patch.write_out(&mut out)?;
+        // Serialize the patch to a buffer, and get back the identified patch.
+        let mut patch_data = Vec::new();
+        let patch = patch.write_out(&mut patch_data)?;
+        let id = patch.id().clone();
 
-        // Now that we know the patch's id, move it to a location given by that name.
-        let mut patch_path = self.patch_dir.clone();
-        patch_path.push(patch.id().to_base64());
-        self.register_patch(&patch)?;
-        out.persist(&patch_path)?;
+        // Now that we know the patch's id, store it in the patches map.
+        match self.storage.patches.entry(id) {
+            // It's OK to have a duplicate patch, but it isn't OK to have two patches with the same
+            // hash but different contents.
+            Entry::Occupied(o) => {
+                if o.get() != &patch_data {
+                    return Err(PatchIdError::Collision(patch.id().clone()).into());
+                }
+            }
+            Entry::Vacant(v) => {
+                v.insert(patch_data);
+            }
+        }
 
         Ok(patch.id().clone())
     }

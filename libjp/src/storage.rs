@@ -1,7 +1,7 @@
 use crate::patch::{Change, Changes};
 use crate::{NodeId, PatchId};
 use multimap::MMap;
-use std::collections::{BTreeMap as Map, HashSet};
+use std::collections::{BTreeMap, HashMap};
 
 pub mod digle;
 pub mod file;
@@ -32,17 +32,18 @@ pub(crate) struct Storage {
 
     // These are the actual, textual contents of the lines. If we wanted to be clever, we could do
     // deduplication and/or compression.
-    contents: Map<NodeId, Vec<u8>>,
+    contents: BTreeMap<NodeId, Vec<u8>>,
 
     // This is a map from the names of branches to the inodes where those branches' data is stored.
-    branches: Map<String, INode>,
+    branches: BTreeMap<String, INode>,
 
     // This is a map from inodes to the actual data contained in them.
-    digles: Map<INode, DigleData>,
+    digles: BTreeMap<INode, DigleData>,
 
-    // A list of all the patches that we know about, and have ever known about. The contents of the
-    // patches are not stored here; they live in a different directory, with one patch per file.
-    pub patches: HashSet<PatchId>,
+    // These are all the patches that we know about, and have ever known about.
+    //
+    // The contents of the patches are YAML.
+    pub patches: HashMap<PatchId, Vec<u8>>,
 
     // If this contains the key-value pair (branch, patch), it means that the named branch contains
     // the named patch.
@@ -62,10 +63,10 @@ impl Storage {
     pub fn new() -> Storage {
         Storage {
             next_inode: 0,
-            contents: Map::new(),
-            branches: Map::new(),
-            digles: Map::new(),
-            patches: HashSet::new(),
+            contents: BTreeMap::new(),
+            branches: BTreeMap::new(),
+            digles: BTreeMap::new(),
+            patches: HashMap::new(),
             branch_patches: MMap::new(),
             patch_deps: MMap::new(),
             patch_rev_deps: MMap::new(),

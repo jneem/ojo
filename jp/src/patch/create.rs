@@ -14,7 +14,7 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     let diff = crate::diff::diff(&repo, &path)?;
 
     // TODO: this is not very efficient: we're reading the file twice.
-    let mut f = repo.open_file(&path)?;
+    let mut f = crate::open_file(&repo, &path)?;
     let mut contents = Vec::new();
     f.read_to_end(&mut contents)?;
     let new_file = libjp::File::from_bytes(&contents);
@@ -27,6 +27,7 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
         }
 
         let id = repo.create_patch(author, msg, changes)?;
+        repo.write()?;
         eprintln!("Created patch {}", id.to_base64());
     } else {
         // There was an error rendering the target branch to a file. In order to print an
