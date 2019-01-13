@@ -13,6 +13,8 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     let path = crate::file_path(m);
     let diff = crate::diff::diff(&repo, &path)?;
 
+    // TODO: we need a better error message if the file can't be opened (right now it just shows
+    // the I/O error)
     // TODO: this is not very efficient: we're reading the file twice.
     let mut f = crate::open_file(&repo, &path)?;
     let mut contents = Vec::new();

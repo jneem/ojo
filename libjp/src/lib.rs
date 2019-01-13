@@ -1,4 +1,4 @@
-#![deny(missing_docs)]
+//#![deny(missing_docs)]
 
 //! A library for creating, reading, and manipulating `jp` repositories.
 //!
@@ -6,6 +6,8 @@
 //! [`pijul`](https://pijul.com). These ideas, and eventually the implementation of `jp`,
 //! are documented in some [`blog posts`](https://jneem.github.io). This crate itself is not so
 //! well documented, but doing so is one of my goals.
+
+// TODO: support chain decompositions
 
 #[macro_use]
 extern crate serde_derive;
@@ -17,6 +19,7 @@ extern crate proptest;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+pub mod decomposed_digle;
 mod error;
 mod patch;
 pub mod resolver;
@@ -127,6 +130,11 @@ impl Repo {
         })
     }
 
+    /// Creates a temporary in-memory repo that cannot be stored.
+    pub fn init_tmp() -> Result<Repo, Error> {
+        unimplemented!()
+    }
+
     /// Clears a branch, removing all of its patches.
     pub fn clear(&mut self, branch: &str) -> Result<(), Error> {
         let inode = self.inode(branch)?;
@@ -189,10 +197,12 @@ impl Repo {
     /// (i.e. with [`Repo::create_patch`]) or because it was (possibly created elsewhere but) registered
     /// locally with [`Repo::register_patch`].
     pub fn open_patch(&self, id: &PatchId) -> Result<Patch, Error> {
-        let patch_data = self.storage.patches
+        let patch_data = self
+            .storage
+            .patches
             .get(id)
             .ok_or(Error::UnknownPatch(*id))?;
-        let ret = Patch::from_reader(&patch_data[..])?;
+        let ret = Patch::from_reader(patch_data.as_bytes())?;
         if ret.id() != id {
             Err(Error::IdMismatch(*ret.id(), *id))
         } else {
@@ -357,6 +367,8 @@ impl Repo {
         let mut patch_data = Vec::new();
         let patch = patch.write_out(&mut patch_data)?;
         let id = patch.id().clone();
+        let patch_data =
+            String::from_utf8(patch_data).expect("YAML serializer failed to produce UTF-8");
 
         // Now that we know the patch's id, store it in the patches map.
         match self.storage.patches.entry(id) {

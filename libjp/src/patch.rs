@@ -95,11 +95,17 @@ mod patch_id_base64 {
 ///
 /// A `PatchId` is derived from a patch by hashing its contents. It must be unique: a repository
 /// cannot simultaneously contain two patches with the same id.
-#[derive(Copy, Clone, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Copy, Clone, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(transparent)]
 pub struct PatchId {
     #[serde(with = "patch_id_base64")]
     pub(crate) data: [u8; 32],
+}
+
+impl std::fmt::Debug for PatchId {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fmt.debug_tuple("PatchId").field(&self.to_base64()).finish()
+    }
 }
 
 impl PatchId {

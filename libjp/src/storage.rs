@@ -43,7 +43,7 @@ pub(crate) struct Storage {
     // These are all the patches that we know about, and have ever known about.
     //
     // The contents of the patches are YAML.
-    pub patches: HashMap<PatchId, Vec<u8>>,
+    pub patches: HashMap<PatchId, String>,
 
     // If this contains the key-value pair (branch, patch), it means that the named branch contains
     // the named patch.

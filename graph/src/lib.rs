@@ -178,7 +178,7 @@ pub trait Graph {
     }
 
     /// Returns the set of all nodes that are adjacent (either an in-neighbor or an out-neighbor)
-    /// of something in `set`.
+    /// to something in `set`.
     fn neighbor_set<'a, I: Iterator<Item = &'a Self::Node>>(&self, set: I) -> HashSet<Self::Node>
     where
         Self::Node: 'a,
