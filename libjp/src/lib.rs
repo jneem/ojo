@@ -16,6 +16,7 @@ extern crate serde_derive;
 #[macro_use]
 extern crate proptest;
 
+use graph::Graph;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -28,6 +29,7 @@ mod storage;
 pub use crate::error::{Error, PatchIdError};
 pub use crate::patch::{Change, Changes, Patch, PatchId, UnidentifiedPatch};
 pub use crate::storage::{Digle, File};
+pub use diff::LineDiff;
 
 /// A globally unique ID for identifying a node.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
@@ -177,13 +179,13 @@ impl Repo {
 
     /// Retrieves the data associated with a branch, assuming that it represents a totally ordered
     /// file.
-    pub fn file(&self, branch: &str) -> Option<File> {
-        use graph::Graph;
-        let inode = self.storage.inode(branch)?;
+    pub fn file(&self, branch: &str) -> Result<File, Error> {
+        let inode = self.inode(branch)?;
         self.storage
             .digle(inode)
             .linear_order()
             .map(|order| File::from_ids(&order, &self.storage))
+            .ok_or(Error::NotOrdered)
     }
 
     /// Retrieves the contents associated with a node.
@@ -464,6 +466,27 @@ impl Repo {
             Ok(())
         }
     }
+
+    /// If the given branch represents a totally ordered file (i.e. if [`Repo::file`] returns
+    /// something), returns the result of diffing the given branch against `file`.
+    pub fn diff(&self, branch: &str, file: &[u8]) -> Result<Diff, Error> {
+        let file_a = self.file(branch)?;
+        let lines_a = (0..file_a.num_nodes())
+            .map(|i| file_a.node(i))
+            .collect::<Vec<_>>();
+
+        let file_b = File::from_bytes(file);
+        let lines_b = (0..file_b.num_nodes())
+            .map(|i| file_b.node(i))
+            .collect::<Vec<_>>();
+
+        let diff = diff::diff(&lines_a, &lines_b);
+        Ok(Diff {
+            diff,
+            file_a,
+            file_b,
+        })
+    }
 }
 
 /// This struct, serialized, is the contents of the database.
@@ -479,4 +502,11 @@ struct Db {
 struct DbRef<'a> {
     current_branch: &'a str,
     storage: &'a storage::Storage,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Diff {
+    pub diff: Vec<LineDiff>,
+    pub file_a: File,
+    pub file_b: File,
 }

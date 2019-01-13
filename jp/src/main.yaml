@@ -46,6 +46,9 @@ subcommands:
     - diff:
         about: Shows changes between commits
         args:
+            - branch:
+                help: the branch to diff against
+                takes_value: true
             - path:
                 help: path to the file (defaults to 'jp_file.txt')
                 takes_value: true

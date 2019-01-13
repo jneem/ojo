@@ -13,6 +13,7 @@ pub enum Node {
 
 #[derive(Debug)]
 pub struct Digle {
+    // TODO: allow retrieving liveness of NodeIds and type of edges.
     nodes: Vec<Node>,
     edges: MMap<usize, usize>,
     clusters: Vec<HashSet<usize>>,

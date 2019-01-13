@@ -51,16 +51,17 @@ impl std::error::Error for PatchIdError {
 
 #[derive(Debug)]
 pub enum Error {
-    PatchId(PatchIdError),
-    IdMismatch(PatchId, PatchId),
     BranchExists(String),
     CurrentBranch(String),
     DbCorruption,
+    IdMismatch(PatchId, PatchId),
     Io(io::Error, String),
     MissingDep(PatchId),
     NoFilename(PathBuf),
     NoParent(PathBuf),
     NonUtfFilename(OsString),
+    NotOrdered,
+    PatchId(PatchIdError),
     RepoExists(PathBuf),
     RepoNotFound(PathBuf),
     Serde(serde_yaml::Error),
@@ -71,32 +72,33 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Error::BranchExists(b) => write!(f, "The branch \"{}\" already exists", b),
             Error::CurrentBranch(b) => write!(f, "\"{}\" is the current branch", b),
             Error::DbCorruption => write!(f, "Found corruption in the database"),
-            Error::Io(e, msg) => write!(f, "I/O error: {}. Details: {}", msg, e),
-            Error::PatchId(_) => write!(f, "Found a broken PatchId"),
             Error::IdMismatch(actual, expected) => write!(
                 f,
                 "Expected {}, found {}",
                 expected.to_base64(),
                 actual.to_base64()
             ),
-            Error::Serde(e) => e.fmt(f),
+            Error::Io(e, msg) => write!(f, "I/O error: {}. Details: {}", msg, e),
+            Error::MissingDep(id) => write!(f, "Missing a dependency: {}", id.to_base64()),
+            Error::NoFilename(p) => write!(f, "This path didn't end in a filename: {:?}", p),
+            Error::NoParent(p) => write!(f, "I could not find the parent directory of: {:?}", p),
+            Error::NonUtfFilename(p) => {
+                write!(f, "This filename couldn't be converted to UTF-8: {:?}", p)
+            }
+            Error::NotOrdered => write!(f, "The data does not represent a totally ordered file"),
+            Error::PatchId(_) => write!(f, "Found a broken PatchId"),
+            Error::RepoExists(p) => write!(f, "There is already a repository in {:?}", p),
             Error::RepoNotFound(p) => write!(
                 f,
                 "I could not find a repository tracking this path: {:?}",
                 p
             ),
-            Error::RepoExists(p) => write!(f, "There is already a repository in {:?}", p),
-            Error::MissingDep(id) => write!(f, "Missing a dependency: {}", id.to_base64()),
-            Error::NoParent(p) => write!(f, "I could not find the parent directory of: {:?}", p),
-            Error::NoFilename(p) => write!(f, "This path didn't end in a filename: {:?}", p),
-            Error::NonUtfFilename(p) => {
-                write!(f, "This filename couldn't be converted to UTF-8: {:?}", p)
-            }
+            Error::Serde(e) => e.fmt(f),
             Error::UnknownBranch(b) => write!(f, "There is no branch named {:?}", b),
             Error::UnknownPatch(p) => write!(f, "There is no patch with hash {:?}", p.to_base64()),
-            Error::BranchExists(b) => write!(f, "The branch \"{}\" already exists", b),
         }
     }
 }

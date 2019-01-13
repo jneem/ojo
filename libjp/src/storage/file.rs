@@ -8,7 +8,7 @@ use crate::NodeId;
 ///
 /// The most convenient way to get a [`File`] is through [`Repo::file`](crate::Repo::file), but they can also
 /// be built from raw bytes (using [`File::from_bytes`]).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct File {
     ids: Vec<NodeId>,
     // The contents of the file, in one long vector.

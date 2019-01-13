@@ -4,28 +4,23 @@ use diff::LineDiff;
 use failure::Error;
 use libjp::Repo;
 use std::fmt;
-use std::io::prelude::*;
 
-pub struct Diff {
-    pub changes: Vec<LineDiff>,
-    pub a_lines: Vec<Vec<u8>>,
-    pub b_lines: Vec<Vec<u8>>,
-}
+pub struct DiffDisplay(pub libjp::Diff);
 
-impl fmt::Display for Diff {
+impl fmt::Display for DiffDisplay {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for &ch in &self.changes {
+        for &ch in &self.0.diff {
             match ch {
                 LineDiff::New(i) => {
-                    let s = format!("+ {}", String::from_utf8_lossy(&self.b_lines[i]));
+                    let s = format!("+ {}", String::from_utf8_lossy(&self.0.file_b.node(i)));
                     write!(fmt, "{}", s.green())?;
                 }
                 LineDiff::Delete(i) => {
-                    let s = format!("- {}", String::from_utf8_lossy(&self.a_lines[i]));
+                    let s = format!("- {}", String::from_utf8_lossy(&self.0.file_a.node(i)));
                     write!(fmt, "{}", s.red())?;
                 }
                 LineDiff::Keep(i, _) => {
-                    write!(fmt, "  {}", String::from_utf8_lossy(&self.a_lines[i]))?;
+                    write!(fmt, "  {}", String::from_utf8_lossy(&self.0.file_a.node(i)))?;
                 }
             }
         }
@@ -33,55 +28,23 @@ impl fmt::Display for Diff {
     }
 }
 
-// TODO: we should refactor some of this into libjp. In particular, it's probably useful to
-// have a method for taking a file and producing a diff.
-pub fn diff(repo: &Repo, file_name: &str) -> Result<Diff, Error> {
-    let mut fs_file = crate::open_file(repo, file_name)?;
-    let mut fs_file_contents = Vec::new();
-    fs_file.read_to_end(&mut fs_file_contents)?;
-    let fs_lines = lines(&fs_file_contents);
+pub fn diff(repo: &Repo, branch: &str, file_name: &str) -> Result<libjp::Diff, Error> {
+    let mut path = repo.root_dir.clone();
+    path.push(file_name);
+    let fs_file_contents = std::fs::read(&path)?;
 
-    if let Some(repo_file) = repo.file("master") {
-        let repo_lines = (0..repo_file.num_nodes())
-            .map(|i| repo_file.node(i).to_owned())
-            .collect::<Vec<_>>();
-        let line_diffs = diff::diff(&repo_lines, &fs_lines);
-        let ret = Diff {
-            changes: line_diffs,
-            a_lines: repo_lines,
-            b_lines: fs_lines,
-        };
-        Ok(ret)
-    } else {
-        panic!("FIXME");
-    }
+    Ok(repo.diff(branch, &fs_file_contents[..])?)
 }
 
 pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     let repo = super::open_repo()?;
+    let branch = super::branch(&repo, m);
     let file_name = super::file_path(m);
 
-    let diff = diff(&repo, &file_name)?;
-    print!("{}", diff);
+    let diff = diff(&repo, &branch, &file_name)?;
+    print!("{}", DiffDisplay(diff));
 
     Ok(())
-}
-
-// Splits a file into \n-separated lines. This differs from the method in the standard library in
-// that it keeps the line endings.
-// TODO: we should (after benchmarking) revisit how we're comparing files. For example, it might be
-// worth interning things for quicker comparisons, and possibly reduced allocations.
-fn lines(input: &[u8]) -> Vec<Vec<u8>> {
-    let mut ret = Vec::new();
-    let mut cur_idx = 0;
-    for (newline_idx, _) in input.into_iter().enumerate().filter(|&(_, &b)| b == b'\n') {
-        ret.push(input[cur_idx..=newline_idx].to_owned());
-        cur_idx = newline_idx + 1;
-    }
-    if input.is_empty() || input.last().unwrap() != &b'\n' {
-        ret.push(input[cur_idx..].to_owned());
-    }
-    ret
 }
 
 #[cfg(test)]

@@ -1,7 +1,6 @@
 use clap::ArgMatches;
 use failure::Error;
 use libjp::Changes;
-use std::io::prelude::*;
 
 pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     // The unwraps are ok because these are required arguments.
@@ -11,26 +10,22 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     let mut repo = crate::open_repo()?;
     let branch = crate::branch(&repo, m);
     let path = crate::file_path(m);
-    let diff = crate::diff::diff(&repo, &path)?;
+    let diff = crate::diff::diff(&repo, &branch, &path)?;
+    let changes = Changes::from_diff(&diff.file_a, &diff.file_b, &diff.diff);
 
     // TODO: we need a better error message if the file can't be opened (right now it just shows
     // the I/O error)
-    // TODO: this is not very efficient: we're reading the file twice.
-    let mut f = crate::open_file(&repo, &path)?;
-    let mut contents = Vec::new();
-    f.read_to_end(&mut contents)?;
-    let new_file = libjp::File::from_bytes(&contents);
-    if let Some(old_file) = repo.file(&branch) {
-        let changes = Changes::from_diff(&old_file, &new_file, &diff.changes);
 
-        if changes.changes.is_empty() {
-            eprintln!("Not creating a patch because there were no changes.");
-            return Ok(());
-        }
+    if changes.changes.is_empty() {
+        eprintln!("Not creating a patch because there were no changes.");
+        return Ok(());
+    }
 
-        let id = repo.create_patch(author, msg, changes)?;
-        repo.write()?;
-        eprintln!("Created patch {}", id.to_base64());
+    let id = repo.create_patch(author, msg, changes)?;
+    repo.write()?;
+    eprintln!("Created patch {}", id.to_base64());
+
+    /*
     } else {
         // There was an error rendering the target branch to a file. In order to print an
         // informative message, we need to check whether the reason for failure was that the branch
@@ -41,5 +36,6 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
             bail!("Couldn't open branch \"{}\"", branch);
         }
     };
+    */
     Ok(())
 }
