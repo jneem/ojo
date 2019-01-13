@@ -5,16 +5,10 @@ use std::collections::{BTreeMap, HashSet};
 
 use crate::NodeId;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Node {
-    Chain(Vec<NodeId>),
-    Single(NodeId),
-}
-
-#[derive(Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Digle {
     // TODO: allow retrieving liveness of NodeIds and type of edges.
-    nodes: Vec<Node>,
+    chains: Vec<Vec<NodeId>>,
     edges: MMap<usize, usize>,
     clusters: Vec<HashSet<usize>>,
 }
@@ -62,8 +56,12 @@ fn collect_chain<G: Graph>(g: &G, first: &G::Node) -> Vec<G::Node> {
 }
 
 impl Digle {
-    pub fn node_contents(&self, i: usize) -> &Node {
-        &self.nodes[i]
+    pub fn num_chains(&self) -> usize {
+        self.chains.len()
+    }
+
+    pub fn chain(&self, i: usize) -> &[NodeId] {
+        &self.chains[i]
     }
 
     pub fn clusters(&self) -> impl Iterator<Item = &HashSet<usize>> {
@@ -92,8 +90,8 @@ impl Digle {
             .cloned()
             .tee();
 
-        // All nodes in larger SCCs get added to the final graph as single nodes.
-        let mut nodes = others1.map(|node| Node::Single(node)).collect::<Vec<_>>();
+        // All nodes in larger SCCs get added to the final graph as length-1 chains.
+        let mut chains = others1.map(|node| vec![node]).collect::<Vec<_>>();
 
         // Map going from NodeId to index in the Vec<Node>.
         let mut node_part = others2
@@ -106,13 +104,9 @@ impl Digle {
             let chain = collect_chain(&g, &u);
             for v in &chain {
                 singles.remove(v);
-                node_part.insert(*v, nodes.len());
+                node_part.insert(*v, chains.len());
             }
-            if chain.len() > 1 {
-                nodes.push(Node::Chain(chain));
-            } else {
-                nodes.push(Node::Single(chain[0]));
-            }
+            chains.push(chain);
         }
 
         let mut edges = MMap::new();
@@ -137,7 +131,7 @@ impl Digle {
             .collect::<Vec<_>>();
 
         Digle {
-            nodes,
+            chains,
             edges,
             clusters,
         }
@@ -149,7 +143,7 @@ impl Graph for Digle {
     type Edge = usize;
 
     fn nodes(&'_ self) -> Box<dyn Iterator<Item = usize> + '_> {
-        Box::new(0..self.nodes.len())
+        Box::new(0..self.chains.len())
     }
 
     fn out_edges(&'_ self, u: &usize) -> Box<dyn Iterator<Item = usize> + '_> {

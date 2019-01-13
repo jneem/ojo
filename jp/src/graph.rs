@@ -16,13 +16,11 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     let mut output = File::create(output)?;
     writeln!(output, "digraph {{")?;
     for idx in digle_decomp.nodes() {
-        match digle_decomp.node_contents(idx) {
-            decomposed_digle::Node::Single(id) => {
-                write_single_node(&mut output, &repo, digle, &id, idx)?;
-            }
-            decomposed_digle::Node::Chain(ref ids) => {
-                write_chain_node(&mut output, &repo, digle, &*ids, idx)?;
-            }
+        let chain = digle_decomp.chain(idx);
+        if chain.len() == 1 {
+            write_single_node(&mut output, &repo, digle, &chain[0], idx)?;
+        } else {
+            write_chain_node(&mut output, &repo, digle, chain, idx)?;
         }
 
         for nbr_idx in digle_decomp.out_neighbors(&idx) {
