@@ -133,8 +133,18 @@ impl Repo {
     }
 
     /// Creates a temporary in-memory repo that cannot be stored.
-    pub fn init_tmp() -> Result<Repo, Error> {
-        unimplemented!()
+    pub fn init_tmp() -> Repo {
+        let mut storage = storage::Storage::new();
+        let master_inode = storage.allocate_inode();
+        storage.set_inode("master", master_inode);
+
+        Repo {
+            root_dir: PathBuf::new(),
+            repo_dir: PathBuf::new(),
+            db_path: PathBuf::new(),
+            current_branch: "master".to_owned(),
+            storage,
+        }
     }
 
     /// Clears a branch, removing all of its patches.

@@ -574,6 +574,7 @@ impl<'a> From<&'a DigleData> for Digle<'a> {
     }
 }
 
+// TODO: use wrappers to implement graphs for either the whole thing or just the live part.
 impl<'a> graph::Graph for Digle<'a> {
     type Node = NodeId;
     type Edge = NodeId;
