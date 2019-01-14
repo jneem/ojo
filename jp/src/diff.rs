@@ -46,20 +46,3 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
 
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn lines() {
-        assert_eq!(super::lines(&b""[..]), vec![Vec::<u8>::new()]);
-        assert_eq!(super::lines(&b"\n"[..]), vec![b"\n".to_owned()]);
-        assert_eq!(
-            super::lines(&b"a\nb\n"[..]),
-            vec![b"a\n".to_owned(), b"b\n".to_owned()]
-        );
-        assert_eq!(
-            super::lines(&b"a\nb"[..]),
-            vec![b"a\n"[..].to_owned(), b"b"[..].to_owned()]
-        );
-    }
-}
