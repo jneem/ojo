@@ -205,6 +205,7 @@ impl UnidentifiedPatch {
             header: PatchHeader {
                 author,
                 description,
+                #[cfg(not(target_arch = "wasm32"))]
                 timestamp: Utc::now(),
             },
             changes,
@@ -300,5 +301,7 @@ pub struct PatchHeader {
     pub description: String,
 
     /// The time at which the patch was created.
+    // We currently disable this on wasm, since chrono::Utc::now() panics there.
+    #[cfg(not(target_arch = "wasm32"))]
     pub timestamp: DateTime<Utc>,
 }

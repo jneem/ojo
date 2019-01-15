@@ -68,7 +68,7 @@ impl Digle {
         self.clusters.iter()
     }
 
-    pub fn from_digle<G: Graph<Node = NodeId>>(g: G) -> Digle
+    pub fn from_graph<G: Graph<Node = NodeId>>(g: G) -> Digle
     where
         G::Edge: graph::Edge<NodeId>,
     {
@@ -157,4 +157,35 @@ impl Graph for Digle {
     }
 }
 
-// TODO: tests
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use crate::storage::digle::tests::{arb_live_digle, make_digle};
+
+    #[test]
+    fn diamond() {
+        let digle = make_digle("0-1, 0-2, 1-3, 2-3");
+        let decomp = super::Digle::from_graph(digle.as_digle().as_live_graph());
+        assert_eq!(decomp.chains.len(), 4);
+        for ch in &decomp.chains {
+            assert_eq!(ch.len(), 1);
+        }
+    }
+
+    proptest! {
+        // Checks that the chains of the decomposition form a partition of the original node set.
+        #[test]
+        fn partition(ref d in arb_live_digle(20)) {
+            let decomp = super::Digle::from_graph(d.as_digle().as_live_graph());
+            let decomp_nodes = decomp.chains.iter().flat_map(|chain| chain.iter()).cloned().collect::<Vec<_>>();
+            let decomp_node_set = decomp_nodes.iter().cloned().collect::<HashSet<_>>();
+
+            // Check that there are no repeated nodes.
+            assert_eq!(decomp_nodes.len(), decomp_node_set.len());
+
+            // Check that we got all the nodes once.
+            assert_eq!(decomp_nodes.len(), d.as_digle().nodes().count());
+        }
+    }
+}

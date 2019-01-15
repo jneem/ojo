@@ -7,7 +7,6 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::borrow::Borrow;
 use std::collections::{BTreeMap, BTreeSet};
 
-// FIXME: the derived PartialEq is not correct, because of empty sets.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MMap<K: Ord, V: Ord> {
     map: BTreeMap<K, BTreeSet<V>>,
@@ -84,10 +83,7 @@ impl<K: Ord, V: Ord> MMap<K, V> {
         V: Borrow<R>,
         R: Ord + ?Sized,
     {
-        self.map
-            .get(key)
-            .and_then(|bindings| bindings.get(val))
-            .is_some()
+        self.map.get(key).map(|bindings| bindings.contains(val)) == Some(true)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&K, &V)> {

@@ -11,7 +11,8 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     let output = m.value_of("out").unwrap_or("out.dot");
     let repo = super::open_repo()?;
     let digle = repo.digle("master")?;
-    let digle_decomp = decomposed_digle::Digle::from_digle(digle);
+    // TODO: allow retrieving only the live graph
+    let digle_decomp = decomposed_digle::Digle::from_graph(digle.as_full_graph());
 
     let mut output = File::create(output)?;
     writeln!(output, "digraph {{")?;

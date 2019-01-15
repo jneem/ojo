@@ -28,7 +28,7 @@ mod storage;
 
 pub use crate::error::{Error, PatchIdError};
 pub use crate::patch::{Change, Changes, Patch, PatchId, UnidentifiedPatch};
-pub use crate::storage::{Digle, File};
+pub use crate::storage::{Digle, File, FullGraph, LiveGraph};
 pub use diff::LineDiff;
 
 /// A globally unique ID for identifying a node.
@@ -193,8 +193,9 @@ impl Repo {
         let inode = self.inode(branch)?;
         self.storage
             .digle(inode)
+            .as_live_graph()
             .linear_order()
-            .map(|order| File::from_ids(&order, &self.storage))
+            .map(|ref order| File::from_ids(order, &self.storage))
             .ok_or(Error::NotOrdered)
     }
 
@@ -222,12 +223,11 @@ impl Repo {
         }
     }
 
-    /*
     /// Introduces a patch to the repository.
     ///
     /// After registering a patch, its data will be stored in the repository and you will be able
     /// to access it by its ID.
-    pub fn register_patch(&mut self, patch: &Patch) -> Result<(), Error> {
+    fn register_patch(&mut self, patch: &Patch, data: String) -> Result<(), Error> {
         // If the patch already exists in our repository then there's nothing to do. But if there's
         // a file there with the same hash but different contents then something's really wrong.
         if self.storage.patches.contains_key(patch.id()) {
@@ -252,10 +252,9 @@ impl Repo {
                 .insert(dep.clone(), patch.id().clone());
         }
 
-        self.storage.patches.insert(patch.id().clone());
+        self.storage.patches.insert(patch.id().clone(), data);
         Ok(())
     }
-    */
 
     // Applies a single patch to a branch.
     //
@@ -361,6 +360,16 @@ impl Repo {
         self.storage.branch_patches.get(branch)
     }
 
+    /// Returns an iterator over all direct dependencies of the given patch.
+    pub fn patch_deps(&self, patch: &PatchId) -> impl Iterator<Item = &PatchId> {
+        self.storage.patch_deps.get(patch)
+    }
+
+    /// Returns an iterator over all direct dependents of the given patch.
+    pub fn patch_rev_deps(&self, patch: &PatchId) -> impl Iterator<Item = &PatchId> {
+        self.storage.patch_rev_deps.get(patch)
+    }
+
     /// Creates a new patch with the given changes and metadata and returns its ID.
     ///
     /// The newly created patch will be automatically registered in the current repository, so
@@ -371,30 +380,16 @@ impl Repo {
         msg: &str,
         changes: Changes,
     ) -> Result<PatchId, Error> {
-        use std::collections::hash_map::Entry;
-
         let patch = UnidentifiedPatch::new(author.to_owned(), msg.to_owned(), changes);
 
         // Serialize the patch to a buffer, and get back the identified patch.
         let mut patch_data = Vec::new();
         let patch = patch.write_out(&mut patch_data)?;
-        let id = patch.id().clone();
         let patch_data =
             String::from_utf8(patch_data).expect("YAML serializer failed to produce UTF-8");
 
         // Now that we know the patch's id, store it in the patches map.
-        match self.storage.patches.entry(id) {
-            // It's OK to have a duplicate patch, but it isn't OK to have two patches with the same
-            // hash but different contents.
-            Entry::Occupied(o) => {
-                if o.get() != &patch_data {
-                    return Err(PatchIdError::Collision(patch.id().clone()).into());
-                }
-            }
-            Entry::Vacant(v) => {
-                v.insert(patch_data);
-            }
-        }
+        self.register_patch(&patch, patch_data)?;
 
         Ok(patch.id().clone())
     }

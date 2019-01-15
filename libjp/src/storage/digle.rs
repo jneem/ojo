@@ -173,6 +173,7 @@ impl DigleData {
         for e in in_neighbors {
             self.delete_opposite_edge(id, &e, false);
         }
+        self.mark_dirty(id);
     }
 
     pub fn undelete_node(&mut self, id: &NodeId) {
@@ -339,7 +340,8 @@ impl DigleData {
         // Each partition represented by a dirty rep needs to be rechecked, because it's possible
         // that it actually encompasses multiple connected components in the new digle.
         let digle = self.as_digle();
-        let sub_graph = digle.node_filtered(|u| {
+        let graph = digle.as_full_graph();
+        let sub_graph = graph.node_filtered(|u| {
             !digle.is_live(u) && dirty_reps.contains(&self.deleted_partition.representative(*u))
         });
         let components = sub_graph.weak_components().into_parts();
@@ -393,14 +395,16 @@ impl DigleData {
     // `component` must be a non-empty connected component of the deleted nodes.
     fn add_component_pseudo_edges(&mut self, component: &HashSet<NodeId>) {
         let digle = self.as_digle();
-        let neighborhood = digle.neighbor_set(component.iter());
+        let graph = digle.as_full_graph();
+        let mut neighborhood = graph.neighbor_set(component.iter());
+        neighborhood.extend(component.iter().cloned());
 
         // Find the representative of this connected component. The unwrap is ok because
         // `component` is non-empty.
         let rep = self
             .deleted_partition
             .representative(*component.iter().next().unwrap());
-        let sub_digle = digle.node_filtered(|u| neighborhood.contains(u));
+        let sub_graph = graph.node_filtered(|u| neighborhood.contains(u));
 
         // This is the collection of all live nodes that are adjacent to a particular connected
         // component of deleted nodes. We will compute the complete connectivity relation that
@@ -410,7 +414,7 @@ impl DigleData {
 
         let mut pairs = Vec::new();
         for u in boundary {
-            for visit in sub_digle.dfs_from(u) {
+            for visit in sub_graph.dfs_from(u) {
                 match visit {
                     graph::dfs::Visit::Edge { dst, .. } => {
                         if digle.is_live(&dst) {
@@ -423,7 +427,13 @@ impl DigleData {
         }
         for (src, dest) in pairs {
             // Only add a pseudo-edge if there is not already an edge present.
-            if self.edges.get(&src).next().is_none() {
+            if !self.edges.contains(
+                &src,
+                &Edge {
+                    dest,
+                    kind: EdgeKind::Live,
+                },
+            ) {
                 self.edges.insert(
                     src,
                     Edge {
@@ -494,7 +504,7 @@ impl DigleData {
 // This wrapping is a bit annoying. It would be simpler just to rename `DigleData` to `Digle` and
 // then pass around `&Digle`s. The thing is that we want to implement `Graph` for `&Digle`, and I
 // had some problems with that for some reason (can no longer remember why...). Certainly, the lack
-// of ATCs means we can't implement `Graph` for `Digle`.
+// of ATCs/GATs means we can't implement `Graph` for `Digle`.
 /// A digle is like a file, except that its lines are not necessarily in a linear order (rather,
 /// they form a directed graph).
 ///
@@ -566,6 +576,18 @@ impl<'a> Digle<'a> {
         assert!(self.has_node(node));
         self.data.nodes.contains(node)
     }
+
+    /// Wraps `self` in [`LiveGraph`], which implements [`graph::Graph`] over the live nodes of
+    /// this digle.
+    pub fn as_live_graph(self) -> LiveGraph<'a> {
+        LiveGraph(self)
+    }
+
+    /// Wraps `self` in [`FullGraph`], which implements [`graph::Graph`] over all (live and
+    /// deleted) nodes of this digle.
+    pub fn as_full_graph(self) -> FullGraph<'a> {
+        FullGraph(self)
+    }
 }
 
 impl<'a> From<&'a DigleData> for Digle<'a> {
@@ -574,27 +596,56 @@ impl<'a> From<&'a DigleData> for Digle<'a> {
     }
 }
 
-// TODO: use wrappers to implement graphs for either the whole thing or just the live part.
-impl<'a> graph::Graph for Digle<'a> {
+/// A wrapper around [`Digle`] implementing the [`graph::Graph`] trait.
+///
+/// This represents only the part of the digle containing live nodes. To examine the entire digle
+/// (i.e. including deleted nodes), use [`FullGraph`].
+pub struct LiveGraph<'a>(Digle<'a>);
+
+impl<'a> graph::Graph for LiveGraph<'a> {
+    type Node = NodeId;
+    type Edge = NodeId;
+
+    fn nodes<'b>(&'b self) -> Box<dyn Iterator<Item = Self::Node> + 'b> {
+        Box::new(self.0.data.nodes.iter().cloned())
+    }
+
+    fn out_edges<'b>(&'b self, u: &NodeId) -> Box<dyn Iterator<Item = Self::Node> + 'b> {
+        Box::new(self.0.out_edges(u).map(|e| &e.dest).cloned())
+    }
+
+    fn in_edges<'b>(&'b self, u: &NodeId) -> Box<dyn Iterator<Item = Self::Node> + 'b> {
+        Box::new(self.0.in_edges(u).map(|e| &e.dest).cloned())
+    }
+}
+
+/// A wrapper around [`Digle`] implementing the [`graph::Graph`] trait.
+///
+/// This represents only the entire digle, even the nodes that are deleted.  To examine only the
+/// live parts of the digle, use [`LiveGraph`].
+pub struct FullGraph<'a>(Digle<'a>);
+
+impl<'a> graph::Graph for FullGraph<'a> {
     type Node = NodeId;
     type Edge = NodeId;
 
     fn nodes<'b>(&'b self) -> Box<dyn Iterator<Item = Self::Node> + 'b> {
         Box::new(
-            self.data
+            self.0
+                .data
                 .nodes
                 .iter()
-                .chain(self.data.deleted_nodes.iter())
+                .chain(self.0.data.deleted_nodes.iter())
                 .cloned(),
         )
     }
 
     fn out_edges<'b>(&'b self, u: &NodeId) -> Box<dyn Iterator<Item = Self::Node> + 'b> {
-        Box::new(self.all_out_edges(u).map(|e| &e.dest).cloned())
+        Box::new(self.0.all_out_edges(u).map(|e| &e.dest).cloned())
     }
 
     fn in_edges<'b>(&'b self, u: &NodeId) -> Box<dyn Iterator<Item = Self::Node> + 'b> {
-        Box::new(self.all_in_edges(u).map(|e| &e.dest).cloned())
+        Box::new(self.0.all_in_edges(u).map(|e| &e.dest).cloned())
     }
 }
 
@@ -642,9 +693,22 @@ pub mod tests {
         ret
     }
 
+    // Create a digle of three nodes, then delete the middle one and check that the pseudo-edge is
+    // correctly added.
+    #[test]
+    fn delete_middle() {
+        let mut d = make_digle("0-1, 1-2");
+        d.delete_node(&NodeId::cur(1));
+        d.resolve_pseudo_edges();
+        assert!(d
+            .as_digle()
+            .out_neighbors(&NodeId::cur(0))
+            .any(|x| x == &NodeId::cur(2)));
+    }
+
     prop_compose! {
         // Creates an arbitrary digle with no deleted nodes.
-        fn arb_live_digle(max_nodes: usize)
+        [pub(crate)] fn arb_live_digle(max_nodes: usize)
                          (num_nodes in 1..max_nodes)
                          (edges in hash_set((0..num_nodes, 0..num_nodes), 0..(num_nodes * MAX_AVG_DEGREE)),
                           num_nodes in Just(num_nodes))

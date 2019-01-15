@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, HashMap};
 pub mod digle;
 pub mod file;
 
-pub use self::digle::Digle;
+pub use self::digle::{Digle, FullGraph, LiveGraph};
 pub use self::file::File;
 
 use self::digle::DigleData;

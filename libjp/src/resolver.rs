@@ -10,7 +10,7 @@
 use graph::Graph;
 use std::collections::{HashMap, HashSet};
 
-use crate::{Change, Changes, Digle, NodeId};
+use crate::{Change, Changes, Digle, LiveGraph, NodeId};
 
 // TODO: implement undo
 
@@ -21,7 +21,7 @@ use crate::{Change, Changes, Digle, NodeId};
 /// connected component, you must select exactly one node to survive.
 pub struct CycleResolver<'a> {
     digle: Digle<'a>,
-    sccs: graph::Partition<Digle<'a>>,
+    sccs: graph::Partition<LiveGraph<'a>>,
 
     // The indices of all SCCs that have more than one element. This will gradually shrink as we
     // resolve more components.
@@ -35,7 +35,7 @@ pub struct CycleResolver<'a> {
 impl<'a> CycleResolver<'a> {
     /// Creates a new resolver for eliminating cycles in the given digle.
     pub fn new(digle: Digle<'a>) -> CycleResolver<'a> {
-        let sccs = digle.tarjan();
+        let sccs = digle.as_live_graph().tarjan();
         let large_sccs = sccs
             .parts()
             .enumerate()
@@ -167,7 +167,7 @@ pub struct OrderResolver<'a> {
 
     // The partition of the digle's nodes into strongly connected components. All of the remaining
     // fields refer to indices of components in this partition.
-    sccs: graph::Partition<Digle<'a>>,
+    sccs: graph::Partition<LiveGraph<'a>>,
     // Since OrderResolver comes after CycleResolver, we have already chosen exactly one
     // representative from each SCC. This is the list of representatives.
     scc_reps: Vec<NodeId>,
