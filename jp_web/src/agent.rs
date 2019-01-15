@@ -1,6 +1,6 @@
 use libjp::decomposed_digle::Digle;
-use libjp::NodeId;
-use std::collections::BTreeMap;
+use libjp::{NodeId, PatchId};
+use std::collections::{BTreeMap, HashSet};
 use yew::prelude::worker::*;
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -12,6 +12,7 @@ pub struct State {
 
 impl State {
     pub fn file(&self) -> Option<String> {
+        info!("{:?}", self);
         if self.digle.num_chains() == 0 {
             Some("".to_owned())
         } else if self.digle.num_chains() == 1 {
@@ -26,6 +27,13 @@ impl State {
             None
         }
     }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Patches {
+    pub ids: HashSet<PatchId>,
+    /// If the pair `(x, y)` belongs to this set, it means that patch `x` depends on patch `y`.
+    pub deps: HashSet<(PatchId, PatchId)>,
 }
 
 pub struct JpAgent {
@@ -46,18 +54,32 @@ impl JpAgent {
                 )
             })
             .collect::<BTreeMap<NodeId, String>>();
-        let digle = Digle::from_digle(digle);
+        let digle = Digle::from_graph(digle.as_live_graph());
         State { digle, contents }
+    }
+
+    fn patches(&self) -> Patches {
+        let ids = self.repo.patches("master").cloned().collect::<HashSet<_>>();
+        let mut deps = HashSet::new();
+
+        for p in &ids {
+            for q in self.repo.patch_deps(p) {
+                deps.insert((*p, *q));
+            }
+        }
+
+        Patches { ids, deps }
     }
 
     fn notify_subscribers(&mut self) {
         info!("notify_subscribers");
+
         use self::SubscriptionType::*;
 
         for &(who, typ) in &self.subscriptions {
             match typ {
                 Digle => self.link.response(who, Response::Digle(self.digle_state())),
-                PatchGraph => self.link.response(who, Response::PatchGraph),
+                PatchGraph => self.link.response(who, Response::Patches(self.patches())),
             }
         }
     }
@@ -82,7 +104,7 @@ pub enum Response {
     Done,
     Error(String),
     Digle(State),
-    PatchGraph,
+    Patches(Patches),
 }
 
 impl Transferable for Response {}
@@ -113,7 +135,7 @@ impl Agent for JpAgent {
 
     // Handle incoming messages from components of other agents.
     fn handle(&mut self, msg: Self::Input, who: HandlerId) {
-        info!("handle");
+        info!("handle, msg={:?}", msg);
         match msg {
             Request::UpdateInput(new_input) => {
                 match self.repo.diff("master", new_input.as_bytes()) {
@@ -122,6 +144,8 @@ impl Agent for JpAgent {
                             libjp::Changes::from_diff(&diff.file_a, &diff.file_b, &diff.diff);
                         if !changes.changes.is_empty() {
                             let id = self.repo.create_patch("You", "Msg", changes).unwrap();
+                            info!("applied patch, id={:?}", id);
+                            debug!("patch contents: {:?}", self.repo.open_patch(&id));
                             self.repo.apply_patch("master", &id).unwrap();
                         }
                         self.notify_subscribers();

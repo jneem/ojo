@@ -26,6 +26,7 @@ impl Component for Model {
                 if let Some(text) = s.file() {
                     Msg::Update(text)
                 } else {
+                    info!("Not a file: {:?}", s);
                     Msg::Disable
                 }
             }
@@ -75,13 +76,16 @@ impl Component for Model {
 impl Renderable<Model> for Model {
     fn view(&self) -> Html<Self> {
         html! {
-            <div>
+            <div id="editor", >
                 <textarea
                     rows=24,
                     value=self.value.as_ref().map(|s| &s[..]).unwrap_or(""),
+                    // Probably inefficient like this, need to figure out how to get the value of
+                    // the textarea on commit.
+                    oninput=|e| Msg::Update(e.value),
                     >
                 </textarea>
-                <button onclick=|_| Msg::Commit,>{ "Commit" }</button>
+                <button id="commit", onclick=|_| Msg::Commit,>{ "Commit" }</button>
             </div>
         }
     }
