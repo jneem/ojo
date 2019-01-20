@@ -33,8 +33,8 @@ impl<T: Copy + Ord> Partition<T> {
         };
     }
 
-    // Is the given element the representative of its component?
-    fn is_rep(&self, elt: &T) -> bool {
+    /// Is the given element the representative of its component?
+    pub fn is_rep(&self, elt: &T) -> bool {
         !self.parent_map.contains_key(elt)
     }
 
@@ -82,6 +82,7 @@ impl<T: Copy + Ord> Partition<T> {
     }
 
     pub fn representative(&self, elt: T) -> T {
+        debug_assert!(self.contains(elt));
         let mut ret = elt;
         while let Some(parent) = self.parent_map.get(&ret) {
             ret = *parent;
