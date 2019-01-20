@@ -122,6 +122,18 @@ pub trait Graph {
         }
     }
 
+    /// Returns the subgraph of this graph containing all the edges for which the predicate returns
+    /// true.
+    fn edge_filtered<'a, F>(&'a self, predicate: F) -> EdgeFiltered<'a, Self, F>
+    where
+        F: Fn(&Self::Node, &Self::Edge) -> bool,
+    {
+        EdgeFiltered {
+            predicate,
+            graph: self,
+        }
+    }
+
     /// If this graph is acyclic, returns a topological sort of the vertices. Otherwise, returns
     /// `None`.
     fn top_sort<'a>(&'a self) -> Option<Vec<Self::Node>> {
@@ -227,6 +239,47 @@ where
             self.graph
                 .in_edges(u)
                 .filter(move |e| (self.predicate)(&e.target())),
+        )
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct EdgeFiltered<'a, G, F>
+where
+    G: Graph + ?Sized,
+    F: Fn(&G::Node, &G::Edge) -> bool + 'a,
+{
+    predicate: F,
+    graph: &'a G,
+}
+
+impl<'a, G, F> Graph for EdgeFiltered<'a, G, F>
+where
+    G: Graph + ?Sized,
+    F: Fn(&G::Node, &G::Edge) -> bool + 'a,
+{
+    type Node = G::Node;
+    type Edge = G::Edge;
+
+    fn nodes<'b>(&'b self) -> Box<dyn Iterator<Item = G::Node> + 'b> {
+        self.graph.nodes()
+    }
+
+    fn out_edges<'b>(&'b self, u: &Self::Node) -> Box<dyn Iterator<Item = G::Edge> + 'b> {
+        let u = *u;
+        Box::new(
+            self.graph
+                .out_edges(&u)
+                .filter(move |e| (self.predicate)(&u, e)),
+        )
+    }
+
+    fn in_edges<'b>(&'b self, u: &Self::Node) -> Box<dyn Iterator<Item = G::Edge> + 'b> {
+        let u = *u;
+        Box::new(
+            self.graph
+                .in_edges(&u)
+                .filter(move |e| (self.predicate)(&u, e)),
         )
     }
 }

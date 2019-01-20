@@ -8,4 +8,4 @@ edition = "2018"
 itertools = "0.8"
 
 [dev-dependencies]
-proptest = "0.7"
+proptest = "0.8"
