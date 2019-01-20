@@ -47,6 +47,12 @@ impl Edge {
     }
 }
 
+impl graph::Edge<NodeId> for Edge {
+    fn target(&self) -> NodeId {
+        self.dest
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename = "Digle")]
 pub(crate) struct DigleData {
@@ -109,12 +115,30 @@ impl DigleData {
         self.nodes.insert(id);
     }
 
+    // We just deleted the pseudo-edge from src to dest. Clean up the corresponding entries in
+    // pseudo_edge_reasons and reason_pseudo_edges.
+    fn remove_pseudo_edge_reasons(&mut self, src: &NodeId, dest: &NodeId) {
+        let reasons = self
+            .pseudo_edge_reasons
+            .get(&(*src, *dest))
+            .cloned()
+            .collect::<Vec<_>>();
+        self.pseudo_edge_reasons.remove_all(&(*src, *dest));
+        for r in reasons {
+            self.reason_pseudo_edges.remove(&r, &(*src, *dest));
+        }
+    }
+
     // Deletes an edge (both forward and back), but does nothing else to ensure consistency and
     // maintain invariants.
     fn internal_delete_edge(&mut self, src: &NodeId, edge: &Edge) {
         self.edges.remove(src, edge);
         let back_edge = Edge {
             dest: *src,
+            // NOTE: This is not really correct: to get the right kind, we should really check
+            // whether src is live. However, it still works because (assuming we resolve patch
+            // dependencies correctly) every edge we delete either has two live endpoints or it is
+            // a pseudo-edge (in which case it is a pseudo-edge in both directions).
             kind: edge.kind,
         };
         self.back_edges.remove(&edge.dest, &back_edge);
@@ -126,7 +150,7 @@ impl DigleData {
             dest: *dest,
             kind: back_edge.kind,
         };
-        self.edges.remove(&edge.dest, &edge);
+        self.edges.remove(&back_edge.dest, &edge);
     }
 
     pub fn unadd_node(&mut self, id: &NodeId) {
@@ -143,9 +167,15 @@ impl DigleData {
         let in_edges = self.all_in_edges(id).cloned().collect::<Vec<_>>();
         for e in out_edges {
             self.internal_delete_edge(id, &e);
+            if e.kind == EdgeKind::Pseudo {
+                self.remove_pseudo_edge_reasons(id, &e.dest);
+            }
         }
         for e in in_edges {
             self.internal_delete_back_edge(id, &e);
+            if e.kind == EdgeKind::Pseudo {
+                self.remove_pseudo_edge_reasons(&e.dest, id);
+            }
         }
 
         // Because we just unadded a node that was live, it can't have any effect on pseudo-edges,
@@ -291,16 +321,20 @@ impl DigleData {
                 dest: dest,
                 kind: EdgeKind::Pseudo,
             };
-            self.internal_delete_edge(&src, &e);
             self.pseudo_edge_reasons.remove(&(src, dest), reason);
+            // If that was the last reason for the pseudo-edge, delete it.
+            if self.pseudo_edge_reasons.get(&(src, dest)).next().is_none() {
+                self.internal_delete_edge(&src, &e);
+            }
         }
         self.reason_pseudo_edges.remove_all(reason);
     }
 
     // Marks the component containing `id` as dirty.
     fn mark_dirty(&mut self, id: &NodeId) {
-        self.dirty_reps
-            .insert(self.deleted_partition.representative(*id));
+        let rep = self.deleted_partition.representative(*id);
+        self.delete_obsolete_reason(&rep);
+        self.dirty_reps.insert(rep);
     }
 
     pub fn add_edge(&mut self, from: NodeId, to: NodeId) {
@@ -346,25 +380,26 @@ impl DigleData {
         });
         let components = sub_graph.weak_components().into_parts();
 
-        // Remove all the messed up parts from the partition; later we'll re-add them from the
-        // connected components we just computed.
+        // Remove all the messed up parts from the partition, and replace them with the correct
+        // ones.
         for rep in dirty_reps {
             self.deleted_partition.remove_part(rep);
+        }
+        for component in &components {
+            // Add everything in the current component as a new component in deleted_partition.
+            let mut iter = component.iter();
+            // Unwrap is ok because the components are guaranteed to be non-empty.
+            let rep = iter.next().unwrap();
+            self.deleted_partition.insert(*rep);
+            for u in iter {
+                self.deleted_partition.insert(*u);
+                self.deleted_partition.merge(*rep, *u);
+            }
         }
 
         // Add in the required pseudo-edges and fix up the partition.
         for component in components {
             self.add_component_pseudo_edges(&component);
-
-            // Add everything in the current component as a new component in deleted_partition.
-            let mut iter = component.into_iter();
-            // Unwrap is ok because the components are guaranteed to be non-empty.
-            let rep = iter.next().unwrap();
-            self.deleted_partition.insert(rep);
-            for u in iter {
-                self.deleted_partition.insert(u);
-                self.deleted_partition.merge(rep, u);
-            }
         }
     }
 
@@ -404,7 +439,6 @@ impl DigleData {
         let rep = self
             .deleted_partition
             .representative(*component.iter().next().unwrap());
-        let sub_graph = graph.node_filtered(|u| neighborhood.contains(u));
 
         // This is the collection of all live nodes that are adjacent to a particular connected
         // component of deleted nodes. We will compute the complete connectivity relation that
@@ -414,9 +448,18 @@ impl DigleData {
 
         let mut pairs = Vec::new();
         for u in boundary {
+            let sub_graph = graph.edge_filtered(|src, edge| {
+                (src == u && component.contains(&edge.dest)) || component.contains(src)
+            });
             for visit in sub_graph.dfs_from(u) {
                 match visit {
-                    graph::dfs::Visit::Edge { dst, .. } => {
+                    // Only take into account the first visit to a node. Besides being more
+                    // efficient, this means we'll avoid adding self-loops.
+                    graph::dfs::Visit::Edge {
+                        dst,
+                        status: graph::dfs::Status::New,
+                        ..
+                    } => {
                         if digle.is_live(&dst) {
                             pairs.push((*u, dst));
                         }
@@ -454,18 +497,64 @@ impl DigleData {
         }
     }
 
+    fn is_live(&self, node: &NodeId) -> bool {
+        self.nodes.contains(node)
+    }
+
+    // Brute-force compute the pseudo-edges that should start at node u.
+    fn pseudo_edges(&self, u: &NodeId) -> HashSet<NodeId> {
+        use graph::dfs::{Status, Visit};
+
+        let mut ret = HashSet::new();
+        // Pseudo-edges that should start at u are those that can be reached from u by ignoring
+        // other pseudo-edges, and only going through deleted intermediate edges. This latter
+        // property can be enforced by only traversing edges that either go from u to a deleted
+        // node or else start at a deleted node.
+        let graph = self.as_digle().as_full_graph();
+        let u_graph = graph.edge_filtered(|src, edge| {
+            edge.kind != EdgeKind::Pseudo
+                && ((src == u && !self.is_live(&edge.dest)) || !self.is_live(src))
+        });
+        for visit in u_graph.dfs_from(u) {
+            match visit {
+                Visit::Edge {
+                    dst,
+                    status: Status::New,
+                    ..
+                } => {
+                    if dst != *u
+                        && self.is_live(&dst)
+                        && !self.edges.contains(
+                            u,
+                            &Edge {
+                                dest: dst,
+                                kind: EdgeKind::Live,
+                            },
+                        )
+                    {
+                        ret.insert(dst);
+                    }
+                }
+                _ => {}
+            }
+        }
+        ret
+    }
+
     pub fn assert_consistent(&self) {
         // The live and deleted nodes should be disjoint.
         assert!(self.nodes.is_disjoint(&self.deleted_nodes));
 
         let node_exists = |id| self.nodes.contains(id) || self.deleted_nodes.contains(id);
-        // The source and destination of every edge should exist somewhere.
+        // The source and destination of every edge should exist somewhere, and they should not be
+        // the same.
         // The destination should be deleted if and only if the edge kind is `Deleted`.
         // There should be a one-to-one correspondence between edges and back_edges.
         let mut seen_back_edges = HashSet::new();
         for (src, edge) in self.edges.iter() {
             assert!(node_exists(src));
             assert!(node_exists(&edge.dest));
+            assert!(src != &edge.dest);
             assert_eq!(
                 self.deleted_nodes.contains(&edge.dest),
                 edge.kind == EdgeKind::Deleted
@@ -494,10 +583,51 @@ impl DigleData {
             assert!(self.deleted_partition.contains(*u));
         }
 
-        // TODO:
-        // - check that deleted_partition is indeed a partition of the deleted nodes into
-        //   connected components.
-        // - check that the ordering induced by the pseudo-edges is the right one
+        // If the pseudo-edges are up-to-date, there are some additional checks we can do.
+        if self.dirty_reps.is_empty() {
+            // Everything in the deleted partition should be a deleted node.
+            for u in self.deleted_partition.iter_parts().flat_map(|p| p) {
+                assert!(self.deleted_nodes.contains(&u));
+            }
+
+            // Every pseudo-edge should have at least one reason.
+            for (src, edge) in self.edges.iter() {
+                if edge.kind == EdgeKind::Pseudo {
+                    assert!(self
+                        .pseudo_edge_reasons
+                        .get(&(*src, edge.dest))
+                        .next()
+                        .is_some());
+                }
+            }
+
+            // Every reason should correspond to a pseudo-edge.
+            for (&(src, dest), _) in self.pseudo_edge_reasons.iter() {
+                assert!(self.edges.contains(
+                    &src,
+                    &Edge {
+                        dest,
+                        kind: EdgeKind::Pseudo
+                    }
+                ));
+            }
+
+            // Every reason should be a representative in the partition.
+            for (reason, _) in self.reason_pseudo_edges.iter() {
+                assert!(self.deleted_partition.is_rep(reason));
+            }
+
+            // Check that the pseudo-edges are correct.
+            for u in &self.nodes {
+                let correct_pseudo_edges = self.pseudo_edges(u);
+                let actual_pseudo_edges = self
+                    .all_out_edges(u)
+                    .filter(|e| e.kind == EdgeKind::Pseudo)
+                    .map(|e| e.dest)
+                    .collect::<HashSet<_>>();
+                assert_eq!(correct_pseudo_edges, actual_pseudo_edges);
+            }
+        }
     }
 }
 
@@ -604,18 +734,18 @@ pub struct LiveGraph<'a>(Digle<'a>);
 
 impl<'a> graph::Graph for LiveGraph<'a> {
     type Node = NodeId;
-    type Edge = NodeId;
+    type Edge = Edge;
 
     fn nodes<'b>(&'b self) -> Box<dyn Iterator<Item = Self::Node> + 'b> {
         Box::new(self.0.data.nodes.iter().cloned())
     }
 
-    fn out_edges<'b>(&'b self, u: &NodeId) -> Box<dyn Iterator<Item = Self::Node> + 'b> {
-        Box::new(self.0.out_edges(u).map(|e| &e.dest).cloned())
+    fn out_edges<'b>(&'b self, u: &NodeId) -> Box<dyn Iterator<Item = Self::Edge> + 'b> {
+        Box::new(self.0.out_edges(u).cloned())
     }
 
-    fn in_edges<'b>(&'b self, u: &NodeId) -> Box<dyn Iterator<Item = Self::Node> + 'b> {
-        Box::new(self.0.in_edges(u).map(|e| &e.dest).cloned())
+    fn in_edges<'b>(&'b self, u: &NodeId) -> Box<dyn Iterator<Item = Self::Edge> + 'b> {
+        Box::new(self.0.in_edges(u).cloned())
     }
 }
 
@@ -627,7 +757,7 @@ pub struct FullGraph<'a>(Digle<'a>);
 
 impl<'a> graph::Graph for FullGraph<'a> {
     type Node = NodeId;
-    type Edge = NodeId;
+    type Edge = Edge;
 
     fn nodes<'b>(&'b self) -> Box<dyn Iterator<Item = Self::Node> + 'b> {
         Box::new(
@@ -640,15 +770,20 @@ impl<'a> graph::Graph for FullGraph<'a> {
         )
     }
 
-    fn out_edges<'b>(&'b self, u: &NodeId) -> Box<dyn Iterator<Item = Self::Node> + 'b> {
-        Box::new(self.0.all_out_edges(u).map(|e| &e.dest).cloned())
+    fn out_edges<'b>(&'b self, u: &NodeId) -> Box<dyn Iterator<Item = Self::Edge> + 'b> {
+        Box::new(self.0.all_out_edges(u).cloned())
     }
 
-    fn in_edges<'b>(&'b self, u: &NodeId) -> Box<dyn Iterator<Item = Self::Node> + 'b> {
-        Box::new(self.0.all_in_edges(u).map(|e| &e.dest).cloned())
+    fn in_edges<'b>(&'b self, u: &NodeId) -> Box<dyn Iterator<Item = Self::Edge> + 'b> {
+        Box::new(self.0.all_in_edges(u).cloned())
     }
 }
 
+// TODO: improve tests
+//  - write a macro to make creating digles easier (including deleted nodes, nodes with no edges,
+//    etc)
+//  - write a macro to make creating changes easier
+//  - write a tests for each corner case
 #[cfg(test)]
 pub mod tests {
     use super::*;
@@ -691,6 +826,435 @@ pub mod tests {
             ret.add_edge(NodeId::cur(u as u64), NodeId::cur(v as u64));
         }
         ret
+    }
+
+    fn fake_patch_id(id: usize) -> PatchId {
+        let mut ret = PatchId::cur();
+        (&mut ret.data[..])
+            .write_u64::<LittleEndian>(id as u64)
+            .unwrap();
+        ret
+    }
+
+    // Make a digle like 0 -> 1 -> 2, and delete node 1.
+    #[test]
+    fn append_and_delete() {
+        let patch_id = fake_patch_id(1);
+        let node_id = NodeId {
+            patch: patch_id,
+            node: 0,
+        };
+        let mut d = make_digle("0-1");
+
+        let changes = Changes {
+            changes: vec![
+                Change::DeleteNode { id: NodeId::cur(1) },
+                Change::NewNode {
+                    id: node_id,
+                    contents: vec![],
+                },
+                Change::NewEdge {
+                    src: NodeId::cur(1),
+                    dest: node_id,
+                },
+            ],
+        };
+        apply_changes(&mut d, &changes);
+        d.resolve_pseudo_edges();
+        d.assert_consistent();
+        assert!(d.edges.contains(
+            &NodeId::cur(0),
+            &Edge {
+                dest: node_id,
+                kind: EdgeKind::Pseudo
+            }
+        ));
+        unapply_changes(&mut d, &changes);
+        d.resolve_pseudo_edges();
+        d.assert_consistent();
+    }
+
+    fn check_digle_and_changes(d: DigleData, chs: &[Changes]) {
+        let orig = d.clone();
+
+        // Apply all the changes one-by-one. At each step, check that reversing the change
+        // produces the previous digle.
+        let mut cur = d.clone();
+
+        for ch in chs {
+            let mut next = cur.clone();
+            apply_changes(&mut next, ch);
+            next.assert_consistent();
+            next.resolve_pseudo_edges();
+            next.assert_consistent();
+
+            let mut unapplied = next.clone();
+            unapply_changes(&mut unapplied, ch);
+            unapplied.assert_consistent();
+            unapplied.resolve_pseudo_edges();
+            unapplied.assert_consistent();
+            assert_eq!(cur, unapplied);
+
+            cur = next;
+        }
+
+        // Try applying *all* of the changes, and then resolving. It shouldn't affect the
+        // answer.
+        let mut all_at_once = d.clone();
+        for ch in chs {
+            apply_changes(&mut all_at_once, ch);
+        }
+        all_at_once.assert_consistent();
+        all_at_once.resolve_pseudo_edges();
+        all_at_once.assert_consistent();
+        assert_eq!(cur, all_at_once);
+
+        // Now unapply them all and make sure it agrees with the original.
+        for ch in chs.iter().rev() {
+            unapply_changes(&mut all_at_once, ch);
+        }
+        all_at_once.assert_consistent();
+        all_at_once.resolve_pseudo_edges();
+        all_at_once.assert_consistent();
+        assert_eq!(orig, all_at_once);
+    }
+
+    // This example was found by proptest.
+    #[test]
+    fn two_changes() {
+        let node0 = NodeId::cur(0);
+        let patch1 = fake_patch_id(1);
+        let node1 = NodeId {
+            patch: patch1,
+            node: 0,
+        };
+        let patch2 = fake_patch_id(2);
+        let node2 = NodeId {
+            patch: patch2,
+            node: 0,
+        };
+        let mut d = DigleData::new();
+        d.add_node(node0);
+
+        let changes1 = Changes {
+            changes: vec![
+                Change::NewNode {
+                    id: node1,
+                    contents: vec![],
+                },
+                Change::NewEdge {
+                    src: node1,
+                    dest: node0,
+                },
+            ],
+        };
+
+        let changes2 = Changes {
+            changes: vec![
+                Change::DeleteNode { id: node1 },
+                Change::NewNode {
+                    id: node2,
+                    contents: vec![],
+                },
+                Change::NewEdge {
+                    src: node2,
+                    dest: node0,
+                },
+                Change::NewEdge {
+                    src: node0,
+                    dest: node2,
+                },
+                Change::NewEdge {
+                    src: node1,
+                    dest: node2,
+                },
+            ],
+        };
+
+        check_digle_and_changes(d, &[changes1, changes2]);
+    }
+
+    // Create a digle of three nodes by making the outer two first, and then adding the middle one.
+    #[test]
+    fn add_middle() {
+        let node00 = NodeId::cur(0);
+        let node01 = NodeId::cur(1);
+        let patch1 = fake_patch_id(1);
+        let node1 = NodeId {
+            patch: patch1,
+            node: 0,
+        };
+        let mut d = DigleData::new();
+        d.add_node(node00);
+        d.add_node(node01);
+
+        let changes1 = Changes {
+            changes: vec![
+                Change::NewNode {
+                    id: node1,
+                    contents: vec![],
+                },
+                Change::NewEdge {
+                    src: node1,
+                    dest: node01,
+                },
+                Change::NewEdge {
+                    src: node00,
+                    dest: node1,
+                },
+            ],
+        };
+
+        let changes2 = Changes {
+            changes: vec![Change::DeleteNode { id: node1 }],
+        };
+
+        check_digle_and_changes(d, &[changes1, changes2]);
+    }
+
+    // This exercises the code for rebuilding the deleted partition.
+    #[test]
+    fn reconstruct_partition() {
+        let mut d = make_digle("0-1");
+        d.add_node(NodeId::cur(2));
+
+        let patch = fake_patch_id(1);
+        let node0 = NodeId {
+            patch: patch,
+            node: 0,
+        };
+        let node1 = NodeId {
+            patch: patch,
+            node: 1,
+        };
+
+        let changes = Changes {
+            changes: vec![
+                Change::DeleteNode { id: NodeId::cur(0) },
+                Change::DeleteNode { id: NodeId::cur(1) },
+                Change::DeleteNode { id: NodeId::cur(2) },
+                Change::NewNode {
+                    id: node0,
+                    contents: vec![],
+                },
+                Change::NewNode {
+                    id: node1,
+                    contents: vec![],
+                },
+                Change::NewEdge {
+                    src: node1,
+                    dest: NodeId::cur(0),
+                },
+                Change::NewEdge {
+                    src: node0,
+                    dest: NodeId::cur(2),
+                },
+                Change::NewEdge {
+                    src: NodeId::cur(0),
+                    dest: node0,
+                },
+                Change::NewEdge {
+                    src: NodeId::cur(2),
+                    dest: node1,
+                },
+            ],
+        };
+
+        check_digle_and_changes(d, &[changes]);
+    }
+
+    // Checks that when we delete a pseudo-edge reason, we don't delete the pseudo-edge as long as
+    // there is another reason.
+    #[test]
+    fn double_reason() {
+        let d = make_digle("0-1, 1-0, 2-0, 3-0, 3-1");
+
+        let patch1 = fake_patch_id(1);
+        let node10 = NodeId {
+            patch: patch1,
+            node: 0,
+        };
+        let node11 = NodeId {
+            patch: patch1,
+            node: 1,
+        };
+
+        let changes1 = Changes {
+            changes: vec![
+                Change::DeleteNode { id: NodeId::cur(1) },
+                Change::DeleteNode { id: NodeId::cur(2) },
+                Change::DeleteNode { id: NodeId::cur(3) },
+                Change::NewNode {
+                    id: node10,
+                    contents: vec![],
+                },
+                Change::NewNode {
+                    id: node11,
+                    contents: vec![],
+                },
+                Change::NewEdge {
+                    src: node11,
+                    dest: node10,
+                },
+                Change::NewEdge {
+                    src: node10,
+                    dest: NodeId::cur(0),
+                },
+                Change::NewEdge {
+                    src: node10,
+                    dest: NodeId::cur(3),
+                },
+                Change::NewEdge {
+                    src: node10,
+                    dest: NodeId::cur(1),
+                },
+                Change::NewEdge {
+                    src: NodeId::cur(1),
+                    dest: node10,
+                },
+                Change::NewEdge {
+                    src: NodeId::cur(0),
+                    dest: node11,
+                },
+            ],
+        };
+
+        let changes2 = Changes {
+            changes: vec![Change::DeleteNode { id: node11 }],
+        };
+
+        check_digle_and_changes(d, &[changes1, changes2]);
+    }
+
+    // This was generated by proptest. It has lots of edges, so there are lots of opportunities to
+    // hit an edge-case in pseudo-edge generation.
+    #[test]
+    fn lots_of_edges() {
+        let node00 = NodeId::cur(0);
+        let node01 = NodeId::cur(1);
+        let node02 = NodeId::cur(2);
+        let node03 = NodeId::cur(3);
+        let patch1 = fake_patch_id(1);
+        let node10 = NodeId {
+            patch: patch1,
+            node: 0,
+        };
+        let node11 = NodeId {
+            patch: patch1,
+            node: 1,
+        };
+        let node12 = NodeId {
+            patch: patch1,
+            node: 2,
+        };
+        let node13 = NodeId {
+            patch: patch1,
+            node: 3,
+        };
+
+        let mut d = DigleData::new();
+        d.add_node(node00);
+        d.add_node(node01);
+        d.add_node(node02);
+        d.add_node(node03);
+
+        let changes1 = Changes {
+            changes: vec![
+                Change::DeleteNode { id: node00 },
+                Change::DeleteNode { id: node01 },
+                Change::DeleteNode { id: node03 },
+                Change::NewNode {
+                    id: node10,
+                    contents: vec![],
+                },
+                Change::NewNode {
+                    id: node11,
+                    contents: vec![],
+                },
+                Change::NewNode {
+                    id: node12,
+                    contents: vec![],
+                },
+                Change::NewNode {
+                    id: node13,
+                    contents: vec![],
+                },
+                Change::NewEdge {
+                    src: node12,
+                    dest: node10,
+                },
+                Change::NewEdge {
+                    src: node12,
+                    dest: node11,
+                },
+                Change::NewEdge {
+                    src: node12,
+                    dest: node02,
+                },
+                Change::NewEdge {
+                    src: node13,
+                    dest: node03,
+                },
+                Change::NewEdge {
+                    src: node12,
+                    dest: node01,
+                },
+                Change::NewEdge {
+                    src: node11,
+                    dest: node03,
+                },
+                Change::NewEdge {
+                    src: node11,
+                    dest: node01,
+                },
+                Change::NewEdge {
+                    src: node13,
+                    dest: node00,
+                },
+                Change::NewEdge {
+                    src: node10,
+                    dest: node02,
+                },
+                Change::NewEdge {
+                    src: node11,
+                    dest: node00,
+                },
+                Change::NewEdge {
+                    src: node10,
+                    dest: node01,
+                },
+                Change::NewEdge {
+                    src: node10,
+                    dest: node00,
+                },
+                Change::NewEdge {
+                    src: node03,
+                    dest: node13,
+                },
+                Change::NewEdge {
+                    src: node01,
+                    dest: node10,
+                },
+                Change::NewEdge {
+                    src: node02,
+                    dest: node10,
+                },
+                Change::NewEdge {
+                    src: node00,
+                    dest: node11,
+                },
+                Change::NewEdge {
+                    src: node03,
+                    dest: node12,
+                },
+            ],
+        };
+
+        let changes2 = Changes {
+            changes: vec![Change::DeleteNode { id: node10 }],
+        };
+
+        check_digle_and_changes(d, &[changes1, changes2]);
     }
 
     // Create a digle of three nodes, then delete the middle one and check that the pseudo-edge is
@@ -748,10 +1312,7 @@ pub mod tests {
             old_new_edges: HashSet<(usize, usize)>,
         ) -> Changes {
             let patch_id_int = CUR_ID.fetch_add(1, Ordering::SeqCst);
-            let mut patch_id = PatchId::cur();
-            (&mut patch_id.data[..])
-                .write_u64::<LittleEndian>(patch_id_int as u64)
-                .unwrap();
+            let patch_id = fake_patch_id(patch_id_int);
 
             let new_ids = (0..num_to_add)
                 .map(|i| NodeId {
@@ -911,8 +1472,14 @@ pub mod tests {
     }
 
     proptest! {
+        // This takes a really long time to shrink, so cap it at 30 seconds.
+        #![proptest_config(ProptestConfig {
+            max_shrink_time: 30000,
+            .. ProptestConfig::default()
+        })]
+
         #[test]
-        fn digle_and_change_seq((ref d, ref chs) in arb_digle_and_change_seq(5, 2, 2)) {
+        fn digle_and_change_seq((ref d, ref chs) in arb_digle_and_change_seq(5, 5, 2)) {
             // Apply all the changes one-by-one. At each step, check that reversing the change
             // produces the previous digle.
             let mut cur = d.clone();

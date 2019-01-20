@@ -7,14 +7,16 @@
 //! are documented in some [`blog posts`](https://jneem.github.io). This crate itself is not so
 //! well documented, but doing so is one of my goals.
 
-// TODO: support chain decompositions
-
 #[macro_use]
 extern crate serde_derive;
 
 #[cfg(test)]
 #[macro_use]
 extern crate proptest;
+
+#[cfg(test)]
+#[macro_use]
+extern crate pretty_assertions;
 
 use graph::Graph;
 use std::fs;
@@ -32,7 +34,7 @@ pub use crate::storage::{Digle, File, FullGraph, LiveGraph};
 pub use diff::LineDiff;
 
 /// A globally unique ID for identifying a node.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(Clone, Copy, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct NodeId {
     /// The ID of the patch that first introduced this node.
     pub patch: PatchId,
@@ -40,6 +42,14 @@ pub struct NodeId {
     ///
     /// If a patch introduces `n` nodes, they are given `node` values of `0` through `n-1`.
     pub node: u64,
+}
+
+impl std::fmt::Debug for NodeId {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fmt.debug_tuple("NodeId")
+            .field(&format!("{}/{:?}", self.patch.to_base64(), self.node))
+            .finish()
+    }
 }
 
 impl NodeId {
