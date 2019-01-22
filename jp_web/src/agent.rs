@@ -1,12 +1,11 @@
-use libjp::decomposed_digle::Digle;
-use libjp::{NodeId, PatchId};
+use libjp::{ChainDigle, NodeId, PatchId};
 use std::collections::{BTreeMap, HashSet};
 use yew::prelude::worker::*;
 
 #[derive(Debug, Deserialize, Serialize)]
 // TODO: better name
 pub struct State {
-    digle: Digle,
+    digle: ChainDigle,
     contents: BTreeMap<NodeId, String>,
 }
 
@@ -54,7 +53,7 @@ impl JpAgent {
                 )
             })
             .collect::<BTreeMap<NodeId, String>>();
-        let digle = Digle::from_graph(digle.as_live_graph());
+        let digle = ChainDigle::from_graph(digle.as_live_graph());
         State { digle, contents }
     }
 

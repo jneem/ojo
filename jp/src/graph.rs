@@ -2,7 +2,7 @@ use askama_escape::escape;
 use clap::ArgMatches;
 use failure::Error;
 use graph::Graph;
-use libjp::decomposed_digle;
+use libjp::ChainDigle;
 use libjp::{NodeId, Repo};
 use std::fs::File;
 use std::io::prelude::*;
@@ -12,7 +12,7 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     let repo = super::open_repo()?;
     let digle = repo.digle("master")?;
     // TODO: allow retrieving only the live graph
-    let digle_decomp = decomposed_digle::Digle::from_graph(digle.as_full_graph());
+    let digle_decomp = ChainDigle::from_graph(digle.as_full_graph());
 
     let mut output = File::create(output)?;
     writeln!(output, "digraph {{")?;

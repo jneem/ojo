@@ -1,4 +1,4 @@
-//#![deny(missing_docs)]
+#![deny(missing_docs)]
 
 //! A library for creating, reading, and manipulating `jp` repositories.
 //!
@@ -22,12 +22,13 @@ use graph::Graph;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-pub mod decomposed_digle;
+mod chain_digle;
 mod error;
 mod patch;
 pub mod resolver;
 mod storage;
 
+pub use crate::chain_digle::ChainDigle;
 pub use crate::error::{Error, PatchIdError};
 pub use crate::patch::{Change, Changes, Patch, PatchId, UnidentifiedPatch};
 pub use crate::storage::{Digle, File, FullGraph, LiveGraph};
@@ -519,9 +520,13 @@ struct DbRef<'a> {
     storage: &'a storage::Storage,
 }
 
+/// Represents a diff between two [`File`](crate::File)s.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Diff {
-    pub diff: Vec<LineDiff>,
+    /// The first file.
     pub file_a: File,
+    /// The second file.
     pub file_b: File,
+    /// The diff going from `file_a` to `file_b`.
+    pub diff: Vec<LineDiff>,
 }

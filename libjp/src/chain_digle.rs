@@ -5,8 +5,19 @@ use std::collections::{BTreeMap, HashSet};
 
 use crate::NodeId;
 
+/// A version of a [`Digle`](crate::Digle) that has been decomposed into "chains" (for example, for
+/// prettier rendering).
+///
+/// Most digles that you'll see in practice don't look like general directed graphs. Rather, they
+/// contain lots of long "chains," i.e., sequences of nodes, each of which has exactly one
+/// in-neighbor (the previous in the sequence) and one out-neighbor (the next). For example, a
+/// totally ordered digle (a.k.a. a file) just consists of one long chain.
+///
+/// This struct represents the same graph as a digle, except that every chain has been "collapsed"
+/// into a single node. That is, you can think of a `ChainDigle` as a graph in which every node
+/// represents a chain (possibly of length 1) in the original graph.
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct Digle {
+pub struct ChainDigle {
     // TODO: allow retrieving liveness of NodeIds and type of edges.
     chains: Vec<Vec<NodeId>>,
     edges: MMap<usize, usize>,
@@ -55,20 +66,24 @@ fn collect_chain<G: Graph>(g: &G, first: &G::Node) -> Vec<G::Node> {
     ret
 }
 
-impl Digle {
+impl ChainDigle {
+    /// How many chains are there?
     pub fn num_chains(&self) -> usize {
         self.chains.len()
     }
 
+    /// Returns the sequence of `NodeId`s making up the chain at index `i`.
     pub fn chain(&self, i: usize) -> &[NodeId] {
         &self.chains[i]
     }
 
+    /// Returns an iterator over strongly connected components of the original graph.
     pub fn clusters(&self) -> impl Iterator<Item = &HashSet<usize>> {
         self.clusters.iter()
     }
 
-    pub fn from_graph<G: Graph<Node = NodeId>>(g: G) -> Digle
+    /// Given a graph, decompose it into a `ChainDigle`.
+    pub fn from_graph<G: Graph<Node = NodeId>>(g: G) -> ChainDigle
     where
         G::Edge: graph::Edge<NodeId>,
     {
@@ -130,7 +145,7 @@ impl Digle {
             .map(|part| part.iter().map(|id| node_part[id]).collect::<HashSet<_>>())
             .collect::<Vec<_>>();
 
-        Digle {
+        ChainDigle {
             chains,
             edges,
             clusters,
@@ -138,7 +153,10 @@ impl Digle {
     }
 }
 
-impl Graph for Digle {
+/// In this implementation of [`graph::Graph`], the nodes are (semantically) chains in the original
+/// digle. More precisely, they are `usize`s that you can use to get the chain with
+/// [`ChainDigle::chain`].
+impl Graph for ChainDigle {
     type Node = usize;
     type Edge = usize;
 
@@ -161,12 +179,13 @@ impl Graph for Digle {
 mod tests {
     use std::collections::HashSet;
 
+    use super::*;
     use crate::storage::digle::tests::{arb_live_digle, make_digle};
 
     #[test]
     fn diamond() {
         let digle = make_digle("0-1, 0-2, 1-3, 2-3");
-        let decomp = super::Digle::from_graph(digle.as_digle().as_live_graph());
+        let decomp = ChainDigle::from_graph(digle.as_digle().as_live_graph());
         assert_eq!(decomp.chains.len(), 4);
         for ch in &decomp.chains {
             assert_eq!(ch.len(), 1);
@@ -177,7 +196,7 @@ mod tests {
         // Checks that the chains of the decomposition form a partition of the original node set.
         #[test]
         fn partition(ref d in arb_live_digle(20)) {
-            let decomp = super::Digle::from_graph(d.as_digle().as_live_graph());
+            let decomp = ChainDigle::from_graph(d.as_digle().as_live_graph());
             let decomp_nodes = decomp.chains.iter().flat_map(|chain| chain.iter()).cloned().collect::<Vec<_>>();
             let decomp_node_set = decomp_nodes.iter().cloned().collect::<HashSet<_>>();
 
