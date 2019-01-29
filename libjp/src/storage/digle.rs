@@ -6,13 +6,18 @@ use std::collections::HashSet;
 
 use crate::NodeId;
 
+/// The different kinds of edges.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub enum EdgeKind {
+    /// This edge points to a live node.
     Live,
+    /// This edge was not present in the original digle. It was added as an optimization, to skip
+    /// over deleted nodes. (TODO: reference some more detailed docs on pseudo-edges)
     Pseudo,
     // The order here is important: by putting deleted edges last, we can efficiently ignore them:
     // if we iterate through the neighbors of node but stop at the first deleted one, then we've
     // ignored all of the deleted neighbors.
+    /// This edges points to a deleted node.
     Deleted,
 }
 
@@ -36,6 +41,7 @@ impl EdgeKind {
 /// helps ensure quick access to live edges.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct Edge {
+    /// What kind of edge is it?
     pub kind: EdgeKind,
     /// The destination of this (directed) edge.
     pub dest: NodeId,

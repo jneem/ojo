@@ -31,6 +31,7 @@ mod storage;
 pub use crate::chain_digle::ChainDigle;
 pub use crate::error::{Error, PatchIdError};
 pub use crate::patch::{Change, Changes, Patch, PatchId, UnidentifiedPatch};
+pub use crate::storage::digle::{Edge, EdgeKind};
 pub use crate::storage::{Digle, File, FullGraph, LiveGraph};
 pub use diff::LineDiff;
 
@@ -366,7 +367,13 @@ impl Repo {
         Ok(unapplied)
     }
 
+    /// Returns an iterator over all known patches, applied or otherwise.
+    pub fn all_patches(&self) -> impl Iterator<Item = &PatchId> {
+        self.storage.patches.keys()
+    }
+
     /// Returns an iterator over all of the patches being used in a branch.
+    // TODO: maybe a way to check whether a patch is applied to a branch?
     pub fn patches(&self, branch: &str) -> impl Iterator<Item = &PatchId> {
         self.storage.branch_patches.get(branch)
     }
