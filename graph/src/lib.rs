@@ -178,7 +178,7 @@ pub trait Graph {
             // A graph has a linear order if and only if it has a unique topological sort. A
             // topological sort is unique if and only if every node in it has an edge pointing to
             // the subsequent node.
-            for (u, v) in top.iter().tuples() {
+            for (u, v) in top.iter().tuple_windows() {
                 if self.out_neighbors(u).position(|x| x == *v).is_none() {
                     return None;
                 }
@@ -420,6 +420,7 @@ mod tests {
     );
     linear_order_test!(linear_order_cycle, "0-1, 1-2, 2-3, 3-1", None);
     linear_order_test!(linear_order_tree, "0-2, 2-3, 1-3", None);
+    linear_order_test!(linear_order_diamond, "0-1, 0-2, 1-3, 2-3", None);
 
     // A strategy for generating arbitrary graphs (with up to 20 nodes and up to 40 edges).
     prop_compose! {
