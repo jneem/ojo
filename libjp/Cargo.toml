@@ -10,6 +10,7 @@ chrono = { version = "0.4", features = ["serde"] }
 diff = { path = "../diff" }
 graph = { path = "../graph" }
 itertools = "0.8"
+log = "0.4"
 multimap = { path = "../multimap" }
 partition = { path = "../partition" }
 serde = "1.0"

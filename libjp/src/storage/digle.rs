@@ -414,10 +414,10 @@ impl DigleData {
     /// Panics unless `from` and `to` are nodes in this digle. In particular, if you're planning to
     /// remove some nodes and the edge between them, you need to remove the edge first.
     pub fn unadd_edge(&mut self, from: &NodeId, to: &NodeId) {
-        let from_deleted = !self.nodes.contains(&from);
-        let to_deleted = !self.nodes.contains(&to);
-        assert!(!from_deleted || self.deleted_nodes.contains(&from));
-        assert!(!to_deleted || self.deleted_nodes.contains(&to));
+        let from_deleted = self.deleted_nodes.contains(&from);
+        let to_deleted = self.deleted_nodes.contains(&to);
+        assert!(from_deleted || self.nodes.contains(&from));
+        assert!(to_deleted || self.nodes.contains(&to));
 
         let forward_edge = Edge {
             kind: EdgeKind::from_deleted(to_deleted),

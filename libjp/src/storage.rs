@@ -153,7 +153,7 @@ impl Storage {
             }
         }
 
-        // Because `entry` borrows self.digles, the borrow checker isn't smart enough to allow this
+        // Because we borrowed self.digles, the borrow checker isn't smart enough to allow this
         // into the previous loop.
         for ch in &changes.changes {
             if let Change::NewNode {
@@ -174,17 +174,21 @@ impl Storage {
         for ch in &changes.changes {
             match *ch {
                 Change::DeleteNode { ref id } => digle.undelete_node(id),
-                Change::NewEdge { ref src, ref dest } => digle.unadd_edge(src, dest),
+                Change::NewEdge { ref src, ref dest } => {
+                    debug!("unadding edge {:?} -- {:?}", src, dest);
+                    digle.unadd_edge(src, dest);
+                }
                 Change::NewNode { .. } => {}
             }
         }
         for ch in &changes.changes {
             if let Change::NewNode { ref id, .. } = *ch {
+                debug!("unadding node {:?}", id);
                 digle.unadd_node(id);
             }
         }
 
-        // Because `entry` borrows self.digles, the borrow checker isn't smart enough to allow this
+        // Because we borrowed self.digles, the borrow checker isn't smart enough to allow this
         // into the previous loop.
         for ch in &changes.changes {
             if let Change::NewNode { ref id, .. } = *ch {

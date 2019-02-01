@@ -10,6 +10,9 @@
 #[macro_use]
 extern crate serde_derive;
 
+#[macro_use]
+extern crate log;
+
 #[cfg(test)]
 #[macro_use]
 extern crate proptest;
@@ -309,8 +312,12 @@ impl Repo {
                 .cloned()
                 .collect::<Vec<_>>();
             if unapplied_deps.is_empty() {
-                self.apply_one_patch(branch, &cur)?;
-                applied.push(cur.clone());
+                // It's possible that this patch was already applied, because it was a dep of
+                // multiple other patches.
+                if !self.storage.branch_patches.contains(branch, &cur) {
+                    self.apply_one_patch(branch, &cur)?;
+                    applied.push(cur.clone());
+                }
                 patch_stack.pop();
             } else {
                 patch_stack.extend_from_slice(&unapplied_deps[..]);
@@ -324,6 +331,8 @@ impl Repo {
     }
 
     fn unapply_one_patch(&mut self, branch: &str, patch_id: &PatchId) -> Result<(), Error> {
+        debug!("unapplying patch {:?} from branch {:?}", patch_id, branch);
+
         let patch = self.open_patch(patch_id)?;
         let inode = self.inode(branch)?;
         self.storage.unapply_changes(inode, patch.changes());
@@ -357,8 +366,12 @@ impl Repo {
                 .cloned()
                 .collect::<Vec<_>>();
             if applied_rev_deps.is_empty() {
-                self.unapply_one_patch(branch, &cur)?;
-                unapplied.push(cur.clone());
+                // It's possible that this patch was already unapplied, because it was a revdep of
+                // multiple other patches.
+                if self.storage.branch_patches.contains(branch, &cur) {
+                    self.unapply_one_patch(branch, &cur)?;
+                    unapplied.push(cur.clone());
+                }
                 patch_stack.pop();
             } else {
                 patch_stack.extend_from_slice(&applied_rev_deps[..]);
