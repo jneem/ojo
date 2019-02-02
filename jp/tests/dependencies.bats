@@ -6,7 +6,7 @@ load 'libs/setup'
     $JP init
     echo First > jp_file.txt
     HASH_A=`$JP patch create -a Author -m Msg 2>&1 | cut -d " " -f 3`
-    $JP patch apply $HASH_A
+    $JP patch apply -- $HASH_A
     echo Last >> jp_file.txt
     HASH_B=`$JP patch create -a Author -m Msg 2>&1 | cut -d " " -f 3`
     $JP patch apply $HASH_B

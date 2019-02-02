@@ -197,7 +197,11 @@ impl DigleData {
         assert!(self.nodes.contains(id));
         self.nodes.remove(id);
         self.deleted_nodes.insert(id.clone());
-        self.deleted_partition.insert(id.clone());
+        // It's possible that deleted_partition already contains this node (if pseudo-edges weren't
+        // resolved recently).
+        if !self.deleted_partition.contains(id.clone()) {
+            self.deleted_partition.insert(id.clone());
+        }
 
         // All the edges (both forward and backwards) pointing towards the newly deleted node need
         // to be marked as deleted.

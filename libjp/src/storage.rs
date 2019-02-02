@@ -147,9 +147,18 @@ impl Storage {
         let digle = self.digles.get_mut(&inode).unwrap();
         for ch in &changes.changes {
             match *ch {
-                Change::NewNode { ref id, .. } => digle.add_node(id.clone()),
-                Change::DeleteNode { ref id } => digle.delete_node(&id),
-                Change::NewEdge { ref src, ref dest } => digle.add_edge(src.clone(), dest.clone()),
+                Change::NewNode { ref id, .. } => {
+                    debug!("adding node {:?}", id);
+                    digle.add_node(id.clone());
+                }
+                Change::DeleteNode { ref id } => {
+                    debug!("deleting node {:?}", id);
+                    digle.delete_node(&id);
+                }
+                Change::NewEdge { ref src, ref dest } => {
+                    debug!("adding edge {:?} -- {:?}", src, dest);
+                    digle.add_edge(src.clone(), dest.clone());
+                }
             }
         }
 
@@ -173,7 +182,10 @@ impl Storage {
         // all nodes.
         for ch in &changes.changes {
             match *ch {
-                Change::DeleteNode { ref id } => digle.undelete_node(id),
+                Change::DeleteNode { ref id } => {
+                    debug!("undeleting node {:?}", id);
+                    digle.undelete_node(id);
+                }
                 Change::NewEdge { ref src, ref dest } => {
                     debug!("unadding edge {:?} -- {:?}", src, dest);
                     digle.unadd_edge(src, dest);

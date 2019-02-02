@@ -377,6 +377,10 @@ impl Repo {
                 patch_stack.extend_from_slice(&applied_rev_deps[..]);
             }
         }
+
+        // Having unapplied all the patches, resolve the cache.
+        let inode = self.storage.inode(branch).unwrap();
+        self.storage.update_cache(inode);
         Ok(unapplied)
     }
 

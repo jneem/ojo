@@ -31,6 +31,28 @@ macro_rules! digle {
     }
 }
 
+macro_rules! changes {
+    (
+        $(delete : $( $delete_node:literal ),*)?
+        $(nodes : $( $add_node:literal ),*)?
+        $(edges : $( $src:literal - $dest:literal ),*)?
+    ) => {
+        Changes {
+            changes: vec![
+                $($(
+                    Change::DeleteNode { id: NodeId::cur($delete_node) },
+                )*)*
+                $($(
+                    Change::NewNode { id: NodeId::cur($add_node), contents: vec![] },
+                )*)*
+                $($(
+                    Change::NewEdge { src: NodeId::cur($src), dest: NodeId::cur($dest) },
+                )*)*
+            ],
+        }
+    }
+}
+
 macro_rules! assert_pseudoedges {
     ($d:expr; $( $psrc:literal - $pdest:literal ),*) => {
         {
@@ -629,6 +651,23 @@ fn lots_of_edges() {
     };
 
     check_digle_and_changes(d, &[changes1, changes2]);
+}
+
+#[test]
+fn delete_and_undelete() {
+    // TODO: this exposes a (former) bug that wasn't caught by check_digle_and_changes because it
+    // only surfaced when we *avoided* resolving pseudo-edges.
+    //
+    // Modify check_digle_and_changes to exercise the lazily-resolving pseudo-edges also.
+    let mut d = digle!(live: 0);
+    let ch = changes!(delete: 0);
+    apply_changes(&mut d, &ch);
+    d.resolve_pseudo_edges();
+    d.assert_consistent();
+    unapply_changes(&mut d, &ch);
+    d.assert_consistent();
+    apply_changes(&mut d, &ch);
+    d.assert_consistent();
 }
 
 prop_compose! {

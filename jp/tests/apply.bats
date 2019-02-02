@@ -56,3 +56,30 @@ EOF
     assert_failure
     assert_output "Error: Couldn't render a file, because the data isn't ordered"
 }
+
+@test "delete and undelete" {
+    $JP init
+    echo "Test" > jp_file.txt
+    HASH=`$JP patch create -a Author -m Msg 2>&1 | cut -d " " -f 3`
+    $JP patch apply "$HASH"
+
+    truncate --size 0 jp_file.txt
+    HASH=`$JP patch create -a Author -m Msg 2>&1 | cut -d " " -f 3`
+    $JP patch apply "$HASH"
+    $JP patch apply -R "$HASH"
+    $JP patch apply "$HASH"
+}
+
+@test "replacement" {
+    $JP init
+    echo "Test" > jp_file.txt
+    HASH=`$JP patch create -a Author -m Msg 2>&1 | cut -d " " -f 3`
+    $JP patch apply "$HASH"
+
+    echo "Alt" > jp_file.txt
+    HASH=`$JP patch create -a Author -m Msg 2>&1 | cut -d " " -f 3`
+    $JP patch apply "$HASH"
+    $JP patch apply -R "$HASH"
+    $JP patch apply "$HASH"
+}
+
