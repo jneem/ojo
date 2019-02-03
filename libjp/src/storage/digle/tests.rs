@@ -8,6 +8,8 @@ use proptest::prelude::*;
 use proptest::sample::subsequence;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+#[doc(hidden)]
+#[macro_export]
 macro_rules! digle {
     (
         $(live : $( $live:literal ),*)?
@@ -15,7 +17,7 @@ macro_rules! digle {
         $(edges : $( $src:literal - $dest:literal ),*)?
     ) => {
         {
-            let mut d = DigleData::new();
+            let mut d = $crate::storage::digle::DigleData::new();
             $($(
                 d.add_node(NodeId::cur($live));
             )*)*
@@ -31,13 +33,15 @@ macro_rules! digle {
     }
 }
 
+#[doc(hidden)]
+#[macro_export]
 macro_rules! changes {
     (
         $(delete : $( $delete_node:literal ),*)?
         $(nodes : $( $add_node:literal ),*)?
         $(edges : $( $src:literal - $dest:literal ),*)?
     ) => {
-        Changes {
+        $crate::Changes {
             changes: vec![
                 $($(
                     Change::DeleteNode { id: NodeId::cur($delete_node) },
@@ -197,33 +201,6 @@ fn two_reasons() {
 // n*MAX_AVG_DEGREE.
 const MAX_AVG_DEGREE: usize = 5;
 
-// Given a string like "0-3, 1-2, 3-4, 2-3", creates a digle with those edges.
-pub(crate) fn make_digle(s: &str) -> DigleData {
-    let pairs = s
-        .split(',')
-        .map(|elt| {
-            let dash_idx = elt.find('-').unwrap();
-            let u: usize = elt[..dash_idx].trim().parse().unwrap();
-            let v: usize = elt[(dash_idx + 1)..].trim().parse().unwrap();
-            (u, v)
-        })
-        .collect::<Vec<_>>();
-    let max_elt = pairs
-        .iter()
-        .flat_map(|pair| vec![pair.0, pair.1].into_iter())
-        .max()
-        .unwrap();
-
-    let mut ret = DigleData::new();
-    for i in 0..=max_elt {
-        ret.add_node(NodeId::cur(i as u64));
-    }
-    for (u, v) in pairs {
-        ret.add_edge(NodeId::cur(u as u64), NodeId::cur(v as u64));
-    }
-    ret
-}
-
 fn fake_patch_id(id: usize) -> PatchId {
     let mut ret = PatchId::cur();
     (&mut ret.data[..])
@@ -235,39 +212,24 @@ fn fake_patch_id(id: usize) -> PatchId {
 // Make a digle like 0 -> 1 -> 2, and delete node 1.
 #[test]
 fn append_and_delete() {
-    let patch_id = fake_patch_id(1);
-    let node_id = NodeId {
-        patch: patch_id,
-        node: 0,
-    };
-    let mut d = make_digle("0-1");
+    let d = digle!(
+        live: 0, 1
+        edges: 0-1
+    );
+    let ch = changes!(
+        delete: 1
+        nodes: 2
+        edges: 1-2
+    );
 
-    let changes = Changes {
-        changes: vec![
-            Change::DeleteNode { id: NodeId::cur(1) },
-            Change::NewNode {
-                id: node_id,
-                contents: vec![],
-            },
-            Change::NewEdge {
-                src: NodeId::cur(1),
-                dest: node_id,
-            },
-        ],
-    };
-    apply_changes(&mut d, &changes);
-    d.resolve_pseudo_edges();
-    d.assert_consistent();
-    assert!(d.edges.contains(
-        &NodeId::cur(0),
-        &Edge {
-            dest: node_id,
-            kind: EdgeKind::Pseudo
-        }
-    ));
-    unapply_changes(&mut d, &changes);
-    d.resolve_pseudo_edges();
-    d.assert_consistent();
+    // Manually check the presence of a pseudo-edge from 0 to 2.
+    let mut clone = d.clone();
+    apply_changes(&mut clone, &ch);
+    clone.resolve_pseudo_edges();
+    assert_pseudoedges!(clone; 0-2);
+
+    // Now run the exhaustive checks.
+    check_digle_and_changes(d, &[ch]);
 }
 
 fn check_digle_and_changes(d: DigleData, chs: &[Changes]) {
@@ -313,6 +275,31 @@ fn check_digle_and_changes(d: DigleData, chs: &[Changes]) {
     all_at_once.resolve_pseudo_edges();
     all_at_once.assert_consistent();
     assert_eq!(orig, all_at_once);
+
+    // Now we do the last thing again, but without resolving pseudo-edges after applying all the
+    // patches.
+    for ch in chs {
+        apply_changes(&mut all_at_once, ch);
+    }
+    for ch in chs.iter().rev() {
+        unapply_changes(&mut all_at_once, ch);
+    }
+    all_at_once.assert_consistent();
+    all_at_once.resolve_pseudo_edges();
+    assert_eq!(orig, all_at_once);
+
+    // Now we do the same thing, but in the other order: unapply them all and then apply them all,
+    // without resolving pseudo-edges in between.
+    let mut all_at_once = cur.clone();
+    for ch in chs.iter().rev() {
+        unapply_changes(&mut all_at_once, ch);
+    }
+    for ch in chs {
+        apply_changes(&mut all_at_once, ch);
+    }
+    all_at_once.assert_consistent();
+    all_at_once.resolve_pseudo_edges();
+    assert_eq!(cur, all_at_once);
 }
 
 // This example was found by proptest.
@@ -411,263 +398,61 @@ fn add_middle() {
 // This exercises the code for rebuilding the deleted partition.
 #[test]
 fn reconstruct_partition() {
-    let mut d = make_digle("0-1");
-    d.add_node(NodeId::cur(2));
-
-    let patch = fake_patch_id(1);
-    let node0 = NodeId {
-        patch: patch,
-        node: 0,
+    let d = digle!(
+        live: 0, 1, 2
+        edges: 0-1
+    );
+    let ch = changes! {
+        delete: 0, 1, 2
+        nodes: 10, 11
+        edges: 11-0, 10-2, 0-10, 2-11
     };
-    let node1 = NodeId {
-        patch: patch,
-        node: 1,
-    };
-
-    let changes = Changes {
-        changes: vec![
-            Change::DeleteNode { id: NodeId::cur(0) },
-            Change::DeleteNode { id: NodeId::cur(1) },
-            Change::DeleteNode { id: NodeId::cur(2) },
-            Change::NewNode {
-                id: node0,
-                contents: vec![],
-            },
-            Change::NewNode {
-                id: node1,
-                contents: vec![],
-            },
-            Change::NewEdge {
-                src: node1,
-                dest: NodeId::cur(0),
-            },
-            Change::NewEdge {
-                src: node0,
-                dest: NodeId::cur(2),
-            },
-            Change::NewEdge {
-                src: NodeId::cur(0),
-                dest: node0,
-            },
-            Change::NewEdge {
-                src: NodeId::cur(2),
-                dest: node1,
-            },
-        ],
-    };
-
-    check_digle_and_changes(d, &[changes]);
+    check_digle_and_changes(d, &[ch]);
 }
 
 // Checks that when we delete a pseudo-edge reason, we don't delete the pseudo-edge as long as
 // there is another reason.
 #[test]
 fn double_reason() {
-    let d = make_digle("0-1, 1-0, 2-0, 3-0, 3-1");
+    let d = digle!(
+        live: 0, 1, 2, 3
+        edges: 0-1, 1-0, 2-0, 3-0, 3-1
+    );
+    let ch1 = changes!(
+        delete: 1, 2, 3
+        nodes: 10, 11
+        edges: 11-10, 10-0, 10-3, 10-1, 1-10, 0-11
+    );
+    let ch2 = changes!(
+        delete: 11
+    );
 
-    let patch1 = fake_patch_id(1);
-    let node10 = NodeId {
-        patch: patch1,
-        node: 0,
-    };
-    let node11 = NodeId {
-        patch: patch1,
-        node: 1,
-    };
-
-    let changes1 = Changes {
-        changes: vec![
-            Change::DeleteNode { id: NodeId::cur(1) },
-            Change::DeleteNode { id: NodeId::cur(2) },
-            Change::DeleteNode { id: NodeId::cur(3) },
-            Change::NewNode {
-                id: node10,
-                contents: vec![],
-            },
-            Change::NewNode {
-                id: node11,
-                contents: vec![],
-            },
-            Change::NewEdge {
-                src: node11,
-                dest: node10,
-            },
-            Change::NewEdge {
-                src: node10,
-                dest: NodeId::cur(0),
-            },
-            Change::NewEdge {
-                src: node10,
-                dest: NodeId::cur(3),
-            },
-            Change::NewEdge {
-                src: node10,
-                dest: NodeId::cur(1),
-            },
-            Change::NewEdge {
-                src: NodeId::cur(1),
-                dest: node10,
-            },
-            Change::NewEdge {
-                src: NodeId::cur(0),
-                dest: node11,
-            },
-        ],
-    };
-
-    let changes2 = Changes {
-        changes: vec![Change::DeleteNode { id: node11 }],
-    };
-
-    check_digle_and_changes(d, &[changes1, changes2]);
+    check_digle_and_changes(d, &[ch1, ch2]);
 }
 
 // This was generated by proptest. It has lots of edges, so there are lots of opportunities to
 // hit an edge-case in pseudo-edge generation.
 #[test]
 fn lots_of_edges() {
-    let node00 = NodeId::cur(0);
-    let node01 = NodeId::cur(1);
-    let node02 = NodeId::cur(2);
-    let node03 = NodeId::cur(3);
-    let patch1 = fake_patch_id(1);
-    let node10 = NodeId {
-        patch: patch1,
-        node: 0,
-    };
-    let node11 = NodeId {
-        patch: patch1,
-        node: 1,
-    };
-    let node12 = NodeId {
-        patch: patch1,
-        node: 2,
-    };
-    let node13 = NodeId {
-        patch: patch1,
-        node: 3,
-    };
+    let d = digle!(live: 0, 1, 2, 3);
+    let ch1 = changes!(
+        delete: 0, 1, 3
+        nodes: 10, 11, 12, 13
+        edges: 12-10, 12-11, 12-2, 13-3, 12-1, 11-3, 11-1, 13-0, 10-2, 11-0, 10-1, 10-0,
+               3-13, 1-10, 2-10, 0-11, 3-12
+    );
+    let ch2 = changes!(
+        delete: 10
+    );
 
-    let mut d = DigleData::new();
-    d.add_node(node00);
-    d.add_node(node01);
-    d.add_node(node02);
-    d.add_node(node03);
-
-    let changes1 = Changes {
-        changes: vec![
-            Change::DeleteNode { id: node00 },
-            Change::DeleteNode { id: node01 },
-            Change::DeleteNode { id: node03 },
-            Change::NewNode {
-                id: node10,
-                contents: vec![],
-            },
-            Change::NewNode {
-                id: node11,
-                contents: vec![],
-            },
-            Change::NewNode {
-                id: node12,
-                contents: vec![],
-            },
-            Change::NewNode {
-                id: node13,
-                contents: vec![],
-            },
-            Change::NewEdge {
-                src: node12,
-                dest: node10,
-            },
-            Change::NewEdge {
-                src: node12,
-                dest: node11,
-            },
-            Change::NewEdge {
-                src: node12,
-                dest: node02,
-            },
-            Change::NewEdge {
-                src: node13,
-                dest: node03,
-            },
-            Change::NewEdge {
-                src: node12,
-                dest: node01,
-            },
-            Change::NewEdge {
-                src: node11,
-                dest: node03,
-            },
-            Change::NewEdge {
-                src: node11,
-                dest: node01,
-            },
-            Change::NewEdge {
-                src: node13,
-                dest: node00,
-            },
-            Change::NewEdge {
-                src: node10,
-                dest: node02,
-            },
-            Change::NewEdge {
-                src: node11,
-                dest: node00,
-            },
-            Change::NewEdge {
-                src: node10,
-                dest: node01,
-            },
-            Change::NewEdge {
-                src: node10,
-                dest: node00,
-            },
-            Change::NewEdge {
-                src: node03,
-                dest: node13,
-            },
-            Change::NewEdge {
-                src: node01,
-                dest: node10,
-            },
-            Change::NewEdge {
-                src: node02,
-                dest: node10,
-            },
-            Change::NewEdge {
-                src: node00,
-                dest: node11,
-            },
-            Change::NewEdge {
-                src: node03,
-                dest: node12,
-            },
-        ],
-    };
-
-    let changes2 = Changes {
-        changes: vec![Change::DeleteNode { id: node10 }],
-    };
-
-    check_digle_and_changes(d, &[changes1, changes2]);
+    check_digle_and_changes(d, &[ch1, ch2]);
 }
 
 #[test]
 fn delete_and_undelete() {
-    // TODO: this exposes a (former) bug that wasn't caught by check_digle_and_changes because it
-    // only surfaced when we *avoided* resolving pseudo-edges.
-    //
-    // Modify check_digle_and_changes to exercise the lazily-resolving pseudo-edges also.
-    let mut d = digle!(live: 0);
+    let d = digle!(live: 0);
     let ch = changes!(delete: 0);
-    apply_changes(&mut d, &ch);
-    d.resolve_pseudo_edges();
-    d.assert_consistent();
-    unapply_changes(&mut d, &ch);
-    d.assert_consistent();
-    apply_changes(&mut d, &ch);
-    d.assert_consistent();
+    check_digle_and_changes(d, &[ch]);
 }
 
 prop_compose! {

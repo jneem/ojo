@@ -797,4 +797,5 @@ impl<'a> graph::Graph for FullGraph<'a> {
 }
 
 #[cfg(test)]
+#[macro_use]
 pub mod tests;

@@ -180,11 +180,14 @@ mod tests {
     use std::collections::HashSet;
 
     use super::*;
-    use crate::storage::digle::tests::{arb_live_digle, make_digle};
+    use crate::storage::digle::tests::arb_live_digle;
 
     #[test]
     fn diamond() {
-        let digle = make_digle("0-1, 0-2, 1-3, 2-3");
+        let digle = digle!(
+            live: 0, 1, 2, 3
+            edges: 0-1, 0-2, 1-3, 2-3
+        );
         let decomp = ChainDigle::from_graph(digle.as_digle().as_live_graph());
         assert_eq!(decomp.chains.len(), 4);
         for ch in &decomp.chains {

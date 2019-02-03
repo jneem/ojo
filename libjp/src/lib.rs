@@ -25,11 +25,15 @@ use graph::Graph;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+// This module needs to go first, because it supplies some macros (for testing) that the other
+// modules use.
+#[macro_use]
+mod storage;
+
 mod chain_digle;
 mod error;
 mod patch;
 pub mod resolver;
-mod storage;
 
 pub use crate::chain_digle::ChainDigle;
 pub use crate::error::{Error, PatchIdError};

@@ -3,6 +3,7 @@ use crate::{NodeId, PatchId};
 use multimap::MMap;
 use std::collections::{BTreeMap, HashMap};
 
+#[macro_use]
 pub mod digle;
 pub mod file;
 

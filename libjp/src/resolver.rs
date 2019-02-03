@@ -332,11 +332,13 @@ mod tests {
     use itertools::Itertools;
 
     use super::*;
-    use crate::storage::digle::tests::make_digle;
 
     #[test]
     fn chain_iter() {
-        let digle = make_digle("0-1, 1-2, 2-3, 3-4, 4-5, 0-5, 2-5");
+        let digle = digle!(
+            live: 0, 1, 2, 3, 4, 5
+            edges: 0-1, 1-2, 2-3, 3-4, 4-5, 0-5, 2-5
+        );
         let check = |init: u64, expected: Vec<u64>| {
             let actual = ChainIter::new(digle.as_digle(), NodeId::cur(init)).collect::<Vec<_>>();
             let expected = expected
@@ -355,7 +357,10 @@ mod tests {
 
     #[test]
     fn resolver_diamond() {
-        let digle = make_digle("0-1, 0-2, 1-3, 2-3");
+        let digle = digle!(
+            live: 0, 1, 2, 3
+            edges: 0-1, 0-2, 1-3, 2-3
+        );
         let mut res = CycleResolver::new(digle.as_digle()).into_order_resolver();
 
         println!("{:?}", res.candidates);
