@@ -1,10 +1,13 @@
 #[macro_use]
+extern crate log;
+
+#[macro_use]
 extern crate serde_derive;
 
 use wasm_bindgen::prelude::*;
 
 use graph::Graph;
-use libjp::{Changes, EdgeKind, PatchId};
+use libjp::{EdgeKind, NodeId, PatchId};
 use std::collections::{HashMap, HashSet};
 
 #[wasm_bindgen]
@@ -25,7 +28,7 @@ impl Repo {
     pub fn commit(&mut self, new_input: &str) {
         match self.inner.diff("master", new_input.as_bytes()) {
             Ok(diff) => {
-                let changes = Changes::from_diff(&diff.file_a, &diff.file_b, &diff.diff);
+                let changes = libjp::Changes::from_diff(&diff.file_a, &diff.file_b, &diff.diff);
                 if !changes.changes.is_empty() {
                     let id = self.inner.create_patch("You", "Msg", changes).unwrap();
                     self.inner.apply_patch("master", &id).unwrap();
@@ -45,6 +48,14 @@ impl Repo {
     pub fn unapply_patch(&mut self, patch_id: &str) {
         let patch_id = PatchId::from_base64(patch_id).unwrap();
         self.inner.unapply_patch("master", &patch_id).unwrap();
+    }
+
+    pub fn apply_changes(&mut self, changes: &Changes) {
+        let id = self
+            .inner
+            .create_patch("You", "Msg", changes.to_jp_changes())
+            .unwrap();
+        self.inner.apply_patch("master", &id).unwrap();
     }
 
     pub fn file(&self) -> Option<String> {
@@ -186,5 +197,56 @@ impl Digle {
 
     pub fn edges(&self) -> JsValue {
         JsValue::from_serde(&self.edges).unwrap()
+    }
+}
+
+#[wasm_bindgen]
+#[derive(Deserialize)]
+pub struct Changes {
+    deleted_nodes: Vec<String>,
+    added_edges: Vec<(String, String)>,
+}
+
+#[wasm_bindgen]
+impl Changes {
+    /// Creates a new changeset from a list of nodes to be deleted and edges to be added.
+    ///
+    /// `nodes` should be an array of strings (the ids of the nodes to be deleted) and `edges`
+    /// should be an array of pairs of strings (the sources and destinations of the edges to be
+    /// added).
+    #[wasm_bindgen(constructor)]
+    pub fn new(nodes: &JsValue, edges: &JsValue) -> Changes {
+        debug!("{:?}", nodes);
+        debug!("{:?}", edges);
+        Changes {
+            deleted_nodes: nodes.into_serde().unwrap(),
+            added_edges: edges.into_serde().unwrap(),
+        }
+    }
+
+    // Converts this into an libjp::Changes.
+    fn to_jp_changes(&self) -> libjp::Changes {
+        fn node_id(s: &str) -> NodeId {
+            let i = s.find('/').unwrap();
+            NodeId {
+                patch: PatchId::from_base64(&s[..i]).unwrap(),
+                node: s[(i + 1)..].parse().unwrap(),
+            }
+        }
+        let nodes = self
+            .deleted_nodes
+            .iter()
+            .map(|node| libjp::Change::DeleteNode { id: node_id(&node) });
+
+        let edges = self
+            .added_edges
+            .iter()
+            .map(|(src, dest)| libjp::Change::NewEdge {
+                src: node_id(&src),
+                dest: node_id(&dest),
+            });
+        libjp::Changes {
+            changes: nodes.chain(edges).collect(),
+        }
     }
 }
