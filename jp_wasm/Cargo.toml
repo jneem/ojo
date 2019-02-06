@@ -1,8 +1,11 @@
 [package]
 name = "jp_wasm"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Joe Neeman <joeneeman@gmail.com>"]
 edition = "2018"
+license = "MIT/Apache-2.0"
+repository = "https://github.com/jneem/jp"
+description = "A minimal wasm interface to jp (an educational version control system)"
 
 [lib]
 crate-type = ["cdylib"]
@@ -18,4 +21,3 @@ serde_derive = "1.0"
 [dependencies.wasm-bindgen]
 version = "^0.2"
 features = ["serde-serialize"]
-
