@@ -22,14 +22,14 @@ pub fn run(_m: &ArgMatches<'_>) -> Result<(), Error> {
     let buf = String::from_utf8(buf).context("Expected stdin to be UTF-8, but it wasn't.")?;
     let edges = buf
         .split_whitespace()
-        .map(|s| parse_edge(s).ok_or(format_err!("Failed to parse '{}'.", s)))
+        .map(|s| parse_edge(s).ok_or_else(|| format_err!("Failed to parse '{}'.", s)))
         .collect::<Result<Vec<_>, _>>()?;
 
     let max_node = edges
         .iter()
         .map(|&(x, y)| x.max(y))
         .max()
-        .ok_or(err_msg("Input was empty."))?;
+        .ok_or_else(|| err_msg("Input was empty."))?;
     let new_nodes = (0..=max_node).map(|i| Change::NewNode {
         id: NodeId::cur(i as u64),
         contents: format!("Line {}\n", i).into_bytes(),

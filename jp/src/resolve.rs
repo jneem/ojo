@@ -48,10 +48,10 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-const NUMBERS: &'static [u8] = b"1234567890";
-const NUMBERS_UPPER: &'static [u8] = b"!@#$%^&*()";
-const QWERTY: &'static [u8] = b"qwertyuiop";
-const QWERTY_UPPER: &'static [u8] = b"QWERTYUIOP";
+const NUMBERS: &[u8] = b"1234567890";
+const NUMBERS_UPPER: &[u8] = b"!@#$%^&*()";
+const QWERTY: &[u8] = b"qwertyuiop";
+const QWERTY_UPPER: &[u8] = b"QWERTYUIOP";
 
 type Screen = termion::raw::RawTerminal<AlternateScreen<std::io::Stdout>>;
 type Input = termion::input::Keys<std::io::Stdin>;
@@ -98,7 +98,7 @@ impl<'a> CycleResolverState<'a> {
                 let key = self
                     .input
                     .next()
-                    .ok_or(failure::err_msg("Unexpected end of input"))??;
+                    .ok_or_else(|| failure::err_msg("Unexpected end of input"))??;
                 match key {
                     Key::Char(c) => {
                         if let Some(x) = NUMBERS.iter().position(|&a| a == c as u8) {
@@ -122,7 +122,7 @@ impl<'a> CycleResolverState<'a> {
             }
         }
         let resolver = self.resolver.into_order_resolver();
-        OrderResolverState::new(self.repo, self.screen, self.input, resolver).map(|x| Some(x))
+        OrderResolverState::new(self.repo, self.screen, self.input, resolver).map(Some)
     }
 
     fn redraw(&mut self, lines: &[NodeId]) -> Result<(), Error> {
@@ -202,7 +202,7 @@ impl<'a> OrderResolverState<'a> {
             let key = self
                 .input
                 .next()
-                .ok_or(failure::err_msg("Unexpected end of input"))??;
+                .ok_or_else(|| failure::err_msg("Unexpected end of input"))??;
             match key {
                 Key::Char(c) => {
                     let chosen = |x: usize| {
@@ -348,7 +348,7 @@ impl<'a> OrderResolverState<'a> {
             row += 1;
 
             let cand_idx = self.shown_first + i;
-            let key = ('1' as u8 + i as u8) as char;
+            let key = (b'1' + i as u8) as char;
             write!(
                 self.screen,
                 "{goto}{bold}{key}{unbold}",

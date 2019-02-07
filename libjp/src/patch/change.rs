@@ -47,7 +47,7 @@ impl Changes {
                 LineDiff::New(i) => {
                     let id = file2.node_id(i);
                     changes.push(Change::NewNode {
-                        id: id.clone(),
+                        id: *id,
                         contents: file2.node(i).to_owned(),
                     });
 
@@ -55,8 +55,8 @@ impl Changes {
                     // before it, no matter where it came from.
                     if let Some(last_id) = last.either() {
                         changes.push(Change::NewEdge {
-                            src: last_id.clone(),
-                            dest: id.clone(),
+                            src: *last_id,
+                            dest: *id,
                         });
                     }
                     last = LastLine::File2(id);
@@ -67,15 +67,15 @@ impl Changes {
                     // If the last line came from the new file, we need to hook it up to this line.
                     if let LastLine::File2(last_id) = last {
                         changes.push(Change::NewEdge {
-                            src: last_id.clone(),
-                            dest: id.clone(),
+                            src: *last_id,
+                            dest: *id,
                         });
                     }
                     last = LastLine::File1(id);
                 }
                 LineDiff::Delete(i) => {
                     let id = file1.node_id(i);
-                    changes.push(Change::DeleteNode { id: id.clone() });
+                    changes.push(Change::DeleteNode { id: *id });
                 }
             }
         }

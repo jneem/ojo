@@ -9,11 +9,11 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
         let patch = repo.open_patch(&patch_id)?;
         println!("patch {}", patch_id.to_base64());
         println!("Author: {}", patch.header().author);
-        println!("");
+        println!();
         // TODO: dates and sorting.
         // TODO: better display for multi-line description.
         println!("\t{}", patch.header().description);
-        println!("");
+        println!();
     }
     Ok(())
 }

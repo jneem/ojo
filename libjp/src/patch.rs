@@ -20,7 +20,7 @@ struct HashingWriter<W: Write> {
 impl<W: Write> HashingWriter<W> {
     fn new(writer: W) -> HashingWriter<W> {
         HashingWriter {
-            writer: writer,
+            writer,
             hasher: Default::default(),
         }
     }
@@ -186,15 +186,15 @@ impl UnidentifiedPatch {
             match *c {
                 Change::DeleteNode { ref id } => {
                     if !id.patch.is_cur() {
-                        deps.insert(id.patch.clone());
+                        deps.insert(id.patch);
                     }
                 }
                 Change::NewEdge { ref src, ref dest } => {
                     if !src.patch.is_cur() {
-                        deps.insert(src.patch.clone());
+                        deps.insert(src.patch);
                     }
                     if !dest.patch.is_cur() {
-                        deps.insert(dest.patch.clone());
+                        deps.insert(dest.patch);
                     }
                 }
                 _ => {}

@@ -38,7 +38,7 @@ fn list_run(_m: &ArgMatches<'_>) -> Result<(), Error> {
     let mut branches = repo.branches().collect::<Vec<_>>();
     branches.sort();
     for b in branches {
-        if b == &repo.current_branch {
+        if b == repo.current_branch {
             println!("* {}", b);
         } else {
             println!("  {}", b);

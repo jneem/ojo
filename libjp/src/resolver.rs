@@ -110,7 +110,7 @@ impl<'a> CycleResolver<'a> {
             .collect::<Vec<_>>();
 
         OrderResolver {
-            digle: self.digle.clone(),
+            digle: self.digle,
             ordered: vec![],
             seen: HashSet::new(),
             sccs: self.sccs,
@@ -295,7 +295,7 @@ impl<'a> ChainIter<'a> {
     fn new(digle: Digle<'a>, u: NodeId) -> ChainIter<'a> {
         ChainIter {
             next: Some(u),
-            digle: digle,
+            digle,
         }
     }
 }

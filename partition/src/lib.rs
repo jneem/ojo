@@ -9,11 +9,17 @@ use multimap::MMap;
 use std::collections::btree_map::Entry;
 use std::collections::BTreeMap as Map;
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Partition<T: Copy + Ord> {
     ranks: Map<T, usize>,
     parent_map: Map<T, T>,
     child_map: MMap<T, T>,
+}
+
+impl<T: Copy + Ord> Default for Partition<T> {
+    fn default() -> Partition<T> {
+        Partition::new()
+    }
 }
 
 impl<T: Copy + Ord> Partition<T> {

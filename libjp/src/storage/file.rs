@@ -30,8 +30,8 @@ impl File {
         }
         boundaries.push(contents.len());
         File {
-            contents: contents,
-            boundaries: boundaries,
+            contents,
+            boundaries,
             ids: ids.to_owned(),
         }
     }
@@ -48,7 +48,7 @@ impl File {
         let mut boundaries = vec![0];
         boundaries.extend(
             bytes
-                .into_iter()
+                .iter()
                 .enumerate()
                 .filter(|&(_, &b)| b == b'\n')
                 .map(|x| x.0 + 1),

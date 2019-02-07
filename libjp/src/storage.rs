@@ -86,13 +86,13 @@ impl Storage {
         let ret = INode { n: self.next_inode };
         self.next_inode += 1;
 
-        let old_digle = self.digles.get(&inode).unwrap();
+        let old_digle = &self.digles[&inode];
         self.digles.insert(ret, old_digle.clone());
         ret
     }
 
     pub fn contents(&self, id: &NodeId) -> &[u8] {
-        self.contents.get(id).unwrap().as_slice()
+        self.contents[id].as_slice()
     }
 
     /// Panics if the node already has contents that differ from the current ones.
@@ -128,8 +128,8 @@ impl Storage {
         digle.resolve_pseudo_edges();
     }
 
-    pub fn digle<'a>(&'a self, inode: INode) -> Digle<'a> {
-        self.digles.get(&inode).unwrap().into()
+    pub fn digle(&'_ self, inode: INode) -> Digle<'_> {
+        self.digles[&inode].as_digle()
     }
 
     pub fn remove_digle(&mut self, inode: INode) {

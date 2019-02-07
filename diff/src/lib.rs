@@ -59,18 +59,15 @@ fn line_counts<T: Hash + Eq>(lines: &[T]) -> HashMap<WithIndex<&T>, usize> {
 // The returned value `ret` is the largest number such that the first `ret` elements of `a` are the
 // same as the first `ret` elements of `b`.
 fn prefix_len<T: Eq>(a: &[T], b: &[T]) -> usize {
-    a.into_iter()
-        .zip(b.into_iter())
-        .take_while(|(x, y)| x == y)
-        .count()
+    a.iter().zip(b.iter()).take_while(|(x, y)| x == y).count()
 }
 
 // The returned value `ret` is the largest number such that the last `ret` elements of `a` are the
 // same as the last `ret` elements of `b`.
 fn suffix_len<T: Eq>(a: &[T], b: &[T]) -> usize {
-    a.into_iter()
+    a.iter()
         .rev()
-        .zip(b.into_iter().rev())
+        .zip(b.iter().rev())
         .take_while(|(x, y)| x == y)
         .count()
 }

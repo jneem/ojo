@@ -59,7 +59,7 @@ impl graph::Edge<NodeId> for Edge {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(rename = "Digle")]
 pub(crate) struct DigleData {
     nodes: Set<NodeId>,
@@ -93,19 +93,10 @@ impl PartialEq<DigleData> for DigleData {
 
 impl DigleData {
     pub fn new() -> DigleData {
-        DigleData {
-            nodes: Set::new(),
-            deleted_nodes: Set::new(),
-            edges: MMap::new(),
-            back_edges: MMap::new(),
-            deleted_partition: Partition::new(),
-            pseudo_edge_reasons: MMap::new(),
-            reason_pseudo_edges: MMap::new(),
-            dirty_reps: Set::new(),
-        }
+        Default::default()
     }
 
-    pub fn as_digle<'a>(&'a self) -> Digle<'a> {
+    pub fn as_digle(&'_ self) -> Digle<'_> {
         Digle { data: self }
     }
 
@@ -328,7 +319,7 @@ impl DigleData {
 
         for (src, dest) in obsolete_pairs {
             let e = Edge {
-                dest: dest,
+                dest,
                 kind: EdgeKind::Pseudo,
             };
             self.pseudo_edge_reasons.remove(&(src, dest), reason);
@@ -354,10 +345,10 @@ impl DigleData {
         assert!(!to_deleted || self.deleted_nodes.contains(&to));
 
         self.edges.insert(
-            from.clone(),
+            from,
             Edge {
                 kind: EdgeKind::from_deleted(to_deleted),
-                dest: to.clone(),
+                dest: to,
             },
         );
         self.back_edges.insert(
@@ -425,11 +416,11 @@ impl DigleData {
 
         let forward_edge = Edge {
             kind: EdgeKind::from_deleted(to_deleted),
-            dest: to.clone(),
+            dest: *to,
         };
         let back_edge = Edge {
             kind: EdgeKind::from_deleted(from_deleted),
-            dest: from.clone(),
+            dest: *from,
         };
         self.edges.remove(&from, &forward_edge);
         self.back_edges.remove(&to, &back_edge);
@@ -469,19 +460,12 @@ impl DigleData {
                 (src == u && component.contains(&edge.dest)) || component.contains(src)
             });
             for visit in sub_graph.dfs_from(u) {
-                match visit {
+                if let graph::dfs::Visit::Edge { dst, status, .. } = visit {
                     // Only take into account the first visit to a node. Besides being more
                     // efficient, this means we'll avoid adding self-loops.
-                    graph::dfs::Visit::Edge {
-                        dst,
-                        status: graph::dfs::Status::New,
-                        ..
-                    } => {
-                        if digle.is_live(&dst) {
-                            pairs.push((*u, dst));
-                        }
+                    if status == graph::dfs::Status::New && digle.is_live(&dst) {
+                        pairs.push((*u, dst));
                     }
-                    _ => {}
                 }
             }
         }
@@ -533,26 +517,20 @@ impl DigleData {
                 && ((src == u && !self.is_live(&edge.dest)) || !self.is_live(src))
         });
         for visit in u_graph.dfs_from(u) {
-            match visit {
-                Visit::Edge {
-                    dst,
-                    status: Status::New,
-                    ..
-                } => {
-                    if dst != *u
-                        && self.is_live(&dst)
-                        && !self.edges.contains(
-                            u,
-                            &Edge {
-                                dest: dst,
-                                kind: EdgeKind::Live,
-                            },
-                        )
-                    {
-                        ret.insert(dst);
-                    }
+            if let Visit::Edge { dst, status, .. } = visit {
+                if status == Status::New
+                    && dst != *u
+                    && self.is_live(&dst)
+                    && !self.edges.contains(
+                        u,
+                        &Edge {
+                            dest: dst,
+                            kind: EdgeKind::Live,
+                        },
+                    )
+                {
+                    ret.insert(dst);
                 }
-                _ => {}
             }
         }
         ret
@@ -670,33 +648,32 @@ pub struct Digle<'a> {
 
 impl<'a> Digle<'a> {
     /// Returns an iterator over all live nodes of this digle.
-    pub fn nodes<'b>(&'b self) -> impl Iterator<Item = NodeId> + 'b {
+    pub fn nodes(self) -> impl Iterator<Item = NodeId> + 'a {
         self.data.nodes.iter().cloned()
     }
 
     /// Returns an iterator over all edges pointing from `node` to another live node.
-    pub fn out_edges<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b Edge> + 'b {
+    pub fn out_edges(self, node: &NodeId) -> impl Iterator<Item = &'a Edge> + 'a {
         self.data.edges.get(node).take_while(|e| e.not_deleted())
     }
 
     /// Returns an iterator over all live out-neighbors of `node`.
-    pub fn out_neighbors<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b NodeId> + 'b {
+    pub fn out_neighbors(self, node: &NodeId) -> impl Iterator<Item = &'a NodeId> + 'a {
         self.out_edges(node).map(|e| &e.dest)
     }
 
     /// Returns an iterator over all live in-neighbors of `node`.
-    pub fn in_neighbors<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b NodeId> + 'b {
+    pub fn in_neighbors(self, node: &NodeId) -> impl Iterator<Item = &'a NodeId> + 'a {
         self.in_edges(node).map(|e| &e.dest)
     }
 
     /// Returns an iterator over all edges pointing out of `node`, including those that point to
     /// deleted edges.
-    pub fn all_out_edges<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b Edge> + 'b {
+    pub fn all_out_edges(self, node: &NodeId) -> impl Iterator<Item = &'a Edge> + 'a {
         self.data.edges.get(node)
     }
-
     /// Returns an iterator over all backwards edges pointing from `node` to another live node.
-    pub fn in_edges<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b Edge> + 'b {
+    pub fn in_edges(self, node: &NodeId) -> impl Iterator<Item = &'a Edge> + 'a {
         self.data
             .back_edges
             .get(node)
@@ -705,12 +682,12 @@ impl<'a> Digle<'a> {
 
     /// Returns an iterator over all backwards edges pointing out of `node`, including those that
     /// point to deleted edges.
-    pub fn all_in_edges<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b Edge> + 'b {
+    pub fn all_in_edges(self, node: &NodeId) -> impl Iterator<Item = &'a Edge> + 'a {
         self.data.back_edges.get(node)
     }
 
     /// Returns `true` if `node` belongs to this digle (whether it is live or deleted).
-    pub fn has_node(&self, node: &NodeId) -> bool {
+    pub fn has_node(self, node: &NodeId) -> bool {
         self.data.nodes.contains(node) || self.data.deleted_nodes.contains(node)
     }
 
@@ -719,7 +696,7 @@ impl<'a> Digle<'a> {
     /// # Panics
     ///
     /// Panics unless `node` belongs to this digle.
-    pub fn is_live(&self, node: &NodeId) -> bool {
+    pub fn is_live(self, node: &NodeId) -> bool {
         assert!(self.has_node(node));
         self.data.nodes.contains(node)
     }

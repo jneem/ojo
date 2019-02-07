@@ -64,7 +64,7 @@ impl std::fmt::Debug for NodeId {
 impl NodeId {
     fn set_patch_id(&mut self, id: &PatchId) {
         if self.patch.is_cur() {
-            self.patch = id.clone();
+            self.patch = *id;
         }
     }
 
@@ -75,7 +75,7 @@ impl NodeId {
     pub fn cur(node: u64) -> NodeId {
         NodeId {
             patch: PatchId::cur(),
-            node: node,
+            node,
         }
     }
 }
@@ -145,9 +145,9 @@ impl Repo {
         Ok(Repo {
             root_dir,
             repo_dir,
-            db_path: db_path,
+            db_path,
             current_branch: "master".to_owned(),
-            storage: storage,
+            storage,
         })
     }
 
@@ -233,7 +233,7 @@ impl Repo {
             .storage
             .patches
             .get(id)
-            .ok_or(Error::UnknownPatch(*id))?;
+            .ok_or_else(|| Error::UnknownPatch(*id))?;
         let ret = Patch::from_reader(patch_data.as_bytes())?;
         if ret.id() != id {
             Err(Error::IdMismatch(*ret.id(), *id))
@@ -254,14 +254,14 @@ impl Repo {
             if &old_patch == patch {
                 return Ok(());
             } else {
-                return Err(PatchIdError::Collision(patch.id().clone()).into());
+                return Err(PatchIdError::Collision(*patch.id()).into());
             }
         }
 
         // Record the deps and reverse-deps.
         for dep in patch.deps() {
             if !self.storage.patches.contains_key(dep) {
-                return Err(Error::MissingDep(dep.clone()));
+                return Err(Error::MissingDep(*dep));
             }
             self.storage
                 .patch_deps
@@ -303,7 +303,7 @@ impl Repo {
             return Ok(vec![]);
         }
 
-        let mut patch_stack = vec![patch_id.clone()];
+        let mut patch_stack = vec![*patch_id];
         let mut applied = Vec::new();
         while !patch_stack.is_empty() {
             // The unwrap is ok because the stack is non-empty inside the loop.
@@ -357,7 +357,7 @@ impl Repo {
             return Ok(vec![]);
         }
 
-        let mut patch_stack = vec![patch_id.clone()];
+        let mut patch_stack = vec![*patch_id];
         let mut unapplied = Vec::new();
         while !patch_stack.is_empty() {
             // The unwrap is ok because the stack is non-empty inside the loop.
@@ -430,7 +430,7 @@ impl Repo {
         // Now that we know the patch's id, store it in the patches map.
         self.register_patch(&patch, patch_data)?;
 
-        Ok(patch.id().clone())
+        Ok(*patch.id())
     }
 
     fn try_create_dir(&self, dir: &Path) -> Result<(), Error> {
@@ -488,7 +488,7 @@ impl Repo {
 
     /// Deletes the branch named `branch`.
     pub fn delete_branch(&mut self, branch: &str) -> Result<(), Error> {
-        if branch == &self.current_branch {
+        if branch == self.current_branch {
             return Err(Error::CurrentBranch(branch.to_owned()));
         }
         let inode = self
