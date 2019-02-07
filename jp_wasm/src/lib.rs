@@ -93,8 +93,8 @@ impl Repo {
         Patches { patches, deps }
     }
 
-    pub fn digle(&self) -> Digle {
-        let d = self.inner.digle("master").unwrap();
+    pub fn graggle(&self) -> Graggle {
+        let d = self.inner.graggle("master").unwrap();
         let id_idx = d
             .as_full_graph()
             .nodes()
@@ -106,14 +106,14 @@ impl Repo {
         let mut edges = Vec::new();
 
         for u in d.as_full_graph().nodes() {
-            nodes.push(DigleNode {
+            nodes.push(GraggleNode {
                 id: format!("{}/{}", u.patch.to_base64(), u.node),
                 live: d.is_live(&u),
                 text: String::from_utf8(self.inner.contents(&u).to_owned()).unwrap(),
             });
 
             for edge in d.all_out_edges(&u) {
-                edges.push(DigleEdge {
+                edges.push(GraggleEdge {
                     from: id_idx[&u],
                     to: id_idx[&edge.dest],
                     pseudo: edge.kind == EdgeKind::Pseudo,
@@ -121,7 +121,7 @@ impl Repo {
             }
         }
 
-        Digle { nodes, edges }
+        Graggle { nodes, edges }
     }
 }
 
@@ -154,14 +154,14 @@ impl Patches {
 
 #[wasm_bindgen]
 #[derive(Serialize)]
-pub struct DigleNode {
+pub struct GraggleNode {
     id: String,
     text: String,
     live: bool,
 }
 
 #[wasm_bindgen]
-impl DigleNode {
+impl GraggleNode {
     pub fn id(&self) -> String {
         self.id.clone()
     }
@@ -177,20 +177,20 @@ impl DigleNode {
 
 #[wasm_bindgen]
 #[derive(Serialize)]
-pub struct DigleEdge {
+pub struct GraggleEdge {
     pub from: usize,
     pub to: usize,
     pub pseudo: bool,
 }
 
 #[wasm_bindgen]
-pub struct Digle {
-    nodes: Vec<DigleNode>,
-    edges: Vec<DigleEdge>,
+pub struct Graggle {
+    nodes: Vec<GraggleNode>,
+    edges: Vec<GraggleEdge>,
 }
 
 #[wasm_bindgen]
-impl Digle {
+impl Graggle {
     pub fn nodes(&self) -> JsValue {
         JsValue::from_serde(&self.nodes).unwrap()
     }

@@ -5,19 +5,19 @@ use std::collections::{BTreeMap, HashSet};
 
 use crate::NodeId;
 
-/// A version of a [`Digle`](crate::Digle) that has been decomposed into "chains" (for example, for
+/// A version of a [`Graggle`](crate::Graggle) that has been decomposed into "chains" (for example, for
 /// prettier rendering).
 ///
-/// Most digles that you'll see in practice don't look like general directed graphs. Rather, they
+/// Most graggles that you'll see in practice don't look like general directed graphs. Rather, they
 /// contain lots of long "chains," i.e., sequences of nodes, each of which has exactly one
 /// in-neighbor (the previous in the sequence) and one out-neighbor (the next). For example, a
-/// totally ordered digle (a.k.a. a file) just consists of one long chain.
+/// totally ordered graggle (a.k.a. a file) just consists of one long chain.
 ///
-/// This struct represents the same graph as a digle, except that every chain has been "collapsed"
-/// into a single node. That is, you can think of a `ChainDigle` as a graph in which every node
+/// This struct represents the same graph as a graggle, except that every chain has been "collapsed"
+/// into a single node. That is, you can think of a `ChainGraggle` as a graph in which every node
 /// represents a chain (possibly of length 1) in the original graph.
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct ChainDigle {
+pub struct ChainGraggle {
     // TODO: allow retrieving liveness of NodeIds and type of edges.
     chains: Vec<Vec<NodeId>>,
     edges: MMap<usize, usize>,
@@ -66,7 +66,7 @@ fn collect_chain<G: Graph>(g: &G, first: &G::Node) -> Vec<G::Node> {
     ret
 }
 
-impl ChainDigle {
+impl ChainGraggle {
     /// How many chains are there?
     pub fn num_chains(&self) -> usize {
         self.chains.len()
@@ -82,8 +82,8 @@ impl ChainDigle {
         self.clusters.iter()
     }
 
-    /// Given a graph, decompose it into a `ChainDigle`.
-    pub fn from_graph<G: Graph<Node = NodeId>>(g: G) -> ChainDigle
+    /// Given a graph, decompose it into a `ChainGraggle`.
+    pub fn from_graph<G: Graph<Node = NodeId>>(g: G) -> ChainGraggle
     where
         G::Edge: graph::Edge<NodeId>,
     {
@@ -145,7 +145,7 @@ impl ChainDigle {
             .map(|part| part.iter().map(|id| node_part[id]).collect::<HashSet<_>>())
             .collect::<Vec<_>>();
 
-        ChainDigle {
+        ChainGraggle {
             chains,
             edges,
             clusters,
@@ -154,9 +154,9 @@ impl ChainDigle {
 }
 
 /// In this implementation of [`graph::Graph`], the nodes are (semantically) chains in the original
-/// digle. More precisely, they are `usize`s that you can use to get the chain with
-/// [`ChainDigle::chain`].
-impl Graph for ChainDigle {
+/// graggle. More precisely, they are `usize`s that you can use to get the chain with
+/// [`ChainGraggle::chain`].
+impl Graph for ChainGraggle {
     type Node = usize;
     type Edge = usize;
 
@@ -180,15 +180,15 @@ mod tests {
     use std::collections::HashSet;
 
     use super::*;
-    use crate::storage::digle::tests::arb_live_digle;
+    use crate::storage::graggle::tests::arb_live_graggle;
 
     #[test]
     fn diamond() {
-        let digle = digle!(
+        let graggle = graggle!(
             live: 0, 1, 2, 3
             edges: 0-1, 0-2, 1-3, 2-3
         );
-        let decomp = ChainDigle::from_graph(digle.as_digle().as_live_graph());
+        let decomp = ChainGraggle::from_graph(graggle.as_graggle().as_live_graph());
         assert_eq!(decomp.chains.len(), 4);
         for ch in &decomp.chains {
             assert_eq!(ch.len(), 1);
@@ -198,8 +198,8 @@ mod tests {
     proptest! {
         // Checks that the chains of the decomposition form a partition of the original node set.
         #[test]
-        fn partition(ref d in arb_live_digle(20)) {
-            let decomp = ChainDigle::from_graph(d.as_digle().as_live_graph());
+        fn partition(ref d in arb_live_graggle(20)) {
+            let decomp = ChainGraggle::from_graph(d.as_graggle().as_live_graph());
             let decomp_nodes = decomp.chains.iter().flat_map(|chain| chain.iter()).cloned().collect::<Vec<_>>();
             let decomp_node_set = decomp_nodes.iter().cloned().collect::<HashSet<_>>();
 
@@ -207,7 +207,7 @@ mod tests {
             assert_eq!(decomp_nodes.len(), decomp_node_set.len());
 
             // Check that we got all the nodes once.
-            assert_eq!(decomp_nodes.len(), d.as_digle().nodes().count());
+            assert_eq!(decomp_nodes.len(), d.as_graggle().nodes().count());
         }
     }
 }

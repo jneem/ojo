@@ -4,17 +4,17 @@ use multimap::MMap;
 use std::collections::{BTreeMap, HashMap};
 
 #[macro_use]
-pub mod digle;
+pub mod graggle;
 pub mod file;
 
-pub use self::digle::{Digle, FullGraph, LiveGraph};
 pub use self::file::File;
+pub use self::graggle::{FullGraph, Graggle, LiveGraph};
 
-use self::digle::DigleData;
+use self::graggle::GraggleData;
 
-/// A unique identifier for a [`Digle`] in this repository.
+/// A unique identifier for a [`Graggle`] in this repository.
 ///
-/// Since we currently only support a single Digle per branch, `INode`s are in one-to-one
+/// Since we currently only support a single Graggle per branch, `INode`s are in one-to-one
 /// correspondence with branches. However, branches may be renamed while `INode`s are immutable.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct INode {
@@ -39,7 +39,7 @@ pub(crate) struct Storage {
     branches: BTreeMap<String, INode>,
 
     // This is a map from inodes to the actual data contained in them.
-    digles: BTreeMap<INode, DigleData>,
+    graggles: BTreeMap<INode, GraggleData>,
 
     // These are all the patches that we know about, and have ever known about.
     //
@@ -66,7 +66,7 @@ impl Storage {
             next_inode: 0,
             contents: BTreeMap::new(),
             branches: BTreeMap::new(),
-            digles: BTreeMap::new(),
+            graggles: BTreeMap::new(),
             patches: HashMap::new(),
             branch_patches: MMap::new(),
             patch_deps: MMap::new(),
@@ -78,7 +78,7 @@ impl Storage {
         let ret = INode { n: self.next_inode };
         self.next_inode += 1;
 
-        self.digles.insert(ret, DigleData::new());
+        self.graggles.insert(ret, GraggleData::new());
         ret
     }
 
@@ -86,8 +86,8 @@ impl Storage {
         let ret = INode { n: self.next_inode };
         self.next_inode += 1;
 
-        let old_digle = &self.digles[&inode];
-        self.digles.insert(ret, old_digle.clone());
+        let old_graggle = &self.graggles[&inode];
+        self.graggles.insert(ret, old_graggle.clone());
         ret
     }
 
@@ -124,20 +124,20 @@ impl Storage {
     }
 
     pub fn update_cache(&mut self, inode: INode) {
-        let digle = self.digles.get_mut(&inode).unwrap();
-        digle.resolve_pseudo_edges();
+        let graggle = self.graggles.get_mut(&inode).unwrap();
+        graggle.resolve_pseudo_edges();
     }
 
-    pub fn digle(&'_ self, inode: INode) -> Digle<'_> {
-        self.digles[&inode].as_digle()
+    pub fn graggle(&'_ self, inode: INode) -> Graggle<'_> {
+        self.graggles[&inode].as_graggle()
     }
 
-    pub fn remove_digle(&mut self, inode: INode) {
-        self.digles.remove(&inode);
+    pub fn remove_graggle(&mut self, inode: INode) {
+        self.graggles.remove(&inode);
     }
 
-    pub fn set_digle(&mut self, inode: INode, digle: DigleData) {
-        self.digles.insert(inode, digle);
+    pub fn set_graggle(&mut self, inode: INode, graggle: GraggleData) {
+        self.graggles.insert(inode, graggle);
     }
 
     pub fn branches(&self) -> impl Iterator<Item = &str> {
@@ -145,25 +145,25 @@ impl Storage {
     }
 
     pub fn apply_changes(&mut self, inode: INode, changes: &Changes) {
-        let digle = self.digles.get_mut(&inode).unwrap();
+        let graggle = self.graggles.get_mut(&inode).unwrap();
         for ch in &changes.changes {
             match *ch {
                 Change::NewNode { ref id, .. } => {
                     debug!("adding node {:?}", id);
-                    digle.add_node(id.clone());
+                    graggle.add_node(id.clone());
                 }
                 Change::DeleteNode { ref id } => {
                     debug!("deleting node {:?}", id);
-                    digle.delete_node(&id);
+                    graggle.delete_node(&id);
                 }
                 Change::NewEdge { ref src, ref dest } => {
                     debug!("adding edge {:?} -- {:?}", src, dest);
-                    digle.add_edge(src.clone(), dest.clone());
+                    graggle.add_edge(src.clone(), dest.clone());
                 }
             }
         }
 
-        // Because we borrowed self.digles, the borrow checker isn't smart enough to allow this
+        // Because we borrowed self.graggles, the borrow checker isn't smart enough to allow this
         // into the previous loop.
         for ch in &changes.changes {
             if let Change::NewNode {
@@ -177,7 +177,7 @@ impl Storage {
     }
 
     pub fn unapply_changes(&mut self, inode: INode, changes: &Changes) {
-        let digle = self.digles.get_mut(&inode).unwrap();
+        let graggle = self.graggles.get_mut(&inode).unwrap();
 
         // Because of the requirements of `unadd_edge`, we need to unadd all edges before we unadd
         // all nodes.
@@ -185,11 +185,11 @@ impl Storage {
             match *ch {
                 Change::DeleteNode { ref id } => {
                     debug!("undeleting node {:?}", id);
-                    digle.undelete_node(id);
+                    graggle.undelete_node(id);
                 }
                 Change::NewEdge { ref src, ref dest } => {
                     debug!("unadding edge {:?} -- {:?}", src, dest);
-                    digle.unadd_edge(src, dest);
+                    graggle.unadd_edge(src, dest);
                 }
                 Change::NewNode { .. } => {}
             }
@@ -197,11 +197,11 @@ impl Storage {
         for ch in &changes.changes {
             if let Change::NewNode { ref id, .. } = *ch {
                 debug!("unadding node {:?}", id);
-                digle.unadd_node(id);
+                graggle.unadd_node(id);
             }
         }
 
-        // Because we borrowed self.digles, the borrow checker isn't smart enough to allow this
+        // Because we borrowed self.graggles, the borrow checker isn't smart enough to allow this
         // into the previous loop.
         for ch in &changes.changes {
             if let Change::NewNode { ref id, .. } = *ch {

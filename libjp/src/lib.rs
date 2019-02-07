@@ -30,16 +30,16 @@ use std::path::{Path, PathBuf};
 #[macro_use]
 mod storage;
 
-mod chain_digle;
+mod chain_graggle;
 mod error;
 mod patch;
 pub mod resolver;
 
-pub use crate::chain_digle::ChainDigle;
+pub use crate::chain_graggle::ChainGraggle;
 pub use crate::error::{Error, PatchIdError};
 pub use crate::patch::{Change, Changes, Patch, PatchId, UnidentifiedPatch};
-pub use crate::storage::digle::{Edge, EdgeKind};
-pub use crate::storage::{Digle, File, FullGraph, LiveGraph};
+pub use crate::storage::graggle::{Edge, EdgeKind};
+pub use crate::storage::{File, FullGraph, Graggle, LiveGraph};
 pub use diff::LineDiff;
 
 /// A globally unique ID for identifying a node.
@@ -170,9 +170,9 @@ impl Repo {
     pub fn clear(&mut self, branch: &str) -> Result<(), Error> {
         let inode = self.inode(branch)?;
         self.storage.branch_patches.remove_all(branch);
-        self.storage.remove_digle(inode);
+        self.storage.remove_graggle(inode);
         self.storage
-            .set_digle(inode, storage::digle::DigleData::new());
+            .set_graggle(inode, storage::graggle::GraggleData::new());
         Ok(())
     }
 
@@ -198,12 +198,12 @@ impl Repo {
     }
 
     /// Returns a read-only view to the data associated with a branch.
-    pub fn digle<'a>(&'a self, branch: &str) -> Result<storage::Digle<'a>, Error> {
+    pub fn graggle<'a>(&'a self, branch: &str) -> Result<storage::Graggle<'a>, Error> {
         let inode = self
             .storage
             .inode(branch)
             .ok_or_else(|| Error::UnknownBranch(branch.to_owned()))?;
-        Ok(self.storage.digle(inode))
+        Ok(self.storage.graggle(inode))
     }
 
     /// Retrieves the data associated with a branch, assuming that it represents a totally ordered
@@ -211,7 +211,7 @@ impl Repo {
     pub fn file(&self, branch: &str) -> Result<File, Error> {
         let inode = self.inode(branch)?;
         self.storage
-            .digle(inode)
+            .graggle(inode)
             .as_live_graph()
             .linear_order()
             .map(|ref order| File::from_ids(order, &self.storage))
@@ -495,7 +495,7 @@ impl Repo {
             .storage
             .inode(branch)
             .ok_or_else(|| Error::UnknownBranch(branch.to_owned()))?;
-        self.storage.remove_digle(inode);
+        self.storage.remove_graggle(inode);
         self.storage.remove_inode(branch);
         self.storage.branch_patches.remove_all(branch);
         Ok(())

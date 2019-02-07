@@ -10,14 +10,14 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[doc(hidden)]
 #[macro_export]
-macro_rules! digle {
+macro_rules! graggle {
     (
         $(live : $( $live:literal ),*)?
         $(deleted : $( $deleted:literal ),*)?
         $(edges : $( $src:literal - $dest:literal ),*)?
     ) => {
         {
-            let mut d = $crate::storage::digle::DigleData::new();
+            let mut d = $crate::storage::graggle::GraggleData::new();
             $($(
                 d.add_node(NodeId::cur($live));
             )*)*
@@ -74,12 +74,12 @@ macro_rules! assert_pseudoedges {
     }
 }
 
-trait DigleExt {
+trait GraggleExt {
     fn has_pseudoedge(&self, i: u64, j: u64) -> bool;
     fn pseudoedges(&self) -> HashSet<(u64, u64)>;
 }
 
-impl DigleExt for DigleData {
+impl GraggleExt for GraggleData {
     fn has_pseudoedge(&self, i: u64, j: u64) -> bool {
         let src = NodeId::cur(i);
         let edge = Edge {
@@ -100,7 +100,7 @@ impl DigleExt for DigleData {
 
 #[test]
 fn delete_middle() {
-    let mut d = digle!(
+    let mut d = graggle!(
         live: 0, 2
         deleted: 1
         edges: 0-1, 1-2
@@ -111,7 +111,7 @@ fn delete_middle() {
 // If there is already an edge, there shouldn't be a pseudoedge added.
 #[test]
 fn delete_middle_existing() {
-    let mut d = digle!(
+    let mut d = graggle!(
         live: 0, 2
         deleted: 1
         edges: 0-1, 1-2, 0-2
@@ -121,7 +121,7 @@ fn delete_middle_existing() {
 
 #[test]
 fn delete_long_middle() {
-    let mut d = digle!(
+    let mut d = graggle!(
         live: 0, 5
         deleted: 1, 2, 3, 4
         edges: 0-1, 1-2, 2-3, 3-4, 4-5
@@ -145,7 +145,7 @@ fn delete_long_middle() {
 // Adding a node next to a deleted node might cause a pseudo-edge.
 #[test]
 fn add_next_to_deleted() {
-    let mut d = digle!(
+    let mut d = graggle!(
         live: 0, 2
         deleted: 1
         edges: 0-1, 1-2
@@ -159,7 +159,7 @@ fn add_next_to_deleted() {
 // through the deleted part, so there should be no pseudo-edges.
 #[test]
 fn boundary_vs_interior() {
-    let mut d = digle!(
+    let mut d = graggle!(
         live: 0, 1, 2
         deleted: 3
         edges: 0-1, 1-2, 2-0, 0-3, 1-3, 2-3
@@ -170,7 +170,7 @@ fn boundary_vs_interior() {
 // Adding edges back from the deleted component means we get the pseudo-edges after all.
 #[test]
 fn boundary_vs_interior_connected() {
-    let mut d = digle!(
+    let mut d = graggle!(
         live: 0, 1, 2
         deleted: 3
         edges: 0-1, 1-2, 2-0, 0-3, 1-3, 2-3, 3-0, 3-1, 3-2
@@ -181,7 +181,7 @@ fn boundary_vs_interior_connected() {
 // There are two reasons for the pseudo-edge between 0 and 3.
 #[test]
 fn two_reasons() {
-    let mut d = digle!(
+    let mut d = graggle!(
         live: 0, 3
         deleted: 1, 2
         edges: 0-1, 1-3, 0-2, 2-3
@@ -196,7 +196,7 @@ fn two_reasons() {
     assert_pseudoedges!(d; );
 }
 
-// When generating digles, we could in principle put in as many as n^2 edges, but that's way
+// When generating graggles, we could in principle put in as many as n^2 edges, but that's way
 // too many to be realistic (a realistic value would be around 2). So we allow only up to
 // n*MAX_AVG_DEGREE.
 const MAX_AVG_DEGREE: usize = 5;
@@ -209,10 +209,10 @@ fn fake_patch_id(id: usize) -> PatchId {
     ret
 }
 
-// Make a digle like 0 -> 1 -> 2, and delete node 1.
+// Make a graggle like 0 -> 1 -> 2, and delete node 1.
 #[test]
 fn append_and_delete() {
-    let d = digle!(
+    let d = graggle!(
         live: 0, 1
         edges: 0-1
     );
@@ -229,14 +229,14 @@ fn append_and_delete() {
     assert_pseudoedges!(clone; 0-2);
 
     // Now run the exhaustive checks.
-    check_digle_and_changes(d, &[ch]);
+    check_graggle_and_changes(d, &[ch]);
 }
 
-fn check_digle_and_changes(d: DigleData, chs: &[Changes]) {
+fn check_graggle_and_changes(d: GraggleData, chs: &[Changes]) {
     let orig = d.clone();
 
     // Apply all the changes one-by-one. At each step, check that reversing the change
-    // produces the previous digle.
+    // produces the previous graggle.
     let mut cur = d.clone();
 
     for ch in chs {
@@ -316,7 +316,7 @@ fn two_changes() {
         patch: patch2,
         node: 0,
     };
-    let mut d = DigleData::new();
+    let mut d = GraggleData::new();
     d.add_node(node0);
 
     let changes1 = Changes {
@@ -354,10 +354,10 @@ fn two_changes() {
         ],
     };
 
-    check_digle_and_changes(d, &[changes1, changes2]);
+    check_graggle_and_changes(d, &[changes1, changes2]);
 }
 
-// Create a digle of three nodes by making the outer two first, and then adding the middle one.
+// Create a graggle of three nodes by making the outer two first, and then adding the middle one.
 #[test]
 fn add_middle() {
     let node00 = NodeId::cur(0);
@@ -367,7 +367,7 @@ fn add_middle() {
         patch: patch1,
         node: 0,
     };
-    let mut d = DigleData::new();
+    let mut d = GraggleData::new();
     d.add_node(node00);
     d.add_node(node01);
 
@@ -392,13 +392,13 @@ fn add_middle() {
         changes: vec![Change::DeleteNode { id: node1 }],
     };
 
-    check_digle_and_changes(d, &[changes1, changes2]);
+    check_graggle_and_changes(d, &[changes1, changes2]);
 }
 
 // This exercises the code for rebuilding the deleted partition.
 #[test]
 fn reconstruct_partition() {
-    let d = digle!(
+    let d = graggle!(
         live: 0, 1, 2
         edges: 0-1
     );
@@ -407,14 +407,14 @@ fn reconstruct_partition() {
         nodes: 10, 11
         edges: 11-0, 10-2, 0-10, 2-11
     };
-    check_digle_and_changes(d, &[ch]);
+    check_graggle_and_changes(d, &[ch]);
 }
 
 // Checks that when we delete a pseudo-edge reason, we don't delete the pseudo-edge as long as
 // there is another reason.
 #[test]
 fn double_reason() {
-    let d = digle!(
+    let d = graggle!(
         live: 0, 1, 2, 3
         edges: 0-1, 1-0, 2-0, 3-0, 3-1
     );
@@ -427,14 +427,14 @@ fn double_reason() {
         delete: 11
     );
 
-    check_digle_and_changes(d, &[ch1, ch2]);
+    check_graggle_and_changes(d, &[ch1, ch2]);
 }
 
 // This was generated by proptest. It has lots of edges, so there are lots of opportunities to
 // hit an edge-case in pseudo-edge generation.
 #[test]
 fn lots_of_edges() {
-    let d = digle!(live: 0, 1, 2, 3);
+    let d = graggle!(live: 0, 1, 2, 3);
     let ch1 = changes!(
         delete: 0, 1, 3
         nodes: 10, 11, 12, 13
@@ -445,25 +445,25 @@ fn lots_of_edges() {
         delete: 10
     );
 
-    check_digle_and_changes(d, &[ch1, ch2]);
+    check_graggle_and_changes(d, &[ch1, ch2]);
 }
 
 #[test]
 fn delete_and_undelete() {
-    let d = digle!(live: 0);
+    let d = graggle!(live: 0);
     let ch = changes!(delete: 0);
-    check_digle_and_changes(d, &[ch]);
+    check_graggle_and_changes(d, &[ch]);
 }
 
 prop_compose! {
-    // Creates an arbitrary digle with no deleted nodes.
-    [pub(crate)] fn arb_live_digle(max_nodes: usize)
+    // Creates an arbitrary graggle with no deleted nodes.
+    [pub(crate)] fn arb_live_graggle(max_nodes: usize)
                      (num_nodes in 1..max_nodes)
                      (edges in hash_set((0..num_nodes, 0..num_nodes), 0..(num_nodes * MAX_AVG_DEGREE)),
                       num_nodes in Just(num_nodes))
-                     -> DigleData
+                     -> GraggleData
     {
-        let mut ret = DigleData::new();
+        let mut ret = GraggleData::new();
         for i in 0..num_nodes {
             ret.nodes.insert(NodeId::cur(i as u64));
         }
@@ -480,14 +480,14 @@ prop_compose! {
 }
 
 // When we create different `Changes`, we need to give each one a unique PatchId. We achieve
-// this by simply incrementing a counter. We start from 1, because by default the digles that
+// this by simply incrementing a counter. We start from 1, because by default the graggles that
 // we create use the id 0.
 static CUR_ID: AtomicUsize = AtomicUsize::new(1);
 
-// Create arbitrary patches on top of digles. Basically, an arbitrary patch consists of an
+// Create arbitrary patches on top of graggles. Basically, an arbitrary patch consists of an
 // arbitrary subset of nodes to delete, and an arbitrary set of nodes to add, with arbitrary
 // edges between the new nodes, and also between the new nodes and the old ones.
-fn arb_changes<'a>(digle: &'a DigleData, size: usize) -> BoxedStrategy<Changes> {
+fn arb_changes<'a>(graggle: &'a GraggleData, size: usize) -> BoxedStrategy<Changes> {
     fn make_changes(
         old_ids: Vec<NodeId>,
         nodes_to_delete: Vec<NodeId>,
@@ -535,7 +535,7 @@ fn arb_changes<'a>(digle: &'a DigleData, size: usize) -> BoxedStrategy<Changes> 
         Changes { changes }
     }
 
-    let old_ids = digle.nodes.iter().cloned().collect::<Vec<_>>();
+    let old_ids = graggle.nodes.iter().cloned().collect::<Vec<_>>();
     let num_to_add = 1..size;
 
     // Strategy returning a tuple
@@ -555,13 +555,13 @@ fn arb_changes<'a>(digle: &'a DigleData, size: usize) -> BoxedStrategy<Changes> 
         .boxed()
 }
 
-// Creates an arbitrary digle and a change that can be applied to it.
-fn arb_digle_and_change(
+// Creates an arbitrary graggle and a change that can be applied to it.
+fn arb_graggle_and_change(
     initial_size: usize,
     change_size: usize,
-) -> BoxedStrategy<(DigleData, Changes)> {
-    let digle = arb_live_digle(initial_size);
-    digle
+) -> BoxedStrategy<(GraggleData, Changes)> {
+    let graggle = arb_live_graggle(initial_size);
+    graggle
         .prop_flat_map(move |d| {
             let ch = arb_changes(&d, change_size);
             (Just(d), ch)
@@ -571,40 +571,40 @@ fn arb_digle_and_change(
 
 proptest! {
     #[test]
-    fn live_digles_consistent(ref d in arb_live_digle(20)) {
+    fn live_graggles_consistent(ref d in arb_live_graggle(20)) {
         d.assert_consistent();
     }
 }
 
 // These two functions are basically copy&paste from `Storage`. TODO: consider refactoring
-fn apply_changes(digle: &mut DigleData, changes: &Changes) {
+fn apply_changes(graggle: &mut GraggleData, changes: &Changes) {
     for ch in &changes.changes {
         match *ch {
-            Change::NewNode { ref id, .. } => digle.add_node(id.clone()),
-            Change::DeleteNode { ref id } => digle.delete_node(&id),
-            Change::NewEdge { ref src, ref dest } => digle.add_edge(src.clone(), dest.clone()),
+            Change::NewNode { ref id, .. } => graggle.add_node(id.clone()),
+            Change::DeleteNode { ref id } => graggle.delete_node(&id),
+            Change::NewEdge { ref src, ref dest } => graggle.add_edge(src.clone(), dest.clone()),
         }
     }
 }
 
-fn unapply_changes(digle: &mut DigleData, changes: &Changes) {
+fn unapply_changes(graggle: &mut GraggleData, changes: &Changes) {
     for ch in &changes.changes {
         match *ch {
-            Change::DeleteNode { ref id } => digle.undelete_node(id),
-            Change::NewEdge { ref src, ref dest } => digle.unadd_edge(src, dest),
+            Change::DeleteNode { ref id } => graggle.undelete_node(id),
+            Change::NewEdge { ref src, ref dest } => graggle.unadd_edge(src, dest),
             Change::NewNode { .. } => {}
         }
     }
     for ch in &changes.changes {
         if let Change::NewNode { ref id, .. } = *ch {
-            digle.unadd_node(id);
+            graggle.unadd_node(id);
         }
     }
 }
 
 proptest! {
     #[test]
-    fn digle_then_change((ref d, ref ch) in arb_digle_and_change(20, 10)) {
+    fn graggle_then_change((ref d, ref ch) in arb_graggle_and_change(20, 10)) {
         let mut d = d.clone();
         d.assert_consistent();
 
@@ -622,20 +622,20 @@ proptest! {
     }
 }
 
-// Creates an arbitrary digle and a sequence of changes, which can be applied to the digle
+// Creates an arbitrary graggle and a sequence of changes, which can be applied to the graggle
 // one-by-one.
-fn arb_digle_and_change_seq(
+fn arb_graggle_and_change_seq(
     initial_size: usize,
     change_size: usize,
     num_changes: usize,
-) -> BoxedStrategy<(DigleData, Vec<Changes>)> {
+) -> BoxedStrategy<(GraggleData, Vec<Changes>)> {
     fn recurse(
-        orig: DigleData,
+        orig: GraggleData,
         change_size: usize,
         num_changes: usize,
-        cur: DigleData,
+        cur: GraggleData,
         changes: Vec<Changes>,
-    ) -> BoxedStrategy<(DigleData, Vec<Changes>)> {
+    ) -> BoxedStrategy<(GraggleData, Vec<Changes>)> {
         if num_changes == 0 {
             Just((orig, changes)).boxed()
         } else {
@@ -649,9 +649,9 @@ fn arb_digle_and_change_seq(
                 .boxed()
         }
     }
-    let digle = arb_live_digle(initial_size);
+    let graggle = arb_live_graggle(initial_size);
     let num_changes = 1..(num_changes + 1);
-    (digle, num_changes)
+    (graggle, num_changes)
         .prop_flat_map(move |(d, n)| recurse(d.clone(), change_size, n, d, vec![]))
         .boxed()
 }
@@ -664,9 +664,9 @@ proptest! {
     })]
 
     #[test]
-    fn digle_and_change_seq((ref d, ref chs) in arb_digle_and_change_seq(10, 5, 3)) {
+    fn graggle_and_change_seq((ref d, ref chs) in arb_graggle_and_change_seq(10, 5, 3)) {
         // Apply all the changes one-by-one. At each step, check that reversing the change
-        // produces the previous digle.
+        // produces the previous graggle.
         let mut cur = d.clone();
         for ch in chs {
             let mut next = cur.clone();

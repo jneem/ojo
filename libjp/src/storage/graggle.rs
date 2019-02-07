@@ -11,7 +11,7 @@ use crate::NodeId;
 pub enum EdgeKind {
     /// This edge points to a live node.
     Live,
-    /// This edge was not present in the original digle. It was added as an optimization, to skip
+    /// This edge was not present in the original graggle. It was added as an optimization, to skip
     /// over deleted nodes. (TODO: reference some more detailed docs on pseudo-edges)
     Pseudo,
     // The order here is important: by putting deleted edges last, we can efficiently ignore them:
@@ -31,10 +31,10 @@ impl EdgeKind {
     }
 }
 
-/// This struct represents a directed edge in a digle graph.
+/// This struct represents a directed edge in a graggle graph.
 ///
 /// Note that we don't actually store the source node, only the destination. However, the main way
-/// of getting access to an `Edge` is via the `Digle::out_edges` or `Digle::in_edges` functions, so
+/// of getting access to an `Edge` is via the `Graggle::out_edges` or `Graggle::in_edges` functions, so
 /// usually you will only encounter an `Edge` if you already know what the source node is.
 ///
 /// Note that edges are ordered, and that live edges will always come before deleted edges. This
@@ -60,8 +60,8 @@ impl graph::Edge<NodeId> for Edge {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
-#[serde(rename = "Digle")]
-pub(crate) struct DigleData {
+#[serde(rename = "Graggle")]
+pub(crate) struct GraggleData {
     nodes: Set<NodeId>,
     deleted_nodes: Set<NodeId>,
     edges: MMap<NodeId, Edge>,
@@ -80,10 +80,10 @@ pub(crate) struct DigleData {
     dirty_reps: Set<NodeId>,
 }
 
-// Two Digles compare as equal if they have the same nodes and edges (including pseudo-edges). We
+// Two Graggles compare as equal if they have the same nodes and edges (including pseudo-edges). We
 // don't check the rest of the fields, as they are only there for optimization.
-impl PartialEq<DigleData> for DigleData {
-    fn eq(&self, other: &DigleData) -> bool {
+impl PartialEq<GraggleData> for GraggleData {
+    fn eq(&self, other: &GraggleData) -> bool {
         self.nodes.eq(&other.nodes)
             && self.deleted_nodes.eq(&other.deleted_nodes)
             && self.edges.eq(&other.edges)
@@ -91,13 +91,13 @@ impl PartialEq<DigleData> for DigleData {
     }
 }
 
-impl DigleData {
-    pub fn new() -> DigleData {
+impl GraggleData {
+    pub fn new() -> GraggleData {
         Default::default()
     }
 
-    pub fn as_digle(&'_ self) -> Digle<'_> {
-        Digle { data: self }
+    pub fn as_graggle(&'_ self) -> Graggle<'_> {
+        Graggle { data: self }
     }
 
     pub fn all_out_edges<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b Edge> + 'b {
@@ -373,11 +373,11 @@ impl DigleData {
         std::mem::swap(&mut dirty_reps, &mut self.dirty_reps);
 
         // Each partition represented by a dirty rep needs to be rechecked, because it's possible
-        // that it actually encompasses multiple connected components in the new digle.
-        let digle = self.as_digle();
-        let graph = digle.as_full_graph();
+        // that it actually encompasses multiple connected components in the new graggle.
+        let graggle = self.as_graggle();
+        let graph = graggle.as_full_graph();
         let sub_graph = graph.node_filtered(|u| {
-            !digle.is_live(u) && dirty_reps.contains(&self.deleted_partition.representative(*u))
+            !graggle.is_live(u) && dirty_reps.contains(&self.deleted_partition.representative(*u))
         });
         let components = sub_graph.weak_components().into_parts();
 
@@ -406,7 +406,7 @@ impl DigleData {
 
     /// # Panics
     ///
-    /// Panics unless `from` and `to` are nodes in this digle. In particular, if you're planning to
+    /// Panics unless `from` and `to` are nodes in this graggle. In particular, if you're planning to
     /// remove some nodes and the edge between them, you need to remove the edge first.
     pub fn unadd_edge(&mut self, from: &NodeId, to: &NodeId) {
         let from_deleted = self.deleted_nodes.contains(&from);
@@ -437,8 +437,8 @@ impl DigleData {
     //
     // `component` must be a non-empty connected component of the deleted nodes.
     fn add_component_pseudo_edges(&mut self, component: &HashSet<NodeId>) {
-        let digle = self.as_digle();
-        let graph = digle.as_full_graph();
+        let graggle = self.as_graggle();
+        let graph = graggle.as_full_graph();
         let mut neighborhood = graph.neighbor_set(component.iter());
         neighborhood.extend(component.iter().cloned());
 
@@ -452,7 +452,7 @@ impl DigleData {
         // component of deleted nodes. We will compute the complete connectivity relation that
         // the deleted nodes induce on these boundary nodes, and then we will add a pseudo-edge
         // for each connected pair.
-        let boundary = neighborhood.iter().filter(|u| digle.is_live(u));
+        let boundary = neighborhood.iter().filter(|u| graggle.is_live(u));
 
         let mut pairs = Vec::new();
         for u in boundary {
@@ -463,7 +463,7 @@ impl DigleData {
                 if let graph::dfs::Visit::Edge { dst, status, .. } = visit {
                     // Only take into account the first visit to a node. Besides being more
                     // efficient, this means we'll avoid adding self-loops.
-                    if status == graph::dfs::Status::New && digle.is_live(&dst) {
+                    if status == graph::dfs::Status::New && graggle.is_live(&dst) {
                         pairs.push((*u, dst));
                     }
                 }
@@ -511,7 +511,7 @@ impl DigleData {
         // other pseudo-edges, and only going through deleted intermediate edges. This latter
         // property can be enforced by only traversing edges that either go from u to a deleted
         // node or else start at a deleted node.
-        let graph = self.as_digle().as_full_graph();
+        let graph = self.as_graggle().as_full_graph();
         let u_graph = graph.edge_filtered(|src, edge| {
             edge.kind != EdgeKind::Pseudo
                 && ((src == u && !self.is_live(&edge.dest)) || !self.is_live(src))
@@ -626,28 +626,28 @@ impl DigleData {
     }
 }
 
-// This wrapping is a bit annoying. It would be simpler just to rename `DigleData` to `Digle` and
-// then pass around `&Digle`s. The thing is that we want to implement `Graph` for `&Digle`, and I
+// This wrapping is a bit annoying. It would be simpler just to rename `GraggleData` to `Graggle` and
+// then pass around `&Graggle`s. The thing is that we want to implement `Graph` for `&Graggle`, and I
 // had some problems with that for some reason (can no longer remember why...). Certainly, the lack
-// of ATCs/GATs means we can't implement `Graph` for `Digle`.
-/// A digle is like a file, except that its lines are not necessarily in a linear order (rather,
+// of ATCs/GATs means we can't implement `Graph` for `Graggle`.
+/// A graggle is like a file, except that its lines are not necessarily in a linear order (rather,
 /// they form a directed graph).
 ///
-/// This is a read-only view into a digle. It implements [`Graph`](graph::Graph), so you may
+/// This is a read-only view into a graggle. It implements [`Graph`](graph::Graph), so you may
 /// apply graph-based algorithms on it.
 ///
-/// Note that lines in a digle may be either live or deleted (nodes that are ``deleted'' are not
-/// actually removed, but they are simply marked as being deleted). Some of the methods on `Digle`
+/// Note that lines in a graggle may be either live or deleted (nodes that are ``deleted'' are not
+/// actually removed, but they are simply marked as being deleted). Some of the methods on `Graggle`
 /// ignore the deleted lines, while others expose them.
 //
 // TODO: should explain back-edges and pseudo-edges here
 #[derive(Clone, Copy, Debug)]
-pub struct Digle<'a> {
-    data: &'a DigleData,
+pub struct Graggle<'a> {
+    data: &'a GraggleData,
 }
 
-impl<'a> Digle<'a> {
-    /// Returns an iterator over all live nodes of this digle.
+impl<'a> Graggle<'a> {
+    /// Returns an iterator over all live nodes of this graggle.
     pub fn nodes(self) -> impl Iterator<Item = NodeId> + 'a {
         self.data.nodes.iter().cloned()
     }
@@ -686,7 +686,7 @@ impl<'a> Digle<'a> {
         self.data.back_edges.get(node)
     }
 
-    /// Returns `true` if `node` belongs to this digle (whether it is live or deleted).
+    /// Returns `true` if `node` belongs to this graggle (whether it is live or deleted).
     pub fn has_node(self, node: &NodeId) -> bool {
         self.data.nodes.contains(node) || self.data.deleted_nodes.contains(node)
     }
@@ -695,36 +695,36 @@ impl<'a> Digle<'a> {
     ///
     /// # Panics
     ///
-    /// Panics unless `node` belongs to this digle.
+    /// Panics unless `node` belongs to this graggle.
     pub fn is_live(self, node: &NodeId) -> bool {
         assert!(self.has_node(node));
         self.data.nodes.contains(node)
     }
 
     /// Wraps `self` in [`LiveGraph`], which implements [`graph::Graph`] over the live nodes of
-    /// this digle.
+    /// this graggle.
     pub fn as_live_graph(self) -> LiveGraph<'a> {
         LiveGraph(self)
     }
 
     /// Wraps `self` in [`FullGraph`], which implements [`graph::Graph`] over all (live and
-    /// deleted) nodes of this digle.
+    /// deleted) nodes of this graggle.
     pub fn as_full_graph(self) -> FullGraph<'a> {
         FullGraph(self)
     }
 }
 
-impl<'a> From<&'a DigleData> for Digle<'a> {
-    fn from(d: &'a DigleData) -> Digle<'a> {
-        Digle { data: d }
+impl<'a> From<&'a GraggleData> for Graggle<'a> {
+    fn from(d: &'a GraggleData) -> Graggle<'a> {
+        Graggle { data: d }
     }
 }
 
-/// A wrapper around [`Digle`] implementing the [`graph::Graph`] trait.
+/// A wrapper around [`Graggle`] implementing the [`graph::Graph`] trait.
 ///
-/// This represents only the part of the digle containing live nodes. To examine the entire digle
+/// This represents only the part of the graggle containing live nodes. To examine the entire graggle
 /// (i.e. including deleted nodes), use [`FullGraph`].
-pub struct LiveGraph<'a>(Digle<'a>);
+pub struct LiveGraph<'a>(Graggle<'a>);
 
 impl<'a> graph::Graph for LiveGraph<'a> {
     type Node = NodeId;
@@ -743,11 +743,11 @@ impl<'a> graph::Graph for LiveGraph<'a> {
     }
 }
 
-/// A wrapper around [`Digle`] implementing the [`graph::Graph`] trait.
+/// A wrapper around [`Graggle`] implementing the [`graph::Graph`] trait.
 ///
-/// This represents only the entire digle, even the nodes that are deleted.  To examine only the
-/// live parts of the digle, use [`LiveGraph`].
-pub struct FullGraph<'a>(Digle<'a>);
+/// This represents only the entire graggle, even the nodes that are deleted.  To examine only the
+/// live parts of the graggle, use [`LiveGraph`].
+pub struct FullGraph<'a>(Graggle<'a>);
 
 impl<'a> graph::Graph for FullGraph<'a> {
     type Node = NodeId;

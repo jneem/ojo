@@ -1,7 +1,7 @@
 use clap::ArgMatches;
 use failure::Error;
 use libjp::resolver::{CandidateChain, CycleResolver, OrderResolver};
-use libjp::{Changes, Digle, NodeId, Repo};
+use libjp::{Changes, Graggle, NodeId, Repo};
 use std::io::Write;
 use termion::event::Key;
 use termion::input::TermRead;
@@ -15,7 +15,7 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
 
     let mut repo = super::open_repo()?;
     let branch = super::branch(&repo, m);
-    let digle = repo.digle(&branch)?;
+    let graggle = repo.graggle(&branch)?;
 
     let changes = {
         // Here we use the alternate screen, so nothing we print in this scope will be visible
@@ -26,7 +26,7 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
 
         // TODO: check if the terminal is big enough.
         write!(std::io::stdout(), "{}", cursor::Hide)?;
-        let cycle = CycleResolverState::new(&repo, screen, stdin.keys(), digle)?;
+        let cycle = CycleResolverState::new(&repo, screen, stdin.keys(), graggle)?;
         if let Some(order) = cycle.run()? {
             order.run()?
         } else {
@@ -71,7 +71,7 @@ impl<'a> CycleResolverState<'a> {
         repo: &'a Repo,
         screen: Screen,
         input: Input,
-        digle: Digle<'a>,
+        graggle: Graggle<'a>,
     ) -> Result<CycleResolverState<'a>, Error> {
         let (width, _) = termion::terminal_size()?;
 
@@ -79,7 +79,7 @@ impl<'a> CycleResolverState<'a> {
             repo,
             screen,
             input,
-            resolver: CycleResolver::new(digle),
+            resolver: CycleResolver::new(graggle),
             width,
         })
     }

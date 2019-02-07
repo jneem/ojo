@@ -1,7 +1,7 @@
 use crate::storage::Storage;
 use crate::NodeId;
 
-/// A `File` is a special case of a [`Digle`](crate::Digle), in which there is just a linear order.
+/// A `File` is a special case of a [`Graggle`](crate::Graggle), in which there is just a linear order.
 ///
 /// This struct offers convenient (read-only) access to a `File`, allowing the contents and ids of
 /// nodes to be access by indexing.

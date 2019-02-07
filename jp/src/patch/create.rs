@@ -30,7 +30,7 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
         // There was an error rendering the target branch to a file. In order to print an
         // informative message, we need to check whether the reason for failure was that the branch
         // doesn't exist, or whether the branch didn't have a linear order.
-        if repo.digle(&branch).is_ok() {
+        if repo.graggle(&branch).is_ok() {
             bail!("Couldn't create a patch, because you need to resolve a conflict first.");
         } else {
             bail!("Couldn't open branch \"{}\"", branch);

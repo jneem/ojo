@@ -1,7 +1,7 @@
 //! This module implements some tools that can be used to create interactive tools for resolving
-//! non-linearly-ordered digles into linearly-ordered files.
+//! non-linearly-ordered graggles into linearly-ordered files.
 //!
-//! There are essentially two reasons that a digle can fail to be linearly ordered: it can have
+//! There are essentially two reasons that a graggle can fail to be linearly ordered: it can have
 //! cycles (i.e. too many edges) or it can have nodes with no prescribed edge between them (i.e.
 //! too few edges). The tools here implement a two-stage process: first, we deal with any cycles
 //! using [`CycleResolver`](crate::resolver::CycleResolver); then, we add any necessary edges using
@@ -10,17 +10,17 @@
 use graph::Graph;
 use std::collections::{HashMap, HashSet};
 
-use crate::{Change, Changes, Digle, LiveGraph, NodeId};
+use crate::{Change, Changes, Graggle, LiveGraph, NodeId};
 
 // TODO: implement undo
 
-/// A utility for interactively removing cycles from a digle.
+/// A utility for interactively removing cycles from a graggle.
 ///
-/// Since you can never actually delete edges from a digle, cycles are resolved by deleting nodes.
-/// Specifically, we divide a digle into its strongly connected components. From each strongly
+/// Since you can never actually delete edges from a graggle, cycles are resolved by deleting nodes.
+/// Specifically, we divide a graggle into its strongly connected components. From each strongly
 /// connected component, you must select exactly one node to survive.
 pub struct CycleResolver<'a> {
-    digle: Digle<'a>,
+    graggle: Graggle<'a>,
     sccs: graph::Partition<LiveGraph<'a>>,
 
     // The indices of all SCCs that have more than one element. This will gradually shrink as we
@@ -33,9 +33,9 @@ pub struct CycleResolver<'a> {
 }
 
 impl<'a> CycleResolver<'a> {
-    /// Creates a new resolver for eliminating cycles in the given digle.
-    pub fn new(digle: Digle<'a>) -> CycleResolver<'a> {
-        let sccs = digle.as_live_graph().tarjan();
+    /// Creates a new resolver for eliminating cycles in the given graggle.
+    pub fn new(graggle: Graggle<'a>) -> CycleResolver<'a> {
+        let sccs = graggle.as_live_graph().tarjan();
         let large_sccs = sccs
             .parts()
             .enumerate()
@@ -44,7 +44,7 @@ impl<'a> CycleResolver<'a> {
             .collect::<Vec<_>>();
 
         CycleResolver {
-            digle,
+            graggle,
             sccs,
             large_sccs,
             scc_reps: HashMap::new(),
@@ -110,7 +110,7 @@ impl<'a> CycleResolver<'a> {
             .collect::<Vec<_>>();
 
         OrderResolver {
-            digle: self.digle,
+            graggle: self.graggle,
             ordered: vec![],
             seen: HashSet::new(),
             sccs: self.sccs,
@@ -128,7 +128,7 @@ impl<'a> CycleResolver<'a> {
 /// that naturally (but don't necessarily) come after it. This candidate, plus the sequence of
 /// nodes that follow it, make up a `CandidateChain`.
 ///
-/// For example, suppose we have a digle like this:
+/// For example, suppose we have a graggle like this:
 ///
 /// ```text
 ///    -> B -> C -> D
@@ -141,7 +141,7 @@ impl<'a> CycleResolver<'a> {
 /// If `A` has already been chosen then `B` would be the head of a candidate chain containing `B`,
 /// `C`, and `D`.
 pub struct CandidateChain<'a> {
-    digle: Digle<'a>,
+    graggle: Graggle<'a>,
     id: NodeId,
 }
 
@@ -153,19 +153,19 @@ impl<'a> CandidateChain<'a> {
 
     /// Returns an iterator over all elements of this chain (including the first).
     pub fn iter(&self) -> impl Iterator<Item = NodeId> + 'a {
-        ChainIter::new(self.digle, self.id)
+        ChainIter::new(self.graggle, self.id)
     }
 }
 
-/// A utility for interactively imposing a linear order on a digle with no cycles.
+/// A utility for interactively imposing a linear order on a graggle with no cycles.
 ///
 /// You will usually create this struct using [`CycleResolver::into_order_resolver`],
 /// which will ensure that there are no cycles remaining.
 pub struct OrderResolver<'a> {
-    digle: Digle<'a>,
+    graggle: Graggle<'a>,
     ordered: Vec<NodeId>,
 
-    // The partition of the digle's nodes into strongly connected components. All of the remaining
+    // The partition of the graggle's nodes into strongly connected components. All of the remaining
     // fields refer to indices of components in this partition.
     sccs: graph::Partition<LiveGraph<'a>>,
     // Since OrderResolver comes after CycleResolver, we have already chosen exactly one
@@ -189,7 +189,7 @@ impl<'a> OrderResolver<'a> {
     /// the output.
     pub fn candidates<'b>(&'b self) -> impl Iterator<Item = CandidateChain<'a>> + 'b {
         self.candidates.iter().map(move |u| CandidateChain {
-            digle: self.digle,
+            graggle: self.graggle,
             id: self.scc_reps[*u],
         })
     }
@@ -252,20 +252,20 @@ impl<'a> OrderResolver<'a> {
     // TODO:
     // pub fn insert(&mut self, ...)
 
-    /// Returns true if the entire digle has already been put in order.
+    /// Returns true if the entire graggle has already been put in order.
     pub fn is_finished(&self) -> bool {
         self.candidates.is_empty()
     }
 
-    /// Assuming that the entire digle has already been put in order, returns a [`Changes`] that,
-    /// when applied to the digle, will turn it from the original digle into the linear order that
+    /// Assuming that the entire graggle has already been put in order, returns a [`Changes`] that,
+    /// when applied to the graggle, will turn it from the original graggle into the linear order that
     /// we have just created (and which can be retrieved by [`OrderResolver::ordered_nodes`]).
     pub fn changes(&self) -> Changes {
         let mut changes = vec![];
 
         // All nodes that didn't make it to the final output should be marked as deleted.
         let not_deleted = self.ordered.iter().cloned().collect::<HashSet<_>>();
-        for u in self.digle.nodes() {
+        for u in self.graggle.nodes() {
             if !not_deleted.contains(&u) {
                 changes.push(Change::DeleteNode { id: u });
             }
@@ -275,7 +275,7 @@ impl<'a> OrderResolver<'a> {
         for i in 1..self.ordered.len() {
             let u = self.ordered[i - 1];
             let v = self.ordered[i];
-            if !self.digle.out_neighbors(&u).any(|w| *w == v) {
+            if !self.graggle.out_neighbors(&u).any(|w| *w == v) {
                 changes.push(Change::NewEdge { src: u, dest: v });
             }
         }
@@ -288,14 +288,14 @@ impl<'a> OrderResolver<'a> {
 
 struct ChainIter<'a> {
     next: Option<NodeId>,
-    digle: Digle<'a>,
+    graggle: Graggle<'a>,
 }
 
 impl<'a> ChainIter<'a> {
-    fn new(digle: Digle<'a>, u: NodeId) -> ChainIter<'a> {
+    fn new(graggle: Graggle<'a>, u: NodeId) -> ChainIter<'a> {
         ChainIter {
             next: Some(u),
-            digle,
+            graggle,
         }
     }
 }
@@ -309,9 +309,9 @@ impl<'a> Iterator for ChainIter<'a> {
         if let Some(cur) = self.next {
             self.next = None;
 
-            let mut neighbors = self.digle.out_neighbors(&cur);
+            let mut neighbors = self.graggle.out_neighbors(&cur);
             if let Some(next) = neighbors.next() {
-                let mut next_in = self.digle.in_neighbors(&next);
+                let mut next_in = self.graggle.in_neighbors(&next);
 
                 // We want to continue iterating if and only if cur has exactly one out-neighbor and
                 // that out-neighbor has exactly one in-neighbor.
@@ -335,12 +335,13 @@ mod tests {
 
     #[test]
     fn chain_iter() {
-        let digle = digle!(
+        let graggle = graggle!(
             live: 0, 1, 2, 3, 4, 5
             edges: 0-1, 1-2, 2-3, 3-4, 4-5, 0-5, 2-5
         );
         let check = |init: u64, expected: Vec<u64>| {
-            let actual = ChainIter::new(digle.as_digle(), NodeId::cur(init)).collect::<Vec<_>>();
+            let actual =
+                ChainIter::new(graggle.as_graggle(), NodeId::cur(init)).collect::<Vec<_>>();
             let expected = expected
                 .into_iter()
                 .map(|x| NodeId::cur(x))
@@ -357,11 +358,11 @@ mod tests {
 
     #[test]
     fn resolver_diamond() {
-        let digle = digle!(
+        let graggle = graggle!(
             live: 0, 1, 2, 3
             edges: 0-1, 0-2, 1-3, 2-3
         );
-        let mut res = CycleResolver::new(digle.as_digle()).into_order_resolver();
+        let mut res = CycleResolver::new(graggle.as_graggle()).into_order_resolver();
 
         println!("{:?}", res.candidates);
         assert_eq!(res.candidates().count(), 1);

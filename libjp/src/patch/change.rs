@@ -93,7 +93,7 @@ impl Changes {
 /// A single change.
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum Change {
-    /// A change which adds a new node to the digle, with an ID that must be unique, and with the
+    /// A change which adds a new node to the graggle, with an ID that must be unique, and with the
     /// given contents.
     NewNode {
         /// The ID of the new node.
@@ -108,7 +108,7 @@ pub enum Change {
         id: NodeId,
     },
     /// Adds a new edge (i.e. a new ordering relation) between two nodes. Those nodes must either
-    /// already exist in the digle at the time this change is applied. (If this `Change` is part of
+    /// already exist in the graggle at the time this change is applied. (If this `Change` is part of
     /// a `Changes` that adds some nodes and also an edge between them, then that's ok too.)
     NewEdge {
         /// The source of the new edge (i.e. the one that comes first in the ordering).
