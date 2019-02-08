@@ -1,7 +1,7 @@
 use clap::ArgMatches;
 use colored::*;
 use diff::LineDiff;
-use failure::Error;
+use failure::{Error, Fail};
 use libjp::Repo;
 use std::fmt;
 
@@ -31,9 +31,20 @@ impl fmt::Display for DiffDisplay {
 pub fn diff(repo: &Repo, branch: &str, file_name: &str) -> Result<libjp::Diff, Error> {
     let mut path = repo.root_dir.clone();
     path.push(file_name);
-    let fs_file_contents = std::fs::read(&path)?;
+    let fs_file_contents = std::fs::read(&path)
+        .map_err(|e| e.context(format!("Could not read the file {}", file_name)))?;
 
-    Ok(repo.diff(branch, &fs_file_contents[..])?)
+    let ret = repo.diff(branch, &fs_file_contents[..]).map_err(|e| {
+        if let libjp::Error::NotOrdered = e {
+            e.context(format!(
+                "Cannot create a diff because the repo's contents aren't ordered"
+            ))
+            .into()
+        } else {
+            Error::from(e)
+        }
+    });
+    Ok(ret?)
 }
 
 pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {

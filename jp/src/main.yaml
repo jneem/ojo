@@ -42,15 +42,18 @@ subcommands:
         args:
             - branch:
                 help: branch to clear
+                long: branch
                 takes_value: true
     - diff:
         about: Shows changes between commits
         args:
             - branch:
                 help: the branch to diff against
+                long: branch
                 takes_value: true
             - path:
                 help: path to the file (defaults to 'jp_file.txt')
+                long: path
                 takes_value: true
     - graph:
         about: Creates a .dot file for visualizing the stored file
@@ -67,6 +70,7 @@ subcommands:
         args:
             - branch:
                 help: branch whose patches we want to print (defaults to the current branch)
+                long: branch
                 takes_value: true
     - patch:
         about: Various commands related to patches
@@ -80,6 +84,7 @@ subcommands:
                         takes_value: true
                     - branch:
                         help: branch to apply the patch to (defaults to the current branch)
+                        long: branch
                         takes_value: true
                     - revert:
                         help: if set, unapplies the patch instead of applying it
@@ -102,10 +107,18 @@ subcommands:
                         takes_value: true
                     - branch:
                         help: branch to compare against (defaults to the current branch)
+                        long: branch
                         takes_value: true
                     - path:
                         help: path to the file (defaults to 'jp_file.txt')
+                        long: path
                         takes_value: true
+                    - output-hash:
+                        help: prints the hash value of the newly created patch to stdout
+                        long: output-hash
+                    - then-apply:
+                        help: after creating the patch, apply it
+                        long: then-apply
     - render:
         about: Outputs the tracked data to a file
         args:
@@ -113,12 +126,14 @@ subcommands:
                 help: branch to output (defaults to the current branch)
             - path:
                 help: path of the output (defaults to 'jp_file.txt')
+                long: path
                 takes_value: true
     - resolve:
         about: Interactive utility to make the file totally ordered
         args:
             - branch:
                 help: branch to work on
+                long: branch
                 takes_value: true
             - author:
                 help: the person doing the resolving

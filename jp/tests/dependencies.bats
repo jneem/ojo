@@ -17,7 +17,7 @@ Middle
 Last
 EOF
     HASH_C=`$JP patch create -a Author -m Msg 2>&1 | cut -d " " -f 3`
-    $JP patch apply $HASH_C
+    $JP patch apply -- $HASH_C
 
     run $JP patch apply --revert "$HASH_A"
     assert_success
