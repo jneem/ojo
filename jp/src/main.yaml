@@ -39,6 +39,8 @@ subcommands:
                         takes_value: true
     - clear:
         about: Deletes all patches from a branch (mainly for debugging)
+        settings:
+            - Hidden
         args:
             - branch:
                 help: branch to clear
@@ -59,7 +61,7 @@ subcommands:
         about: Creates a .dot file for visualizing the stored file
         args:
             - out:
-                help: path for the output file (defaults to the tracked file + '.dot')
+                help: path for the output file (defaults to 'out.dot')
                 short: o
                 long: out
                 takes_value: true
@@ -143,3 +145,5 @@ subcommands:
                 takes_value: true
     - synthesize:
         about: Synthesizes a repository with an arbitrary graph (for testing)
+        settings:
+            - Hidden
