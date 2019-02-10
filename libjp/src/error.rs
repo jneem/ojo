@@ -7,7 +7,7 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::{self, fmt, io};
 
-use crate::PatchId;
+use crate::{NodeId, PatchId};
 
 #[derive(Debug)]
 pub enum PatchIdError {
@@ -54,6 +54,7 @@ pub enum Error {
     BranchExists(String),
     CurrentBranch(String),
     DbCorruption,
+    Encoding(std::string::FromUtf8Error),
     IdMismatch(PatchId, PatchId),
     Io(io::Error, String),
     MissingDep(PatchId),
@@ -66,6 +67,7 @@ pub enum Error {
     RepoNotFound(PathBuf),
     Serde(serde_yaml::Error),
     UnknownBranch(String),
+    UnknownNode(NodeId),
     UnknownPatch(PatchId),
 }
 
@@ -75,6 +77,7 @@ impl fmt::Display for Error {
             Error::BranchExists(b) => write!(f, "The branch \"{}\" already exists", b),
             Error::CurrentBranch(b) => write!(f, "\"{}\" is the current branch", b),
             Error::DbCorruption => write!(f, "Found corruption in the database"),
+            Error::Encoding(e) => e.fmt(f),
             Error::IdMismatch(actual, expected) => write!(
                 f,
                 "Expected {}, found {}",
@@ -98,6 +101,7 @@ impl fmt::Display for Error {
             ),
             Error::Serde(e) => e.fmt(f),
             Error::UnknownBranch(b) => write!(f, "There is no branch named {:?}", b),
+            Error::UnknownNode(n) => write!(f, "There is no node with id {:?}", n),
             Error::UnknownPatch(p) => write!(f, "There is no patch with hash {:?}", p.to_base64()),
         }
     }
@@ -106,6 +110,7 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Error::Encoding(e) => Some(e),
             Error::Io(e, _) => Some(e),
             Error::PatchId(e) => Some(e),
             Error::Serde(e) => Some(e),
@@ -135,5 +140,11 @@ impl From<(io::Error, &'static str)> for Error {
 impl From<serde_yaml::Error> for Error {
     fn from(e: serde_yaml::Error) -> Error {
         Error::Serde(e)
+    }
+}
+
+impl From<std::string::FromUtf8Error> for Error {
+    fn from(e: std::string::FromUtf8Error) -> Error {
+        Error::Encoding(e)
     }
 }

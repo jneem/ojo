@@ -246,7 +246,13 @@ impl Repo {
     ///
     /// After registering a patch, its data will be stored in the repository and you will be able
     /// to access it by its ID.
-    fn register_patch(&mut self, patch: &Patch, data: String) -> Result<(), Error> {
+    pub fn register_patch(&mut self, patch_data: &[u8]) -> Result<(), Error> {
+        let patch = Patch::from_reader(patch_data)?;
+        let data = String::from_utf8(patch_data.to_owned())?;
+        self.register_patch_with_data(&patch, data)
+    }
+
+    fn register_patch_with_data(&mut self, patch: &Patch, data: String) -> Result<(), Error> {
         // If the patch already exists in our repository then there's nothing to do. But if there's
         // a file there with the same hash but different contents then something's really wrong.
         if self.storage.patches.contains_key(patch.id()) {
@@ -257,6 +263,11 @@ impl Repo {
                 return Err(PatchIdError::Collision(*patch.id()).into());
             }
         }
+
+        // Before making any modifications, check the patch for consistency. That means:
+        // - all dependencies must already be known
+        // - every node that we refer to must already be present
+        // FIXME
 
         // Record the deps and reverse-deps.
         for dep in patch.deps() {
@@ -428,7 +439,7 @@ impl Repo {
             String::from_utf8(patch_data).expect("YAML serializer failed to produce UTF-8");
 
         // Now that we know the patch's id, store it in the patches map.
-        self.register_patch(&patch, patch_data)?;
+        self.register_patch_with_data(&patch, patch_data)?;
 
         Ok(*patch.id())
     }
