@@ -121,6 +121,20 @@ subcommands:
                     - then-apply:
                         help: after creating the patch, apply it
                         long: then-apply
+            - export:
+                about: Creates a file containing the contents of a patch
+                args:
+                    - PATCH:
+                        help: hash of the patch
+                        required: true
+                        takes_value: true
+            - import:
+                about: Imports a patch file into the respository
+                args:
+                    - PATH:
+                        help: path to the patch file
+                        required: true
+                        takes_value: true
     - render:
         about: Outputs the tracked data to a file
         args:

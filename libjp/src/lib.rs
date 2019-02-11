@@ -22,6 +22,7 @@ extern crate proptest;
 extern crate pretty_assertions;
 
 use graph::Graph;
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -252,6 +253,61 @@ impl Repo {
         self.register_patch_with_data(&patch, data)
     }
 
+    // Before making any modifications, check the patch for consistency. That means:
+    // - all dependencies must already be known
+    // - every node that we refer to must already be present
+    // - every node that we refer to must be either new, or we must depend on its patch
+    // This part is *IMPORTANT*, because it contains all the validation for patches. After
+    // this, they go from being treated as untrusted input to being internal data.
+    fn check_patch_validity(&self, patch: &Patch) -> Result<(), Error> {
+        for dep in patch.deps() {
+            if !self.storage.patches.contains_key(dep) {
+                return Err(Error::MissingDep(*dep));
+            }
+        }
+        let dep_set = patch.deps().iter().cloned().collect::<HashSet<_>>();
+        let new_nodes = patch
+            .changes()
+            .changes
+            .iter()
+            .filter_map(|ch| {
+                if let Change::NewNode { ref id, .. } = ch {
+                    Some(id)
+                } else {
+                    None
+                }
+            })
+            .collect::<HashSet<_>>();
+        for ch in &patch.changes().changes {
+            use crate::patch::Change::*;
+            let has_node = |id| {
+                new_nodes.contains(id)
+                    || (self.storage.contains_node(id) && dep_set.contains(&id.patch))
+            };
+            match ch {
+                NewNode { ref id, .. } => {
+                    if !has_node(id) {
+                        return Err(Error::UnknownNode(*id));
+                    }
+                }
+                NewEdge { ref src, ref dest } => {
+                    if !has_node(src) {
+                        return Err(Error::UnknownNode(*src));
+                    }
+                    if !has_node(dest) {
+                        return Err(Error::UnknownNode(*dest));
+                    }
+                }
+                DeleteNode { ref id } => {
+                    if !has_node(id) {
+                        return Err(Error::UnknownNode(*id));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn register_patch_with_data(&mut self, patch: &Patch, data: String) -> Result<(), Error> {
         // If the patch already exists in our repository then there's nothing to do. But if there's
         // a file there with the same hash but different contents then something's really wrong.
@@ -264,18 +320,10 @@ impl Repo {
             }
         }
 
-        // Before making any modifications, check the patch for consistency. That means:
-        // - all dependencies must already be known
-        // - every node that we refer to must already be present
-        // This part is *IMPORTANT*, because it contains all the validation for patches. They go
-        // from being treated as untrusted input to being internal data.
-        // FIXME
+        self.check_patch_validity(patch)?;
 
         // Record the deps and reverse-deps.
         for dep in patch.deps() {
-            if !self.storage.patches.contains_key(dep) {
-                return Err(Error::MissingDep(*dep));
-            }
             self.storage
                 .patch_deps
                 .insert(patch.id().clone(), dep.clone());

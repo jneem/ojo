@@ -60,5 +60,5 @@ load 'libs/setup'
     echo contents > jp_file.txt
     run $JP patch create -a Author -m Msg --output-hash
     assert_success
-    assert_output --regexp "^[-=_a-zA-Z0-9]{44}$"
+    assert_output --regexp "^P[-=_a-zA-Z0-9]{44}$"
 }

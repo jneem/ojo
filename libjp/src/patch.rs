@@ -120,16 +120,25 @@ impl PatchId {
         self.data == [0; 32]
     }
 
-    /// Represents this `PatchId` in base64 (using the `URL_SAFE`) encoding.
+    /// Represents this `PatchId` in base64.
+    ///
+    /// We encode in the URL_SAFE encoding because it needs to be a valid path (e.g. no
+    /// slashes). We prepend the letter 'P', because otherwise there's a chance that
+    /// the first character will be '-', which is annoying because then the CLI might
+    /// misinterpret it as a flag.
     pub fn to_base64(&self) -> String {
-        // We encode the filename in the URL_SAFE encoding because it needs to be a valid path
-        // (e.g. no slashes).
-        base64::encode_config(&self.data[..], base64::URL_SAFE)
+        // base64 requires 44 characters to represent 32 bytes. Add one for the 'P'.
+        let mut ret = vec![0; 45];
+        ret[0] = b'P';
+        base64::encode_config_slice(&self.data[..], base64::URL_SAFE, &mut ret[1..]);
+
+        // We can safely unwrap because base64 is guaranteed to be ASCII.
+        String::from_utf8(ret).unwrap()
     }
 
-    /// Converts from base64 (in the `URL_SAFE`) encoding to a `PatchId`.
+    /// Converts from base64 (as returned by [`Patch::to_base64`]) to a `PatchId`.
     pub fn from_base64<S: ?Sized + AsRef<[u8]>>(name: &S) -> Result<PatchId, PatchIdError> {
-        let data = base64::decode_config(name, base64::URL_SAFE)?;
+        let data = base64::decode_config(&name.as_ref()[1..], base64::URL_SAFE)?;
         let mut ret = PatchId::cur();
         if data.len() != ret.data.len() {
             Err(PatchIdError::InvalidLength(data.len()))

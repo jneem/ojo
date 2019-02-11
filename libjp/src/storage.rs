@@ -111,6 +111,10 @@ impl Storage {
         self.contents.remove(id);
     }
 
+    pub fn contains_node(&self, id: &NodeId) -> bool {
+        self.contents.contains_key(id)
+    }
+
     pub fn inode(&self, branch: &str) -> Option<INode> {
         self.branches.get(branch).cloned()
     }
