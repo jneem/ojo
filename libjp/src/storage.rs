@@ -144,7 +144,7 @@ impl Storage {
         self.branches.keys().map(|s| s.as_str())
     }
 
-    pub fn apply_changes(&mut self, inode: INode, changes: &Changes) {
+    pub fn apply_changes(&mut self, inode: INode, changes: &Changes, patch: PatchId) {
         let graggle = self.graggles.get_mut(&inode).unwrap();
         for ch in &changes.changes {
             match *ch {
@@ -158,7 +158,7 @@ impl Storage {
                 }
                 Change::NewEdge { ref src, ref dest } => {
                     debug!("adding edge {:?} -- {:?}", src, dest);
-                    graggle.add_edge(src.clone(), dest.clone());
+                    graggle.add_edge(src.clone(), dest.clone(), patch);
                 }
             }
         }
@@ -176,7 +176,7 @@ impl Storage {
         }
     }
 
-    pub fn unapply_changes(&mut self, inode: INode, changes: &Changes) {
+    pub fn unapply_changes(&mut self, inode: INode, changes: &Changes, patch: PatchId) {
         let graggle = self.graggles.get_mut(&inode).unwrap();
 
         // Because of the requirements of `unadd_edge`, we need to unadd all edges before we unadd
@@ -189,7 +189,7 @@ impl Storage {
                 }
                 Change::NewEdge { ref src, ref dest } => {
                     debug!("unadding edge {:?} -- {:?}", src, dest);
-                    graggle.unadd_edge(src, dest);
+                    graggle.unadd_edge(src, dest, patch);
                 }
                 Change::NewNode { .. } => {}
             }

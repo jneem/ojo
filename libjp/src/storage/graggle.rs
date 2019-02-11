@@ -4,7 +4,7 @@ use partition::Partition;
 use std::collections::BTreeSet as Set;
 use std::collections::HashSet;
 
-use crate::NodeId;
+use crate::{NodeId, PatchId};
 
 /// The different kinds of edges.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
@@ -45,11 +45,53 @@ pub struct Edge {
     pub kind: EdgeKind,
     /// The destination of this (directed) edge.
     pub dest: NodeId,
+    /// Which patch introduced this edge?
+    ///
+    /// If this is a pseudo-edge, then this field will be "blank", meaning that it will be set to
+    /// `PatchId::cur`.
+    ///
+    /// This field is necessary because of the possiblity that two different patches will add the
+    /// same edge. If this happens and then one of the patches is unapplied, we'd better make sure
+    /// to still have an edge present afterwards.
+    pub patch: PatchId,
 }
 
 impl Edge {
     fn not_deleted(&self) -> bool {
         self.kind != EdgeKind::Deleted
+    }
+
+    fn new_pseudo(dest: NodeId) -> Edge {
+        Edge {
+            dest: dest,
+            kind: EdgeKind::Pseudo,
+            patch: PatchId::cur(),
+        }
+    }
+
+    fn new_live(dest: NodeId, patch: PatchId) -> Edge {
+        Edge {
+            dest,
+            kind: EdgeKind::Live,
+            patch,
+        }
+    }
+
+    fn new_deleted(dest: NodeId, patch: PatchId) -> Edge {
+        Edge {
+            dest,
+            kind: EdgeKind::Deleted,
+            patch,
+        }
+    }
+
+    // "Real" means either live or deleted, but not pseudo
+    fn new_real(dest: NodeId, deleted: bool, patch: PatchId) -> Edge {
+        Edge {
+            dest,
+            kind: EdgeKind::from_deleted(deleted),
+            patch,
+        }
     }
 }
 
@@ -112,6 +154,19 @@ impl GraggleData {
         self.nodes.insert(id);
     }
 
+    fn has_live_edge(&self, src: &NodeId, dest: &NodeId) -> bool {
+        // Construct the smallest (in the sense of Edge's order) edge that could possibly go from
+        // src to dest.
+        let e = Edge::new_live(*dest, PatchId::cur());
+        if let Some(actual_e) = self.edges.get_from(src, &e).next() {
+            // actual_e is an edge going from src to something greater than or equal to dest.
+            // There's an edge from src to dest if and only if actual_e goes to dest.
+            actual_e.dest == *dest && actual_e.kind == EdgeKind::Live
+        } else {
+            false
+        }
+    }
+
     // We just deleted the pseudo-edge from src to dest. Clean up the corresponding entries in
     // pseudo_edge_reasons and reason_pseudo_edges.
     fn remove_pseudo_edge_reasons(&mut self, src: &NodeId, dest: &NodeId) {
@@ -137,6 +192,7 @@ impl GraggleData {
             // dependencies correctly) every edge we delete either has two live endpoints or it is
             // a pseudo-edge (in which case it is a pseudo-edge in both directions).
             kind: edge.kind,
+            patch: edge.patch,
         };
         self.back_edges.remove(&edge.dest, &back_edge);
     }
@@ -146,6 +202,7 @@ impl GraggleData {
         let edge = Edge {
             dest: *dest,
             kind: back_edge.kind,
+            patch: back_edge.patch,
         };
         self.edges.remove(&back_edge.dest, &edge);
     }
@@ -242,18 +299,12 @@ impl GraggleData {
 
         if edge.kind == EdgeKind::Pseudo {
             // Pseudo-edges don't get marked as deleted, they just get removed.
-            let opposite_edge = Edge {
-                dest: *src,
-                kind: EdgeKind::Pseudo,
-            };
+            let opposite_edge = Edge::new_pseudo(*src);
             opposite_edges.remove(&edge.dest, &opposite_edge);
         } else {
             // To mark the edge as deleted, we actually remove it and then add it back in again
             // (because deleted edges appear in a different position in the map).
-            let mut opposite_edge = Edge {
-                dest: *src,
-                kind: EdgeKind::Live,
-            };
+            let mut opposite_edge = Edge::new_live(*src, edge.patch);
             opposite_edges.remove(&edge.dest, &opposite_edge);
             opposite_edge.kind = EdgeKind::Deleted;
             opposite_edges.insert(edge.dest, opposite_edge);
@@ -278,10 +329,7 @@ impl GraggleData {
         // Unlike `delete_opposite_edge`, there's no change of encountering a pseudo-edge pointing
         // from `edge.dest` to `src` (because `src` was just undeleted, and while it was deleted no
         // pseudo-edges pointed at it).
-        let mut opposite_edge = Edge {
-            dest: *src,
-            kind: EdgeKind::Deleted,
-        };
+        let mut opposite_edge = Edge::new_deleted(*src, edge.patch);
         opposite_edges.remove(&edge.dest, &opposite_edge);
         opposite_edge.kind = EdgeKind::Live;
         opposite_edges.insert(edge.dest, opposite_edge);
@@ -318,10 +366,7 @@ impl GraggleData {
             .collect::<Vec<_>>();
 
         for (src, dest) in obsolete_pairs {
-            let e = Edge {
-                dest,
-                kind: EdgeKind::Pseudo,
-            };
+            let e = Edge::new_pseudo(dest);
             self.pseudo_edge_reasons.remove(&(src, dest), reason);
             // If that was the last reason for the pseudo-edge, delete it.
             if self.pseudo_edge_reasons.get(&(src, dest)).next().is_none() {
@@ -338,26 +383,16 @@ impl GraggleData {
         self.dirty_reps.insert(rep);
     }
 
-    pub fn add_edge(&mut self, from: NodeId, to: NodeId) {
+    pub fn add_edge(&mut self, from: NodeId, to: NodeId, patch: PatchId) {
         let from_deleted = !self.nodes.contains(&from);
         let to_deleted = !self.nodes.contains(&to);
         assert!(!from_deleted || self.deleted_nodes.contains(&from));
         assert!(!to_deleted || self.deleted_nodes.contains(&to));
 
-        self.edges.insert(
-            from,
-            Edge {
-                kind: EdgeKind::from_deleted(to_deleted),
-                dest: to,
-            },
-        );
-        self.back_edges.insert(
-            to,
-            Edge {
-                kind: EdgeKind::from_deleted(from_deleted),
-                dest: from,
-            },
-        );
+        self.edges
+            .insert(from, Edge::new_real(to, to_deleted, patch));
+        self.back_edges
+            .insert(to, Edge::new_real(from, from_deleted, patch));
 
         if from_deleted && to_deleted {
             self.merge_components(&from, &to);
@@ -408,20 +443,14 @@ impl GraggleData {
     ///
     /// Panics unless `from` and `to` are nodes in this graggle. In particular, if you're planning to
     /// remove some nodes and the edge between them, you need to remove the edge first.
-    pub fn unadd_edge(&mut self, from: &NodeId, to: &NodeId) {
+    pub fn unadd_edge(&mut self, from: &NodeId, to: &NodeId, patch: PatchId) {
         let from_deleted = self.deleted_nodes.contains(&from);
         let to_deleted = self.deleted_nodes.contains(&to);
         assert!(from_deleted || self.nodes.contains(&from));
         assert!(to_deleted || self.nodes.contains(&to));
 
-        let forward_edge = Edge {
-            kind: EdgeKind::from_deleted(to_deleted),
-            dest: *to,
-        };
-        let back_edge = Edge {
-            kind: EdgeKind::from_deleted(from_deleted),
-            dest: *from,
-        };
+        let forward_edge = Edge::new_real(*to, to_deleted, patch);
+        let back_edge = Edge::new_real(*from, from_deleted, patch);
         self.edges.remove(&from, &forward_edge);
         self.back_edges.remove(&to, &back_edge);
 
@@ -471,27 +500,9 @@ impl GraggleData {
         }
         for (src, dest) in pairs {
             // Only add a pseudo-edge if there is not already an edge present.
-            if !self.edges.contains(
-                &src,
-                &Edge {
-                    dest,
-                    kind: EdgeKind::Live,
-                },
-            ) {
-                self.edges.insert(
-                    src,
-                    Edge {
-                        dest,
-                        kind: EdgeKind::Pseudo,
-                    },
-                );
-                self.back_edges.insert(
-                    dest,
-                    Edge {
-                        dest: src,
-                        kind: EdgeKind::Pseudo,
-                    },
-                );
+            if !self.has_live_edge(&src, &dest) {
+                self.edges.insert(src, Edge::new_pseudo(dest));
+                self.back_edges.insert(dest, Edge::new_pseudo(src));
                 self.pseudo_edge_reasons.insert((src, dest), rep);
                 self.reason_pseudo_edges.insert(rep, (src, dest));
             }
@@ -521,13 +532,7 @@ impl GraggleData {
                 if status == Status::New
                     && dst != *u
                     && self.is_live(&dst)
-                    && !self.edges.contains(
-                        u,
-                        &Edge {
-                            dest: dst,
-                            kind: EdgeKind::Live,
-                        },
-                    )
+                    && !self.has_live_edge(u, &dst)
                 {
                     ret.insert(dst);
                 }
@@ -562,6 +567,7 @@ impl GraggleData {
                 } else {
                     EdgeKind::from_deleted(self.deleted_nodes.contains(src))
                 },
+                patch: edge.patch,
             };
             assert!(self.back_edges.contains(&edge.dest, &back_edge));
             seen_back_edges.insert((edge.dest, back_edge));
@@ -598,13 +604,7 @@ impl GraggleData {
 
             // Every reason should correspond to a pseudo-edge.
             for (&(src, dest), _) in self.pseudo_edge_reasons.iter() {
-                assert!(self.edges.contains(
-                    &src,
-                    &Edge {
-                        dest,
-                        kind: EdgeKind::Pseudo
-                    }
-                ));
+                assert!(self.edges.contains(&src, &Edge::new_pseudo(dest)));
             }
 
             // Every reason should be a representative in the partition.

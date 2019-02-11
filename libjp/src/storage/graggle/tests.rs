@@ -1,5 +1,5 @@
 use super::*;
-use crate::patch::{Change, Changes};
+use crate::patch::Change;
 use crate::{NodeId, PatchId};
 
 use byteorder::{LittleEndian, WriteBytesExt};
@@ -26,11 +26,17 @@ macro_rules! graggle {
                 d.delete_node(&NodeId::cur($deleted));
             )*)*
             $($(
-                d.add_edge(NodeId::cur($src), NodeId::cur($dest));
+                d.add_edge(NodeId::cur($src), NodeId::cur($dest), $crate::PatchId::cur());
             )*)*
             d
         }
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct ChangesWithId {
+    pub changes: Vec<Change>,
+    pub id: PatchId,
 }
 
 #[doc(hidden)]
@@ -40,8 +46,8 @@ macro_rules! changes {
         $(delete : $( $delete_node:literal ),*)?
         $(nodes : $( $add_node:literal ),*)?
         $(edges : $( $src:literal - $dest:literal ),*)?
-    ) => {
-        $crate::Changes {
+    ) => {{
+        $crate::storage::graggle::tests::ChangesWithId {
             changes: vec![
                 $($(
                     Change::DeleteNode { id: NodeId::cur($delete_node) },
@@ -53,8 +59,9 @@ macro_rules! changes {
                     Change::NewEdge { src: NodeId::cur($src), dest: NodeId::cur($dest) },
                 )*)*
             ],
+            id: PatchId::cur(),
         }
-    }
+    }}
 }
 
 macro_rules! assert_pseudoedges {
@@ -82,10 +89,7 @@ trait GraggleExt {
 impl GraggleExt for GraggleData {
     fn has_pseudoedge(&self, i: u64, j: u64) -> bool {
         let src = NodeId::cur(i);
-        let edge = Edge {
-            dest: NodeId::cur(j),
-            kind: EdgeKind::Pseudo,
-        };
+        let edge = Edge::new_pseudo(NodeId::cur(j));
         self.edges.contains(&src, &edge)
     }
 
@@ -128,10 +132,10 @@ fn delete_long_middle() {
     );
     assert_pseudoedges!(d; 0-5);
 
-    d.unadd_edge(&NodeId::cur(2), &NodeId::cur(3));
+    d.unadd_edge(&NodeId::cur(2), &NodeId::cur(3), PatchId::cur());
     assert_pseudoedges!(d; );
 
-    d.add_edge(NodeId::cur(2), NodeId::cur(3));
+    d.add_edge(NodeId::cur(2), NodeId::cur(3), PatchId::cur());
     assert_pseudoedges!(d; 0-5);
     d.undelete_node(&NodeId::cur(3));
     assert_pseudoedges!(d; 0-3, 3-5);
@@ -151,7 +155,7 @@ fn add_next_to_deleted() {
         edges: 0-1, 1-2
     );
     d.add_node(NodeId::cur(3));
-    d.add_edge(NodeId::cur(1), NodeId::cur(3));
+    d.add_edge(NodeId::cur(1), NodeId::cur(3), PatchId::cur());
     assert_pseudoedges!(d; 0-2, 0-3);
 }
 
@@ -196,6 +200,27 @@ fn two_reasons() {
     assert_pseudoedges!(d; );
 }
 
+// It's legal for two different patches to add the same edge.
+#[test]
+fn duplicate_edge() {
+    let d = graggle!(
+        live: 0, 1
+    );
+    let mut ch1 = changes!(
+        edges: 0-1
+    );
+    let mut ch2 = changes!(
+        edges: 0-1
+    );
+
+    // The changes! macro defaults to setting all ids to PatchId::cur, which isn't really correct
+    // but it doesn't cause an error unless there are (like here) duplicate edges.
+    ch1.id.data[0] = 1;
+    ch2.id.data[0] = 2;
+
+    check_graggle_and_changes(d, &[ch1, ch2]);
+}
+
 // When generating graggles, we could in principle put in as many as n^2 edges, but that's way
 // too many to be realistic (a realistic value would be around 2). So we allow only up to
 // n*MAX_AVG_DEGREE.
@@ -232,7 +257,7 @@ fn append_and_delete() {
     check_graggle_and_changes(d, &[ch]);
 }
 
-fn check_graggle_and_changes(d: GraggleData, chs: &[Changes]) {
+fn check_graggle_and_changes(d: GraggleData, chs: &[ChangesWithId]) {
     let orig = d.clone();
 
     // Apply all the changes one-by-one. At each step, check that reversing the change
@@ -305,92 +330,37 @@ fn check_graggle_and_changes(d: GraggleData, chs: &[Changes]) {
 // This example was found by proptest.
 #[test]
 fn two_changes() {
-    let node0 = NodeId::cur(0);
-    let patch1 = fake_patch_id(1);
-    let node1 = NodeId {
-        patch: patch1,
-        node: 0,
-    };
-    let patch2 = fake_patch_id(2);
-    let node2 = NodeId {
-        patch: patch2,
-        node: 0,
-    };
-    let mut d = GraggleData::new();
-    d.add_node(node0);
+    let g = graggle!(
+        live: 0
+    );
 
-    let changes1 = Changes {
-        changes: vec![
-            Change::NewNode {
-                id: node1,
-                contents: vec![],
-            },
-            Change::NewEdge {
-                src: node1,
-                dest: node0,
-            },
-        ],
-    };
-
-    let changes2 = Changes {
-        changes: vec![
-            Change::DeleteNode { id: node1 },
-            Change::NewNode {
-                id: node2,
-                contents: vec![],
-            },
-            Change::NewEdge {
-                src: node2,
-                dest: node0,
-            },
-            Change::NewEdge {
-                src: node0,
-                dest: node2,
-            },
-            Change::NewEdge {
-                src: node1,
-                dest: node2,
-            },
-        ],
-    };
-
-    check_graggle_and_changes(d, &[changes1, changes2]);
+    let ch1 = changes!(
+        nodes: 1
+        edges: 1-0
+    );
+    let ch2 = changes!(
+        delete: 1
+        nodes: 2
+        edges: 2-0, 0-2, 1-2
+    );
+    check_graggle_and_changes(g, &[ch1, ch2]);
 }
 
 // Create a graggle of three nodes by making the outer two first, and then adding the middle one.
 #[test]
 fn add_middle() {
-    let node00 = NodeId::cur(0);
-    let node01 = NodeId::cur(1);
-    let patch1 = fake_patch_id(1);
-    let node1 = NodeId {
-        patch: patch1,
-        node: 0,
-    };
-    let mut d = GraggleData::new();
-    d.add_node(node00);
-    d.add_node(node01);
+    let d = graggle!(
+        live: 0, 2
+    );
 
-    let changes1 = Changes {
-        changes: vec![
-            Change::NewNode {
-                id: node1,
-                contents: vec![],
-            },
-            Change::NewEdge {
-                src: node1,
-                dest: node01,
-            },
-            Change::NewEdge {
-                src: node00,
-                dest: node1,
-            },
-        ],
-    };
+    let changes1 = changes!(
+        nodes: 1
+        edges: 0-1, 1-2
+    );
 
-    let changes2 = Changes {
-        changes: vec![Change::DeleteNode { id: node1 }],
-    };
+    let changes2 = changes!(
+        delete: 1
+    );
 
     check_graggle_and_changes(d, &[changes1, changes2]);
 }
@@ -471,8 +441,8 @@ prop_compose! {
             if u != v {
                 let u = NodeId::cur(u as u64);
                 let v = NodeId::cur(v as u64);
-                ret.edges.insert(u, Edge { dest: v, kind: EdgeKind::Live });
-                ret.back_edges.insert(v, Edge { dest: u, kind: EdgeKind::Live });
+                ret.edges.insert(u, Edge::new_live(v, PatchId::cur()));
+                ret.back_edges.insert(v, Edge::new_live(u, PatchId::cur()));
             }
         }
         ret
@@ -487,7 +457,7 @@ static CUR_ID: AtomicUsize = AtomicUsize::new(1);
 // Create arbitrary patches on top of graggles. Basically, an arbitrary patch consists of an
 // arbitrary subset of nodes to delete, and an arbitrary set of nodes to add, with arbitrary
 // edges between the new nodes, and also between the new nodes and the old ones.
-fn arb_changes<'a>(graggle: &'a GraggleData, size: usize) -> BoxedStrategy<Changes> {
+fn arb_changes<'a>(graggle: &'a GraggleData, size: usize) -> BoxedStrategy<ChangesWithId> {
     fn make_changes(
         old_ids: Vec<NodeId>,
         nodes_to_delete: Vec<NodeId>,
@@ -495,7 +465,7 @@ fn arb_changes<'a>(graggle: &'a GraggleData, size: usize) -> BoxedStrategy<Chang
         new_new_edges: HashSet<(usize, usize)>,
         new_old_edges: HashSet<(usize, usize)>,
         old_new_edges: HashSet<(usize, usize)>,
-    ) -> Changes {
+    ) -> ChangesWithId {
         let patch_id_int = CUR_ID.fetch_add(1, Ordering::SeqCst);
         let patch_id = fake_patch_id(patch_id_int);
 
@@ -532,7 +502,10 @@ fn arb_changes<'a>(graggle: &'a GraggleData, size: usize) -> BoxedStrategy<Chang
         let edges = edges.map(|(u, v)| Change::NewEdge { src: u, dest: v });
 
         let changes = deletions.chain(insertions).chain(edges).collect::<Vec<_>>();
-        Changes { changes }
+        ChangesWithId {
+            changes,
+            id: patch_id,
+        }
     }
 
     let old_ids = graggle.nodes.iter().cloned().collect::<Vec<_>>();
@@ -559,7 +532,7 @@ fn arb_changes<'a>(graggle: &'a GraggleData, size: usize) -> BoxedStrategy<Chang
 fn arb_graggle_and_change(
     initial_size: usize,
     change_size: usize,
-) -> BoxedStrategy<(GraggleData, Changes)> {
+) -> BoxedStrategy<(GraggleData, ChangesWithId)> {
     let graggle = arb_live_graggle(initial_size);
     graggle
         .prop_flat_map(move |d| {
@@ -577,21 +550,23 @@ proptest! {
 }
 
 // These two functions are basically copy&paste from `Storage`. TODO: consider refactoring
-fn apply_changes(graggle: &mut GraggleData, changes: &Changes) {
+fn apply_changes(graggle: &mut GraggleData, changes: &ChangesWithId) {
     for ch in &changes.changes {
         match *ch {
             Change::NewNode { ref id, .. } => graggle.add_node(id.clone()),
             Change::DeleteNode { ref id } => graggle.delete_node(&id),
-            Change::NewEdge { ref src, ref dest } => graggle.add_edge(src.clone(), dest.clone()),
+            Change::NewEdge { ref src, ref dest } => {
+                graggle.add_edge(src.clone(), dest.clone(), changes.id)
+            }
         }
     }
 }
 
-fn unapply_changes(graggle: &mut GraggleData, changes: &Changes) {
+fn unapply_changes(graggle: &mut GraggleData, changes: &ChangesWithId) {
     for ch in &changes.changes {
         match *ch {
             Change::DeleteNode { ref id } => graggle.undelete_node(id),
-            Change::NewEdge { ref src, ref dest } => graggle.unadd_edge(src, dest),
+            Change::NewEdge { ref src, ref dest } => graggle.unadd_edge(src, dest, changes.id),
             Change::NewNode { .. } => {}
         }
     }
@@ -628,14 +603,14 @@ fn arb_graggle_and_change_seq(
     initial_size: usize,
     change_size: usize,
     num_changes: usize,
-) -> BoxedStrategy<(GraggleData, Vec<Changes>)> {
+) -> BoxedStrategy<(GraggleData, Vec<ChangesWithId>)> {
     fn recurse(
         orig: GraggleData,
         change_size: usize,
         num_changes: usize,
         cur: GraggleData,
-        changes: Vec<Changes>,
-    ) -> BoxedStrategy<(GraggleData, Vec<Changes>)> {
+        changes: Vec<ChangesWithId>,
+    ) -> BoxedStrategy<(GraggleData, Vec<ChangesWithId>)> {
         if num_changes == 0 {
             Just((orig, changes)).boxed()
         } else {

@@ -267,6 +267,8 @@ impl Repo {
         // Before making any modifications, check the patch for consistency. That means:
         // - all dependencies must already be known
         // - every node that we refer to must already be present
+        // This part is *IMPORTANT*, because it contains all the validation for patches. They go
+        // from being treated as untrusted input to being internal data.
         // FIXME
 
         // Record the deps and reverse-deps.
@@ -298,7 +300,8 @@ impl Repo {
             );
         }
         let inode = self.storage.inode(branch).unwrap();
-        self.storage.apply_changes(inode, patch.changes());
+        self.storage
+            .apply_changes(inode, patch.changes(), *patch_id);
         self.storage
             .branch_patches
             .insert(branch.to_owned(), patch.id().clone());
@@ -350,7 +353,8 @@ impl Repo {
 
         let patch = self.open_patch(patch_id)?;
         let inode = self.inode(branch)?;
-        self.storage.unapply_changes(inode, patch.changes());
+        self.storage
+            .unapply_changes(inode, patch.changes(), *patch_id);
         self.storage.branch_patches.remove(branch, patch.id());
         Ok(())
     }

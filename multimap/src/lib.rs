@@ -40,6 +40,18 @@ impl<K: Ord, V: Ord> MMap<K, V> {
         Box::new(self.map.get(key).unwrap_or(&self.empty_set).iter())
     }
 
+    /// Returns an iterator over all the values associated with this key and that are greater than
+    /// or equal to `val`.
+    pub fn get_from<Q, R>(&'_ self, key: &Q, val: &R) -> Box<dyn Iterator<Item = &'_ V> + '_>
+    where
+        K: Borrow<Q>,
+        Q: Ord + ?Sized,
+        V: Borrow<R>,
+        R: Ord, // I'm not sure why R has to be Sized here...
+    {
+        Box::new(self.map.get(key).unwrap_or(&self.empty_set).range(val..))
+    }
+
     pub fn insert(&mut self, key: K, val: V) {
         self.map
             .entry(key)
