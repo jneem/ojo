@@ -294,6 +294,17 @@ impl Patch {
     pub fn deps(&self) -> &[PatchId] {
         &self.deps
     }
+
+    /// Turns this into an [`UnidentifiedPatch`].
+    pub fn into_unidentified(self) -> UnidentifiedPatch {
+        let mut ret = UnidentifiedPatch {
+            header: self.header,
+            changes: self.changes,
+            deps: self.deps,
+        };
+        ret.changes.set_patch_id(&PatchId::cur());
+        ret
+    }
 }
 
 /// Various metadata associated with a patch.

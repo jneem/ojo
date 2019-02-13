@@ -247,10 +247,11 @@ impl Repo {
     ///
     /// After registering a patch, its data will be stored in the repository and you will be able
     /// to access it by its ID.
-    pub fn register_patch(&mut self, patch_data: &[u8]) -> Result<(), Error> {
+    pub fn register_patch(&mut self, patch_data: &[u8]) -> Result<PatchId, Error> {
         let patch = Patch::from_reader(patch_data)?;
         let data = String::from_utf8(patch_data.to_owned())?;
-        self.register_patch_with_data(&patch, data)
+        self.register_patch_with_data(&patch, data)?;
+        Ok(*patch.id())
     }
 
     // Before making any modifications, check the patch for consistency. That means:
