@@ -23,8 +23,6 @@ mod render;
 mod resolve;
 mod synthesize;
 
-// TODO: commands for importing and exporting patches
-
 fn main() {
     let yml = load_yaml!("main.yaml");
     let m = App::from_yaml(yml).get_matches();

@@ -65,3 +65,11 @@ load 'libs/setup'
     run cat jp_file.txt
     assert_output Content
 }
+
+@test "import: bad file" {
+    $JP init
+    run $JP patch import no_such_file.txt
+    assert_failure
+    assert_line --index 0 "Error: Failed to read file 'no_such_file.txt'"
+    assert_line --index 1 --partial "No such file"
+}
