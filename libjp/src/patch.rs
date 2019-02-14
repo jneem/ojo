@@ -136,12 +136,13 @@ impl PatchId {
         String::from_utf8(ret).unwrap()
     }
 
-    /// Converts from base64 (as returned by [`Patch::to_base64`]) to a `PatchId`.
-    pub fn from_base64<S: ?Sized + AsRef<[u8]>>(name: &S) -> Result<PatchId, PatchIdError> {
-        let data = base64::decode_config(&name.as_ref()[1..], base64::URL_SAFE)?;
+    /// Converts from base64 (as returned by [`PatchId::to_base64`]) to a `PatchId`.
+    pub fn from_base64<S: ?Sized + AsRef<[u8]>>(name: &S) -> Result<PatchId, Error> {
+        let data = base64::decode_config(&name.as_ref()[1..], base64::URL_SAFE)
+            .map_err(PatchIdError::from)?;
         let mut ret = PatchId::cur();
         if data.len() != ret.data.len() {
-            Err(PatchIdError::InvalidLength(data.len()))
+            Err(PatchIdError::InvalidLength(data.len()).into())
         } else {
             ret.data.copy_from_slice(&data);
             Ok(ret)
@@ -293,17 +294,6 @@ impl Patch {
     /// Before this patch can be applied, all of its dependencies must already have been applied.
     pub fn deps(&self) -> &[PatchId] {
         &self.deps
-    }
-
-    /// Turns this into an [`UnidentifiedPatch`].
-    pub fn into_unidentified(self) -> UnidentifiedPatch {
-        let mut ret = UnidentifiedPatch {
-            header: self.header,
-            changes: self.changes,
-            deps: self.deps,
-        };
-        ret.changes.set_patch_id(&PatchId::cur());
-        ret
     }
 }
 

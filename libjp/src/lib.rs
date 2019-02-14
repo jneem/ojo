@@ -227,20 +227,29 @@ impl Repo {
     /// Opens a patch.
     ///
     /// The patch must already be known to the repository, either because it was created locally
-    /// (i.e. with [`Repo::create_patch`]) or because it was (possibly created elsewhere but) registered
-    /// locally with [`Repo::register_patch`].
+    /// (i.e. with [`Repo::create_patch`]) or because it was (possibly created elsewhere but)
+    /// registered locally with [`Repo::register_patch`].
     pub fn open_patch(&self, id: &PatchId) -> Result<Patch, Error> {
-        let patch_data = self
-            .storage
-            .patches
-            .get(id)
-            .ok_or_else(|| Error::UnknownPatch(*id))?;
-        let ret = Patch::from_reader(patch_data.as_bytes())?;
+        let patch_data = self.open_patch_data(id)?;
+        let ret = Patch::from_reader(patch_data)?;
         if ret.id() != id {
             Err(Error::IdMismatch(*ret.id(), *id))
         } else {
             Ok(ret)
         }
+    }
+
+    /// Returns the data associated with a patch.
+    ///
+    /// Currently, this data consists of the patch's contents serialized as YAML, but that isn't
+    /// guaranteed. What is guaranteed is that the return value of this function is of the same
+    /// format as the argument to [`Repo::register_patch`].
+    pub fn open_patch_data(&self, id: &PatchId) -> Result<&[u8], Error> {
+        self.storage
+            .patches
+            .get(id)
+            .map(|s| s.as_bytes())
+            .ok_or_else(|| Error::UnknownPatch(*id))
     }
 
     /// Introduces a patch to the repository.

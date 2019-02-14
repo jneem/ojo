@@ -128,6 +128,11 @@ subcommands:
                         help: hash of the patch
                         required: true
                         takes_value: true
+                    - output:
+                        help: path to the output file (defaults to the hash of the patch)
+                        long: output
+                        short: o
+                        takes_value: true
             - import:
                 about: Imports a patch file into the respository
                 args:

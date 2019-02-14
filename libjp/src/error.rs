@@ -92,7 +92,7 @@ impl fmt::Display for Error {
                 write!(f, "This filename couldn't be converted to UTF-8: {:?}", p)
             }
             Error::NotOrdered => write!(f, "The data does not represent a totally ordered file"),
-            Error::PatchId(_) => write!(f, "Found a broken PatchId"),
+            Error::PatchId(e) => write!(f, "Found a broken PatchId\n\tcaused by: {}", e),
             Error::RepoExists(p) => write!(f, "There is already a repository in {:?}", p),
             Error::RepoNotFound(p) => write!(
                 f,
