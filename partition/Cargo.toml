@@ -3,6 +3,9 @@ name = "jp_partition"
 version = "0.1.0"
 authors = ["Joe Neeman <joeneeman@gmail.com>"]
 edition = "2018"
+description = "A union-find/disjoint-sets algorithm (part of the jp project)"
+repository = "https://github.com/jneem/jp"
+license = "MIT/Apache-2.0"
 
 [dependencies]
 multimap = { package = "jp_multimap", path = "../multimap", version = "0.1.0" }
