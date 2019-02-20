@@ -3,6 +3,9 @@ name = "jp_graph"
 version = "0.1.0"
 authors = ["Joe Neeman <joeneeman@gmail.com>"]
 edition = "2018"
+description = "A collection of graph traits and algorithms (part of the jp project)"
+repository = "https://github.com/jneem/jp"
+license = "MIT/Apache-2.0"
 
 [dependencies]
 itertools = "0.8"

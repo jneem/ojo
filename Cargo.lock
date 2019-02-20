@@ -451,7 +451,7 @@ dependencies = [
 
 [[package]]
 name = "jp_partition"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "jp_multimap 0.1.1",
  "serde 1.0.88 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -500,7 +500,7 @@ dependencies = [
  "jp_diff 0.1.1",
  "jp_graph 0.1.0",
  "jp_multimap 0.1.1",
- "jp_partition 0.1.0",
+ "jp_partition 0.1.1",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "pretty_assertions 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "proptest 0.8.7 (registry+https://github.com/rust-lang/crates.io-index)",

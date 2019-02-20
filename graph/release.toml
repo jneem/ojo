@@ -1,0 +1,2 @@
+pre-release-commit-message = "Release jp_graph {{version}}."
+no-dev-version = true
