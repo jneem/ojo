@@ -1,6 +1,7 @@
 [workspace]
 
 members = [
+    "btree",
     "diff",
     "graph",
     "jp",
