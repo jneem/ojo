@@ -1,0 +1,3 @@
+dev-version-ext = "pre"
+pre-release-commit-message = "Release jp_multimap {{version}}."
+pro-release-commit-message = "Bump jp_multimap to {{next_version}}."
