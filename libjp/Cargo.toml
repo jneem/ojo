@@ -7,12 +7,12 @@ edition = "2018"
 [dependencies]
 base64 = "0.9"
 chrono = { version = "0.4", features = ["serde"] }
-diff = { path = "../diff" }
-graph = { path = "../graph" }
+diff = { package = "jp_diff", path = "../diff", version = "0.1.0" }
+graph = { package = "jp_graph", path = "../graph", version = "0.1.0" }
 itertools = "0.8"
 log = "0.4"
-multimap = { path = "../multimap" }
-partition = { path = "../partition" }
+multimap = { package = "jp_multimap", path = "../multimap", version = "0.1.0" }
+partition = { package = "jp_partition", path = "../partition", version = "0.1.0" }
 serde = "1.0"
 serde_derive = "1.0"
 serde_yaml = "0.7"

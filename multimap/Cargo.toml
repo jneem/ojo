@@ -1,5 +1,5 @@
 [package]
-name = "multimap"
+name = "jp_multimap"
 version = "0.1.0"
 authors = ["Joe Neeman <joeneeman@gmail.com>"]
 edition = "2018"

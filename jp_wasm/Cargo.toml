@@ -12,8 +12,8 @@ crate-type = ["cdylib"]
 
 [dependencies]
 console_log = "0.1"
-graph = { path = "../graph" }
-libjp = { path = "../libjp" }
+graph = { package = "jp_graph", path = "../graph", version = "0.1.0" }
+libjp = { path = "../libjp", version = "0.1.0" }
 log = "0.4"
 serde = "1.0"
 serde_derive = "1.0"

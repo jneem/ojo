@@ -1,10 +1,10 @@
 [package]
-name = "partition"
+name = "jp_partition"
 version = "0.1.0"
 authors = ["Joe Neeman <joeneeman@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-multimap = { path = "../multimap" }
+multimap = { package = "jp_multimap", path = "../multimap", version = "0.1.0" }
 serde = "1.0"
 serde_derive = "1.0"
