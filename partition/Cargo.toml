@@ -1,6 +1,6 @@
 [package]
 name = "jp_partition"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Joe Neeman <joeneeman@gmail.com>"]
 edition = "2018"
 description = "A union-find/disjoint-sets algorithm (part of the jp project)"
