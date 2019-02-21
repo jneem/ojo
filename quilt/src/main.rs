@@ -58,13 +58,13 @@ fn main() {
 fn open_repo() -> Result<libquilt::Repo, Error> {
     let mut dir = std::env::current_dir().context("Could not open the current directory")?;
     loop {
-        let mut jp_dir = dir.clone();
-        jp_dir.push(".jp");
-        if jp_dir.is_dir() {
-            return Ok(libquilt::Repo::open(dir).context("Failed to open the jp repository")?);
+        let mut quilt_dir = dir.clone();
+        quilt_dir.push(".quilt");
+        if quilt_dir.is_dir() {
+            return Ok(libquilt::Repo::open(dir).context("Failed to open the quilt repository")?);
         }
         if !dir.pop() {
-            bail!("Failed to find a jp repository");
+            bail!("Failed to find a quilt repository");
         }
     }
 }
@@ -76,5 +76,5 @@ fn branch(repo: &Repo, m: &ArgMatches<'_>) -> String {
 }
 
 fn file_path(m: &ArgMatches<'_>) -> String {
-    m.value_of("path").unwrap_or("jp_file.txt").to_owned()
+    m.value_of("path").unwrap_or("quilt_file.txt").to_owned()
 }

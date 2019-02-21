@@ -1,9 +1,9 @@
 use askama_escape::escape;
 use clap::ArgMatches;
 use failure::Error;
-use graph::Graph;
 use libquilt::ChainGraggle;
 use libquilt::{NodeId, Repo};
+use quilt_graph::Graph;
 use std::fs::File;
 use std::io::prelude::*;
 

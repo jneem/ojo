@@ -3,31 +3,31 @@
 load 'libs/setup'
 
 @test "unapply dependencies" {
-    $JP init
-    echo First > jp_file.txt
-    HASH_A=`$JP patch create -a Author -m Msg 2>&1 | cut -d " " -f 3`
-    $JP patch apply -- $HASH_A
-    echo Last >> jp_file.txt
-    HASH_B=`$JP patch create -a Author -m Msg 2>&1 | cut -d " " -f 3`
-    $JP patch apply $HASH_B
+    $QL init
+    echo First > quilt_file.txt
+    HASH_A=`$QL patch create -a Author -m Msg 2>&1 | cut -d " " -f 3`
+    $QL patch apply -- $HASH_A
+    echo Last >> quilt_file.txt
+    HASH_B=`$QL patch create -a Author -m Msg 2>&1 | cut -d " " -f 3`
+    $QL patch apply $HASH_B
 
-    cat > jp_file.txt <<EOF
+    cat > quilt_file.txt <<EOF
 First
 Middle
 Last
 EOF
-    HASH_C=`$JP patch create -a Author -m Msg 2>&1 | cut -d " " -f 3`
-    $JP patch apply -- $HASH_C
+    HASH_C=`$QL patch create -a Author -m Msg 2>&1 | cut -d " " -f 3`
+    $QL patch apply -- $HASH_C
 
-    run $JP patch apply --revert "$HASH_A"
+    run $QL patch apply --revert "$HASH_A"
     assert_success
 
-    $JP render
-    run cat jp_file.txt
+    $QL render
+    run cat quilt_file.txt
     assert_success
     assert_output ""
 
-    run $JP log
+    run $QL log
     assert_success
     assert_output ""
 }

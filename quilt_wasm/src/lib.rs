@@ -6,8 +6,8 @@ extern crate serde_derive;
 
 use wasm_bindgen::prelude::*;
 
-use graph::Graph;
 use libquilt::{EdgeKind, NodeId, PatchId};
+use quilt_graph::Graph;
 use std::collections::{HashMap, HashSet};
 
 #[wasm_bindgen]
@@ -53,7 +53,7 @@ impl Repo {
     pub fn apply_changes(&mut self, changes: &Changes) {
         let id = self
             .inner
-            .create_patch("You", "Msg", changes.to_jp_changes())
+            .create_patch("You", "Msg", changes.to_quilt_changes())
             .unwrap();
         self.inner.apply_patch("master", &id).unwrap();
     }
@@ -225,7 +225,7 @@ impl Changes {
     }
 
     // Converts this into an libquilt::Changes.
-    fn to_jp_changes(&self) -> libquilt::Changes {
+    fn to_quilt_changes(&self) -> libquilt::Changes {
         fn node_id(s: &str) -> NodeId {
             let i = s.find('/').unwrap();
             NodeId {

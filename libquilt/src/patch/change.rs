@@ -9,7 +9,7 @@
 // See the LICENSE-APACHE or LICENSE-MIT files at the top-level directory
 // of this distribution.
 
-use diff::LineDiff;
+use quilt_diff::LineDiff;
 
 use crate::storage::File;
 use crate::{NodeId, PatchId};
@@ -156,7 +156,7 @@ mod tests {
     use super::Changes;
     use crate::storage::File;
     use crate::NodeId;
-    use diff::LineDiff::*;
+    use quilt_diff::LineDiff::*;
 
     #[test]
     fn from_diff_empty_first() {

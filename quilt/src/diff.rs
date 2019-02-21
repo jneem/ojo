@@ -1,8 +1,8 @@
 use clap::ArgMatches;
 use colored::*;
-use diff::LineDiff;
 use failure::{Error, Fail};
 use libquilt::Repo;
+use quilt_diff::LineDiff;
 use std::fmt;
 
 pub struct DiffDisplay(pub libquilt::Diff);

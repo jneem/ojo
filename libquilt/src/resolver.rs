@@ -18,7 +18,7 @@
 //! using [`CycleResolver`](crate::resolver::CycleResolver); then, we add any necessary edges using
 //! [`OrderResolver`](crate::resolver::OrderResolver).
 
-use graph::Graph;
+use quilt_graph::Graph;
 use std::collections::{HashMap, HashSet};
 
 use crate::{Change, Changes, Graggle, LiveGraph, NodeId};
@@ -32,7 +32,7 @@ use crate::{Change, Changes, Graggle, LiveGraph, NodeId};
 /// connected component, you must select exactly one node to survive.
 pub struct CycleResolver<'a> {
     graggle: Graggle<'a>,
-    sccs: graph::Partition<LiveGraph<'a>>,
+    sccs: quilt_graph::Partition<LiveGraph<'a>>,
 
     // The indices of all SCCs that have more than one element. This will gradually shrink as we
     // resolve more components.
@@ -178,7 +178,7 @@ pub struct OrderResolver<'a> {
 
     // The partition of the graggle's nodes into strongly connected components. All of the remaining
     // fields refer to indices of components in this partition.
-    sccs: graph::Partition<LiveGraph<'a>>,
+    sccs: quilt_graph::Partition<LiveGraph<'a>>,
     // Since OrderResolver comes after CycleResolver, we have already chosen exactly one
     // representative from each SCC. This is the list of representatives.
     scc_reps: Vec<NodeId>,

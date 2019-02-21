@@ -11,10 +11,10 @@
 
 #![deny(missing_docs)]
 
-//! A library for creating, reading, and manipulating `jp` repositories.
+//! A library for creating, reading, and manipulating `quilt` repositories.
 //!
-//! `jp` is a toy implementation of a version control system inspired by the same ideas as
-//! [`pijul`](https://pijul.com). These ideas, and eventually the implementation of `jp`,
+//! `quilt` is a toy implementation of a version control system inspired by the same ideas as
+//! [`pijul`](https://pijul.com). These ideas, and eventually the implementation of `quilt`,
 //! are documented in some [`blog posts`](https://jneem.github.io). This crate itself is not so
 //! well documented, but doing so is one of my goals.
 
@@ -32,7 +32,7 @@ extern crate proptest;
 #[macro_use]
 extern crate pretty_assertions;
 
-use graph::Graph;
+use quilt_graph::Graph;
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -52,7 +52,7 @@ pub use crate::error::{Error, PatchIdError};
 pub use crate::patch::{Change, Changes, Patch, PatchId, UnidentifiedPatch};
 pub use crate::storage::graggle::{Edge, EdgeKind};
 pub use crate::storage::{File, FullGraph, Graggle, LiveGraph};
-pub use diff::LineDiff;
+pub use quilt_diff::LineDiff;
 
 /// A globally unique ID for identifying a node.
 #[derive(Clone, Copy, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
@@ -92,7 +92,7 @@ impl NodeId {
     }
 }
 
-/// This is the main interface to a `jp` repository.
+/// This is the main interface to a `quilt` repository.
 ///
 /// Be aware that any modifications made to a repository will not be saved unless [`Repo::write`]
 /// is called.
@@ -100,7 +100,7 @@ impl NodeId {
 pub struct Repo {
     /// The path to the root directory of the repository.
     pub root_dir: PathBuf,
-    /// The path to the directory where all of jp's data is stored.
+    /// The path to the directory where all of quilt's data is stored.
     pub repo_dir: PathBuf,
     /// The path to the database containing all the history, and so on.
     pub db_path: PathBuf,
@@ -112,15 +112,15 @@ pub struct Repo {
 }
 
 impl Repo {
-    /// Given the path of the root directory of a repository, returns the directory where jp's data
+    /// Given the path of the root directory of a repository, returns the directory where quilt's data
     /// is stored.
     fn repo_dir(dir: &Path) -> Result<PathBuf, Error> {
         let mut ret = dir.to_path_buf();
-        ret.push(".jp");
+        ret.push(".quilt");
         Ok(ret)
     }
 
-    /// Given the path of the root directory of a repository, returns the path containing jp's
+    /// Given the path of the root directory of a repository, returns the path containing quilt's
     /// serialized data.
     fn db_path(dir: &Path) -> Result<PathBuf, Error> {
         let mut ret = Repo::repo_dir(dir)?;
@@ -608,7 +608,7 @@ impl Repo {
             .map(|i| file_b.node(i))
             .collect::<Vec<_>>();
 
-        let diff = diff::diff(&lines_a, &lines_b);
+        let diff = quilt_diff::diff(&lines_a, &lines_b);
         Ok(Diff {
             diff,
             file_a,

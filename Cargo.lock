@@ -410,39 +410,6 @@ version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
-name = "jp_diff"
-version = "0.1.1"
-dependencies = [
- "proptest 0.8.7 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "jp_graph"
-version = "0.1.1"
-dependencies = [
- "itertools 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "proptest 0.8.7 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "jp_multimap"
-version = "0.1.1"
-dependencies = [
- "serde 1.0.88 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde_derive 1.0.88 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde_yaml 0.7.5 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "jp_partition"
-version = "0.1.1"
-dependencies = [
- "jp_multimap 0.1.1",
- "serde 1.0.88 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde_derive 1.0.88 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "js-sys"
 version = "0.3.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -468,13 +435,13 @@ dependencies = [
  "byteorder 1.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "itertools 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "jp_diff 0.1.1",
- "jp_graph 0.1.1",
- "jp_multimap 0.1.1",
- "jp_partition 0.1.1",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "pretty_assertions 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "proptest 0.8.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "quilt_diff 0.1.1",
+ "quilt_graph 0.1.1",
+ "quilt_multimap 0.1.1",
+ "quilt_partition 0.1.1",
  "serde 1.0.88 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.88 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_yaml 0.7.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -615,11 +582,44 @@ dependencies = [
  "colored 1.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "flexi_logger 0.10.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "jp_diff 0.1.1",
- "jp_graph 0.1.1",
  "libquilt 0.1.1",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "quilt_diff 0.1.1",
+ "quilt_graph 0.1.1",
  "termion 1.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "quilt_diff"
+version = "0.1.1"
+dependencies = [
+ "proptest 0.8.7 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "quilt_graph"
+version = "0.1.1"
+dependencies = [
+ "itertools 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "proptest 0.8.7 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "quilt_multimap"
+version = "0.1.1"
+dependencies = [
+ "serde 1.0.88 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_derive 1.0.88 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_yaml 0.7.5 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "quilt_partition"
+version = "0.1.1"
+dependencies = [
+ "quilt_multimap 0.1.1",
+ "serde 1.0.88 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_derive 1.0.88 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -627,9 +627,9 @@ name = "quilt_wasm"
 version = "0.1.1"
 dependencies = [
  "console_log 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "jp_graph 0.1.1",
  "libquilt 0.1.1",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "quilt_graph 0.1.1",
  "serde 1.0.88 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.88 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasm-bindgen 0.2.37 (registry+https://github.com/rust-lang/crates.io-index)",

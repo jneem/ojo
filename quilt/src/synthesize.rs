@@ -46,6 +46,6 @@ pub fn run(_m: &ArgMatches<'_>) -> Result<(), Error> {
     repo.write()
         .context("Failed to write repository to disk.")?;
 
-    eprintln!("Synthesized a jp repository.");
+    eprintln!("Synthesized a quilt repository.");
     Ok(())
 }

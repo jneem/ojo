@@ -1,2 +1,2 @@
-pre-release-commit-message = "Release jp_partition {{version}}."
+pre-release-commit-message = "Release quilt_partition {{version}}."
 no-dev-version = true

@@ -11,7 +11,7 @@ members = [
     "partition",
 ]
 
-# This shouldn't really be here -- it's specific to the jp_wasm package because
+# This shouldn't really be here -- it's specific to the quilt_wasm package because
 # we want the wasm to be small. But cargo doesn't support target-dependent
 # profiles or profiles defined within the members.
 #[profile.release]

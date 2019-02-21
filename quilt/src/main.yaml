@@ -1,4 +1,4 @@
-name: jp
+name: quilt
 version: "0.1.0"
 about: An educational and proof-of-concept version control system.
 author: Joe Neeman <joeneeman@gmail.com>
@@ -54,7 +54,7 @@ subcommands:
                 long: branch
                 takes_value: true
             - path:
-                help: path to the file (defaults to 'jp_file.txt')
+                help: path to the file (defaults to 'quilt_file.txt')
                 long: path
                 takes_value: true
     - graph:
@@ -66,7 +66,7 @@ subcommands:
                 long: out
                 takes_value: true
     - init:
-        about: Creates a new jp repository
+        about: Creates a new quilt repository
     - log:
         about: Prints all of the patches present on a branch
         args:
@@ -112,7 +112,7 @@ subcommands:
                         long: branch
                         takes_value: true
                     - path:
-                        help: path to the file (defaults to 'jp_file.txt')
+                        help: path to the file (defaults to 'quilt_file.txt')
                         long: path
                         takes_value: true
                     - output-hash:
@@ -146,7 +146,7 @@ subcommands:
             - branch:
                 help: branch to output (defaults to the current branch)
             - path:
-                help: path of the output (defaults to 'jp_file.txt')
+                help: path of the output (defaults to 'quilt_file.txt')
                 long: path
                 takes_value: true
     - resolve:

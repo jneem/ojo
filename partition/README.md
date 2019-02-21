@@ -1,3 +1,3 @@
 This crate contains an implementation of a partitioning (i.e.
-union-find/disjoint-sets) algorithm, build on top of a `jp_multimap`.  This is
-part of [`jp`](https://github.com/jneem/jp), and is not intended for public use.
+union-find/disjoint-sets) algorithm, build on top of a `quilt_multimap`.  This is
+part of [`quilt`](https://github.com/jneem/quilt), and is not intended for public use.

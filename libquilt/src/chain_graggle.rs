@@ -9,9 +9,9 @@
 // See the LICENSE-APACHE or LICENSE-MIT files at the top-level directory
 // of this distribution.
 
-use graph::Graph;
 use itertools::Itertools;
-use multimap::MMap;
+use quilt_graph::Graph;
+use quilt_multimap::MMap;
 use std::collections::{BTreeMap, HashSet};
 
 use crate::NodeId;
@@ -96,7 +96,7 @@ impl ChainGraggle {
     /// Given a graph, decompose it into a `ChainGraggle`.
     pub fn from_graph<G: Graph<Node = NodeId>>(g: G) -> ChainGraggle
     where
-        G::Edge: graph::Edge<NodeId>,
+        G::Edge: quilt_graph::Edge<NodeId>,
     {
         let sccs = g.tarjan();
 

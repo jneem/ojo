@@ -11,7 +11,7 @@
 
 use crate::patch::{Change, Changes};
 use crate::{NodeId, PatchId};
-use multimap::MMap;
+use quilt_multimap::MMap;
 use std::collections::{BTreeMap, HashMap};
 
 #[macro_use]

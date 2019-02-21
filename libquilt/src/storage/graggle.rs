@@ -9,9 +9,9 @@
 // See the LICENSE-APACHE or LICENSE-MIT files at the top-level directory
 // of this distribution.
 
-use graph::Graph;
-use multimap::MMap;
-use partition::Partition;
+use quilt_graph::Graph;
+use quilt_multimap::MMap;
+use quilt_partition::Partition;
 use std::collections::BTreeSet as Set;
 use std::collections::HashSet;
 
@@ -106,7 +106,7 @@ impl Edge {
     }
 }
 
-impl graph::Edge<NodeId> for Edge {
+impl quilt_graph::Edge<NodeId> for Edge {
     fn target(&self) -> NodeId {
         self.dest
     }
@@ -500,10 +500,10 @@ impl GraggleData {
                 (src == u && component.contains(&edge.dest)) || component.contains(src)
             });
             for visit in sub_graph.dfs_from(u) {
-                if let graph::dfs::Visit::Edge { dst, status, .. } = visit {
+                if let quilt_graph::dfs::Visit::Edge { dst, status, .. } = visit {
                     // Only take into account the first visit to a node. Besides being more
                     // efficient, this means we'll avoid adding self-loops.
-                    if status == graph::dfs::Status::New && graggle.is_live(&dst) {
+                    if status == quilt_graph::dfs::Status::New && graggle.is_live(&dst) {
                         pairs.push((*u, dst));
                     }
                 }
@@ -526,7 +526,7 @@ impl GraggleData {
 
     // Brute-force compute the pseudo-edges that should start at node u.
     fn pseudo_edges(&self, u: &NodeId) -> HashSet<NodeId> {
-        use graph::dfs::{Status, Visit};
+        use quilt_graph::dfs::{Status, Visit};
 
         let mut ret = HashSet::new();
         // Pseudo-edges that should start at u are those that can be reached from u by ignoring
@@ -737,7 +737,7 @@ impl<'a> From<&'a GraggleData> for Graggle<'a> {
 /// (i.e. including deleted nodes), use [`FullGraph`].
 pub struct LiveGraph<'a>(Graggle<'a>);
 
-impl<'a> graph::Graph for LiveGraph<'a> {
+impl<'a> quilt_graph::Graph for LiveGraph<'a> {
     type Node = NodeId;
     type Edge = Edge;
 
@@ -760,7 +760,7 @@ impl<'a> graph::Graph for LiveGraph<'a> {
 /// live parts of the graggle, use [`LiveGraph`].
 pub struct FullGraph<'a>(Graggle<'a>);
 
-impl<'a> graph::Graph for FullGraph<'a> {
+impl<'a> quilt_graph::Graph for FullGraph<'a> {
     type Node = NodeId;
     type Edge = Edge;
 

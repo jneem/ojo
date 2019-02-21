@@ -3,7 +3,7 @@
 load 'libs/setup'
 
 @test "log with no repo" {
-    run $JP log
+    run $QL log
     assert_failure
-    assert_output "Error: Failed to find a jp repository"
+    assert_output "Error: Failed to find a quilt repository"
 }

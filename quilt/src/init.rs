@@ -7,6 +7,6 @@ pub fn run(_m: &ArgMatches<'_>) -> Result<(), Error> {
     let repo = Repo::init(&dir)?;
     repo.write()
         .context("Failed to write repository to disk.")?;
-    eprintln!("Created empty jp repository.");
+    eprintln!("Created empty quilt repository.");
     Ok(())
 }
