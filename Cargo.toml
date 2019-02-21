@@ -4,9 +4,9 @@ members = [
     "btree",
     "diff",
     "graph",
-    "jp",
-    "jp_wasm",
-    "libjp",
+    "quilt",
+    "quilt_wasm",
+    "libquilt",
     "multimap",
     "partition",
 ]

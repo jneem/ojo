@@ -7,12 +7,12 @@ extern crate serde_derive;
 use wasm_bindgen::prelude::*;
 
 use graph::Graph;
-use libjp::{EdgeKind, NodeId, PatchId};
+use libquilt::{EdgeKind, NodeId, PatchId};
 use std::collections::{HashMap, HashSet};
 
 #[wasm_bindgen]
 pub struct Repo {
-    inner: libjp::Repo,
+    inner: libquilt::Repo,
 }
 
 #[wasm_bindgen]
@@ -20,7 +20,7 @@ impl Repo {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Repo {
         console_log::init_with_level(log::Level::Debug).unwrap();
-        let inner = libjp::Repo::init_tmp();
+        let inner = libquilt::Repo::init_tmp();
 
         Repo { inner }
     }
@@ -28,7 +28,7 @@ impl Repo {
     pub fn commit(&mut self, new_input: &str) {
         match self.inner.diff("master", new_input.as_bytes()) {
             Ok(diff) => {
-                let changes = libjp::Changes::from_diff(&diff.file_a, &diff.file_b, &diff.diff);
+                let changes = libquilt::Changes::from_diff(&diff.file_a, &diff.file_b, &diff.diff);
                 if !changes.changes.is_empty() {
                     let id = self.inner.create_patch("You", "Msg", changes).unwrap();
                     self.inner.apply_patch("master", &id).unwrap();
@@ -224,8 +224,8 @@ impl Changes {
         }
     }
 
-    // Converts this into an libjp::Changes.
-    fn to_jp_changes(&self) -> libjp::Changes {
+    // Converts this into an libquilt::Changes.
+    fn to_jp_changes(&self) -> libquilt::Changes {
         fn node_id(s: &str) -> NodeId {
             let i = s.find('/').unwrap();
             NodeId {
@@ -236,16 +236,16 @@ impl Changes {
         let nodes = self
             .deleted_nodes
             .iter()
-            .map(|node| libjp::Change::DeleteNode { id: node_id(&node) });
+            .map(|node| libquilt::Change::DeleteNode { id: node_id(&node) });
 
         let edges = self
             .added_edges
             .iter()
-            .map(|(src, dest)| libjp::Change::NewEdge {
+            .map(|(src, dest)| libquilt::Change::NewEdge {
                 src: node_id(&src),
                 dest: node_id(&dest),
             });
-        libjp::Changes {
+        libquilt::Changes {
             changes: nodes.chain(edges).collect(),
         }
     }

@@ -1,6 +1,6 @@
 use clap::ArgMatches;
 use failure::Error;
-use libjp::Changes;
+use libquilt::Changes;
 
 pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     // The unwraps are ok because these are required arguments.

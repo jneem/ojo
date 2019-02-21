@@ -1,10 +1,10 @@
 [package]
-name = "jp"
+name = "quilt"
 version = "0.1.0"
 authors = ["Joe Neeman <joeneeman@gmail.com>"]
 edition = "2018"
 description = "An experimental and educational version control system"
-repository = "https://github.com/jneem/jp"
+repository = "https://github.com/jneem/quilt"
 license = "MIT/Apache-2.0"
 
 [dependencies]
@@ -14,7 +14,7 @@ diff = { package = "jp_diff", path = "../diff", version = "0.1.0" }
 failure = "0.1.3"
 flexi_logger = "0.10"
 graph = { package = "jp_graph", path = "../graph", version = "0.1.0" }
-libjp = { path = "../libjp", version = "0.1.0" }
+libquilt = { path = "../libquilt", version = "0.1.0" }
 log = "0.4"
 termion = "1.5"
 
@@ -22,3 +22,6 @@ termion = "1.5"
 version = "2"
 features = ["yaml"]
 
+[[bin]]
+name = "ql"
+path = "src/main.rs"

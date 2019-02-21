@@ -2,10 +2,10 @@ use clap::ArgMatches;
 use colored::*;
 use diff::LineDiff;
 use failure::{Error, Fail};
-use libjp::Repo;
+use libquilt::Repo;
 use std::fmt;
 
-pub struct DiffDisplay(pub libjp::Diff);
+pub struct DiffDisplay(pub libquilt::Diff);
 
 impl fmt::Display for DiffDisplay {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -28,14 +28,14 @@ impl fmt::Display for DiffDisplay {
     }
 }
 
-pub fn diff(repo: &Repo, branch: &str, file_name: &str) -> Result<libjp::Diff, Error> {
+pub fn diff(repo: &Repo, branch: &str, file_name: &str) -> Result<libquilt::Diff, Error> {
     let mut path = repo.root_dir.clone();
     path.push(file_name);
     let fs_file_contents = std::fs::read(&path)
         .map_err(|e| e.context(format!("Could not read the file {}", file_name)))?;
 
     let ret = repo.diff(branch, &fs_file_contents[..]).map_err(|e| {
-        if let libjp::Error::NotOrdered = e {
+        if let libquilt::Error::NotOrdered = e {
             e.context(format!(
                 "Cannot create a diff because the repo's contents aren't ordered"
             ))

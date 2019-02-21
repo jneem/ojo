@@ -2,8 +2,8 @@ use askama_escape::escape;
 use clap::ArgMatches;
 use failure::Error;
 use graph::Graph;
-use libjp::ChainGraggle;
-use libjp::{NodeId, Repo};
+use libquilt::ChainGraggle;
+use libquilt::{NodeId, Repo};
 use std::fs::File;
 use std::io::prelude::*;
 
@@ -37,7 +37,7 @@ fn node_id(n: &NodeId) -> String {
     format!("{}/{:04}", escape(&n.patch.to_base64()[0..4]), n.node)
 }
 
-fn single_node_label(repo: &Repo, graggle: libjp::Graggle, id: &NodeId) -> String {
+fn single_node_label(repo: &Repo, graggle: libquilt::Graggle, id: &NodeId) -> String {
     let contents = String::from_utf8_lossy(repo.contents(&id)).to_string();
 
     if graggle.is_live(id) {
@@ -58,7 +58,7 @@ fn single_node_label(repo: &Repo, graggle: libjp::Graggle, id: &NodeId) -> Strin
 fn write_single_node<W: std::io::Write>(
     mut write: W,
     repo: &Repo,
-    graggle: libjp::Graggle,
+    graggle: libquilt::Graggle,
     id: &NodeId,
     idx: usize,
 ) -> Result<(), Error> {
@@ -74,7 +74,7 @@ fn write_single_node<W: std::io::Write>(
 fn write_chain_node<W: std::io::Write>(
     mut write: W,
     repo: &Repo,
-    graggle: libjp::Graggle,
+    graggle: libquilt::Graggle,
     ids: &[NodeId],
     idx: usize,
 ) -> Result<(), Error> {

@@ -1,11 +1,11 @@
 [package]
-name = "jp_wasm"
+name = "quilt_wasm"
 version = "0.1.1"
 authors = ["Joe Neeman <joeneeman@gmail.com>"]
 edition = "2018"
 license = "MIT/Apache-2.0"
-repository = "https://github.com/jneem/jp"
-description = "A minimal wasm interface to jp (an educational version control system)"
+repository = "https://github.com/jneem/quilt"
+description = "A minimal wasm interface to quilt (an educational version control system)"
 
 [lib]
 crate-type = ["cdylib"]
@@ -13,7 +13,7 @@ crate-type = ["cdylib"]
 [dependencies]
 console_log = "0.1"
 graph = { package = "jp_graph", path = "../graph", version = "0.1.0" }
-libjp = { path = "../libjp", version = "0.1.0" }
+libquilt = { path = "../libquilt", version = "0.1.0" }
 log = "0.4"
 serde = "1.0"
 serde_derive = "1.0"

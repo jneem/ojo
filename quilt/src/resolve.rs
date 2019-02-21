@@ -1,7 +1,7 @@
 use clap::ArgMatches;
 use failure::Error;
-use libjp::resolver::{CandidateChain, CycleResolver, OrderResolver};
-use libjp::{Changes, Graggle, NodeId, Repo};
+use libquilt::resolver::{CandidateChain, CycleResolver, OrderResolver};
+use libquilt::{Changes, Graggle, NodeId, Repo};
 use std::io::Write;
 use termion::event::Key;
 use termion::input::TermRead;

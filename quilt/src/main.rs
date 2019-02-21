@@ -10,7 +10,7 @@ extern crate log as other_log;
 use clap::{App, ArgMatches};
 use failure::{Error, ResultExt};
 use flexi_logger::Logger;
-use libjp::Repo;
+use libquilt::Repo;
 
 mod branch;
 mod clear;
@@ -55,13 +55,13 @@ fn main() {
     }
 }
 
-fn open_repo() -> Result<libjp::Repo, Error> {
+fn open_repo() -> Result<libquilt::Repo, Error> {
     let mut dir = std::env::current_dir().context("Could not open the current directory")?;
     loop {
         let mut jp_dir = dir.clone();
         jp_dir.push(".jp");
         if jp_dir.is_dir() {
-            return Ok(libjp::Repo::open(dir).context("Failed to open the jp repository")?);
+            return Ok(libquilt::Repo::open(dir).context("Failed to open the jp repository")?);
         }
         if !dir.pop() {
             bail!("Failed to find a jp repository");

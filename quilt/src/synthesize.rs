@@ -1,6 +1,6 @@
 use clap::ArgMatches;
 use failure::{err_msg, Error, ResultExt};
-use libjp::{Change, Changes, NodeId, Repo};
+use libquilt::{Change, Changes, NodeId, Repo};
 use std::io::{stdin, Read};
 
 fn parse_edge(s: &str) -> Option<(usize, usize)> {

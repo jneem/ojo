@@ -6,7 +6,7 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     let repo = crate::open_repo()?;
     let branch = crate::branch(&repo, m);
     let file = repo.file(&branch).map_err(|e| match e {
-        libjp::Error::NotOrdered => {
+        libquilt::Error::NotOrdered => {
             err_msg("Couldn't render a file, because the data isn't ordered")
         }
         other => other.into(),

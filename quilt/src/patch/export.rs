@@ -1,6 +1,6 @@
 use clap::ArgMatches;
 use failure::{Error, ResultExt};
-use libjp::PatchId;
+use libquilt::PatchId;
 
 pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     // The unwrap is ok because this is a required argument.

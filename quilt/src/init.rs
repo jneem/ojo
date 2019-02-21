@@ -1,6 +1,6 @@
 use clap::ArgMatches;
 use failure::{Error, ResultExt};
-use libjp::Repo;
+use libquilt::Repo;
 
 pub fn run(_m: &ArgMatches<'_>) -> Result<(), Error> {
     let dir = std::env::current_dir().context("Couldn't open the current directory.")?;

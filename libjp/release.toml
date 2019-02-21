@@ -1,2 +1,0 @@
-pre-release-commit-message = "Release libjp {{version}}."
-no-dev-version = true
