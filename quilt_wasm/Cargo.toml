@@ -1,6 +1,6 @@
 [package]
 name = "quilt_wasm"
-version = "0.1.1"
+version = "0.1.2-alpha.0"
 authors = ["Joe Neeman <joeneeman@gmail.com>"]
 edition = "2018"
 license = "MIT/Apache-2.0"
