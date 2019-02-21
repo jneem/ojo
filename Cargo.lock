@@ -419,7 +419,7 @@ dependencies = [
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "flexi_logger 0.10.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "jp_diff 0.1.1",
- "jp_graph 0.1.0",
+ "jp_graph 0.1.1",
  "libjp 0.1.0",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "termion 1.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -434,7 +434,7 @@ dependencies = [
 
 [[package]]
 name = "jp_graph"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "itertools 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "proptest 0.8.7 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -463,7 +463,7 @@ name = "jp_wasm"
 version = "0.1.1"
 dependencies = [
  "console_log 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "jp_graph 0.1.0",
+ "jp_graph 0.1.1",
  "libjp 0.1.0",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.88 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -498,7 +498,7 @@ dependencies = [
  "chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "itertools 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "jp_diff 0.1.1",
- "jp_graph 0.1.0",
+ "jp_graph 0.1.1",
  "jp_multimap 0.1.1",
  "jp_partition 0.1.1",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
