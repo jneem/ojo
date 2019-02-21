@@ -3,6 +3,9 @@ name = "jp"
 version = "0.1.0"
 authors = ["Joe Neeman <joeneeman@gmail.com>"]
 edition = "2018"
+description = "An experimental and educational version control system"
+repository = "https://github.com/jneem/jp"
+license = "MIT/Apache-2.0"
 
 [dependencies]
 askama_escape = "0.1"
