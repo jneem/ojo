@@ -1,0 +1,23 @@
+[package]
+name = "ojo_wasm"
+version = "0.1.0"
+authors = ["Joe Neeman <joeneeman@gmail.com>"]
+edition = "2018"
+license = "MIT/Apache-2.0"
+repository = "https://github.com/jneem/ojo"
+description = "A minimal wasm interface to ojo (an educational version control system)"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+console_log = "0.1"
+libojo = { path = "../libojo", version = "0.1.0" }
+log = "0.4"
+ojo_graph = { path = "../graph", version = "0.1.0" }
+serde = "1.0"
+serde_derive = "1.0"
+
+[dependencies.wasm-bindgen]
+version = "^0.2"
+features = ["serde-serialize"]

@@ -1,2 +1,2 @@
-pre-release-commit-message = "Release quilt_multimap {{version}}."
+pre-release-commit-message = "Release ojo_multimap {{version}}."
 no-dev-version = true

@@ -1,0 +1,2 @@
+pre-release-commit-message = "Release libojo {{version}}."
+no-dev-version = true

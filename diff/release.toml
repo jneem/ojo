@@ -1,2 +1,2 @@
-pre-release-commit-message = "Release quilt_diff {{version}}."
+pre-release-commit-message = "Release ojo_diff {{version}}."
 no-dev-version = true

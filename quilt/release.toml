@@ -1,2 +1,0 @@
-pre-release-commit-message = "Release quilt {{version}}."
-no-dev-version = true

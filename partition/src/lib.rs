@@ -16,7 +16,7 @@
 #[macro_use]
 extern crate serde_derive;
 
-use quilt_multimap::MMap;
+use ojo_multimap::MMap;
 use std::collections::btree_map::Entry;
 use std::collections::BTreeMap as Map;
 

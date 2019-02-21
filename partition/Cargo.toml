@@ -1,13 +1,13 @@
 [package]
-name = "quilt_partition"
-version = "0.1.1"
+name = "ojo_partition"
+version = "0.1.0"
 authors = ["Joe Neeman <joeneeman@gmail.com>"]
 edition = "2018"
-description = "A union-find/disjoint-sets algorithm (part of the quilt project)"
-repository = "https://github.com/jneem/quilt"
+description = "A union-find/disjoint-sets algorithm (part of the ojo project)"
+repository = "https://github.com/jneem/ojo"
 license = "MIT/Apache-2.0"
 
 [dependencies]
-quilt_multimap = { path = "../multimap", version = "0.1.0" }
+ojo_multimap = { path = "../multimap", version = "0.1.0" }
 serde = "1.0"
 serde_derive = "1.0"
