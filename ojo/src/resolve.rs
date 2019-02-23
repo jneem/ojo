@@ -40,6 +40,7 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
 
     if let Some(changes) = changes {
         let id = repo.create_patch(author, "Resolve to a file", changes)?;
+        repo.write()?;
         eprintln!("Created patch {}", id.to_base64());
     } else {
         eprintln!("No patch created");
