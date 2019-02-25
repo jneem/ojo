@@ -1,6 +1,6 @@
 [package]
 name = "libojo"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Joe Neeman <joeneeman@gmail.com>"]
 edition = "2018"
 description = "A library for interacting with ojo repositories (part of the ojo project)"
