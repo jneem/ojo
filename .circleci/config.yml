@@ -1,0 +1,37 @@
+version: 2
+
+jobs:
+
+  test:
+    docker:
+      - image: rust:latest
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+            - v3-cargo-cache-test-{{ arch }}-{{ .Branch }}
+            - v3-cargo-cache-test-{{ arch }}
+
+      # Run tests
+      - run:
+          name: Run all tests
+          command: cargo test --all
+
+      # Save cache
+      - save_cache:
+          key: v3-cargo-cache-test-{{ arch }}-{{ .Branch }}
+          paths:
+            - target
+            - /usr/local/cargo
+      - save_cache:
+          key: v3-cargo-cache-test-{{ arch }}
+          paths:
+            - target
+            - /usr/local/cargo
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - test
