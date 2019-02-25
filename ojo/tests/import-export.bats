@@ -26,6 +26,11 @@ load 'libs/setup'
 }
 
 @test "export: unwritable" {
+    # The rust image on CircleCI doesn't have a non-root user, so it runs tests
+    # as root. When running this test as root, it fails because root always has
+    # permission.
+    # TODO: figure out how to run as non-root on CircleCI.
+    skip "This doesn't work on CircleCI"
     $OJO init
     echo "Content" > ojo_file.txt
     HASH=`$OJO patch create -a Me -m Msg --output-hash`

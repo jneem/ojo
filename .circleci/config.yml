@@ -6,10 +6,6 @@ jobs:
     docker:
       - image: rust:latest
     steps:
-      - run:
-          name: Add a user
-          command: useradd -m me && su -l me
-
       - checkout
 
       - restore_cache:
