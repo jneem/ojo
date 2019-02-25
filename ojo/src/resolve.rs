@@ -1,5 +1,5 @@
 use clap::ArgMatches;
-use failure::Error;
+use failure::{Error, ResultExt};
 use libojo::resolver::{CandidateChain, CycleResolver, OrderResolver};
 use libojo::{Changes, Graggle, NodeId, Repo};
 use std::io::Write;
@@ -16,12 +16,23 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     let mut repo = super::open_repo()?;
     let branch = super::branch(&repo, m);
     let graggle = repo.graggle(&branch)?;
+    let testing = m.is_present("testing");
 
     let changes = {
         // Here we use the alternate screen, so nothing we print in this scope will be visible
         // after the scope ends.
         let stdout = std::io::stdout();
-        let screen = AlternateScreen::from(stdout).into_raw_mode()?;
+        let screen: Screen = if !testing {
+            Box::new(
+                AlternateScreen::from(stdout)
+                    .into_raw_mode()
+                    .with_context(|_| "Failed to open the terminal in raw mode")?,
+            )
+        } else {
+            // In testing mode, we just ignore all the output (because into_raw_mode fails with
+            // piped stdin).
+            Box::new(std::io::sink())
+        };
         let stdin = std::io::stdin();
 
         // TODO: check if the terminal is big enough.
@@ -54,7 +65,7 @@ const NUMBERS_UPPER: &[u8] = b"!@#$%^&*()";
 const QWERTY: &[u8] = b"qwertyuiop";
 const QWERTY_UPPER: &[u8] = b"QWERTYUIOP";
 
-type Screen = termion::raw::RawTerminal<AlternateScreen<std::io::Stdout>>;
+type Screen = Box<dyn std::io::Write>;
 type Input = termion::input::Keys<std::io::Stdin>;
 
 struct CycleResolverState<'a> {
@@ -74,7 +85,7 @@ impl<'a> CycleResolverState<'a> {
         input: Input,
         graggle: Graggle<'a>,
     ) -> Result<CycleResolverState<'a>, Error> {
-        let (width, _) = termion::terminal_size()?;
+        let (width, _) = termion::terminal_size().unwrap_or((80, 24));
 
         Ok(CycleResolverState {
             repo,
@@ -176,7 +187,10 @@ impl<'a> OrderResolverState<'a> {
         input: Input,
         resolver: OrderResolver<'a>,
     ) -> Result<OrderResolverState<'a>, Error> {
-        let (width, height) = termion::terminal_size()?;
+        // If we fail to get a real width and height, try to keep going anyway. It probably just
+        // means that stdin and stdout are pipes (which is probably because we're running some
+        // tests).
+        let (width, height) = termion::terminal_size().unwrap_or((80, 24));
 
         Ok(OrderResolverState {
             repo,

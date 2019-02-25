@@ -162,6 +162,10 @@ subcommands:
                 long: author
                 required: true
                 takes_value: true
+            - testing:
+                help: disables the display, which is useful when writing tests
+                long: testing
+                hidden: true
     - synthesize:
         about: Synthesizes a repository with an arbitrary graph (for testing)
         settings:
