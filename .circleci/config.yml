@@ -13,10 +13,13 @@ jobs:
             - v3-cargo-cache-test-{{ arch }}-{{ .Branch }}
             - v3-cargo-cache-test-{{ arch }}
 
-      # Run tests
       - run:
-          name: Run all tests
+          name: Run unit tests
           command: cargo test --all
+
+      - run:
+          name: Run CLI tests
+          command: sh ojo/tests/run_all.sh
 
       # Save cache
       - save_cache:
