@@ -19,7 +19,7 @@ jobs:
 
       - run:
           name: Run CLI tests
-          command: sh ojo/tests/run_all.sh
+          command: bash ojo/tests/run_all.sh
 
       # Save cache
       - save_cache:
