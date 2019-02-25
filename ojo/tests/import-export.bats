@@ -32,7 +32,6 @@ load 'libs/setup'
 
     touch out.txt
     chmod ugo-w out.txt
-    ls -l
     run $OJO patch export $HASH -o out.txt
     assert_failure
     assert_line --index 0 "Error: Couldn't create file 'out.txt'"
