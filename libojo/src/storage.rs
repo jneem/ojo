@@ -97,8 +97,8 @@ impl Storage {
         let ret = INode { n: self.next_inode };
         self.next_inode += 1;
 
-        let old_graggle = &self.graggles[&inode];
-        self.graggles.insert(ret, old_graggle.clone());
+        let old_graggle = self.graggles[&inode].clone();
+        self.graggles.insert(ret, old_graggle);
         ret
     }
 
