@@ -1,7 +1,6 @@
 [workspace]
-
+resolver = "3"
 members = [
-    "btree",
     "diff",
     "graph",
     "ojo",
@@ -11,9 +10,13 @@ members = [
     "partition",
 ]
 
-# This shouldn't really be here -- it's specific to the ojo_wasm package because
-# we want the wasm to be small. But cargo doesn't support target-dependent
-# profiles or profiles defined within the members.
-#[profile.release]
-#lto = true
-#opt-level = "z"
+[workspace.package]
+version = "0.1.1"
+authors = ["Joe Neeman <joeneeman@gmail.com>"]
+edition = "2021"
+repository = "https://github.com/jneem/ojo"
+license = "MIT OR Apache-2.0"
+
+[profile.release]
+lto = true
+opt-level = "z"

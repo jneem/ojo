@@ -1,11 +1,11 @@
 [package]
 name = "ojo_diff"
-version = "0.1.0"
-authors = ["Joe Neeman <joeneeman@gmail.com>"]
-edition = "2018"
 description = "A small crate for computing diffs (part of the ojo project)"
-repository = "https://github.com/jneem/ojo"
-license = "MIT/Apache-2.0"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
 
 [dependencies]
 
