@@ -19,6 +19,7 @@ ojo_partition.workspace = true
 serde.workspace = true
 serde_yaml.workspace = true
 sha2.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
 byteorder.workspace = true
