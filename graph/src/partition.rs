@@ -62,7 +62,7 @@ impl<G: Graph + ?Sized> Partition<G> {
         self.sets.len()
     }
 
-    pub fn parts<'b>(&'b self) -> impl Iterator<Item = &'b HashSet<G::Node>> {
+    pub fn parts(&self) -> impl Iterator<Item = &HashSet<G::Node>> {
         self.sets.iter()
     }
 
@@ -71,7 +71,7 @@ impl<G: Graph + ?Sized> Partition<G> {
     }
 
     pub fn index_of(&self, u: &G::Node) -> usize {
-        self.node_map[&u]
+        self.node_map[u]
     }
 
     pub fn into_parts(self) -> Vec<HashSet<G::Node>> {
@@ -83,15 +83,15 @@ impl<G: Graph + ?Sized> Graph for Partition<G> {
     type Node = usize;
     type Edge = usize;
 
-    fn nodes<'a>(&'a self) -> Box<dyn Iterator<Item = usize>> {
+    fn nodes(&self) -> Box<dyn Iterator<Item = usize>> {
         Box::new(0..self.num_components())
     }
 
     fn out_edges<'a>(&'a self, u: &usize) -> Box<dyn Iterator<Item = usize> + 'a> {
-        Box::new(self.edges[&*u].iter().cloned())
+        Box::new(self.edges[u].iter().cloned())
     }
 
     fn in_edges<'a>(&'a self, u: &usize) -> Box<dyn Iterator<Item = usize> + 'a> {
-        Box::new(self.back_edges[&*u].iter().cloned())
+        Box::new(self.back_edges[u].iter().cloned())
     }
 }

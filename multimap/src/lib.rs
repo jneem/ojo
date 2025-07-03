@@ -12,11 +12,17 @@
 // This is just a hacked-up multimap. Eventually, we'll need to move to a fully persistent (in the
 // functional-data-structure sense), on-disk multimap.
 
-use serde::de::{SeqAccess, Visitor};
-use serde::ser::SerializeSeq;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::borrow::Borrow;
-use std::collections::{BTreeMap, BTreeSet};
+use {
+    serde::{
+        Deserialize, Deserializer, Serialize, Serializer,
+        de::{SeqAccess, Visitor},
+        ser::SerializeSeq,
+    },
+    std::{
+        borrow::Borrow,
+        collections::{BTreeMap, BTreeSet},
+    },
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct MMap<K: Ord, V: Ord> {
@@ -64,10 +70,7 @@ impl<K: Ord, V: Ord> MMap<K, V> {
     }
 
     pub fn insert(&mut self, key: K, val: V) {
-        self.map
-            .entry(key)
-            .or_insert_with(BTreeSet::new)
-            .insert(val);
+        self.map.entry(key).or_default().insert(val);
     }
 
     pub fn remove<Q, R>(&mut self, key: &Q, val: &R) -> bool
@@ -77,7 +80,7 @@ impl<K: Ord, V: Ord> MMap<K, V> {
         V: Borrow<R>,
         R: Ord + ?Sized,
     {
-        if let Some(set) = self.map.get_mut(&key) {
+        if let Some(set) = self.map.get_mut(key) {
             let ret = set.remove(val);
             // Remove empty sets entirely. Partly because it seems reasonable to get rid of unused
             // entries, but mostly because it makes the auto-derived PartialEq implementation

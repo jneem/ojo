@@ -9,14 +9,16 @@
 // See the LICENSE-APACHE or LICENSE-MIT files at the top-level directory
 // of this distribution.
 
-use chrono::{DateTime, Utc};
-use serde_yaml;
-use sha2::{Digest, Sha256};
-use std::collections::HashSet;
-use std::io::{self, prelude::*};
+use {
+    chrono::{DateTime, Utc},
+    sha2::{Digest, Sha256},
+    std::{
+        collections::HashSet,
+        io::{self, prelude::*},
+    },
+};
 
-use crate::error::PatchIdError;
-use crate::Error;
+use crate::{Error, error::PatchIdError};
 
 mod change;
 pub use self::change::{Change, Changes};

@@ -1,12 +1,11 @@
-use clap::ArgMatches;
-use failure::Error;
+use {clap::ArgMatches, failure::Error};
 
 pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     let repo = super::open_repo()?;
     let branch = super::branch(&repo, m);
 
     for patch_id in repo.patches(&branch) {
-        let patch = repo.open_patch(&patch_id)?;
+        let patch = repo.open_patch(patch_id)?;
         println!("patch {}", patch_id.to_base64());
         println!("Author: {}", patch.header().author);
         println!();

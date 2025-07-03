@@ -32,10 +32,14 @@ extern crate proptest;
 #[macro_use]
 extern crate pretty_assertions;
 
-use ojo_graph::Graph;
-use std::collections::HashSet;
-use std::fs;
-use std::path::{Path, PathBuf};
+use {
+    ojo_graph::Graph,
+    std::{
+        collections::HashSet,
+        fs,
+        path::{Path, PathBuf},
+    },
+};
 
 // This module needs to go first, because it supplies some macros (for testing) that the other
 // modules use.
@@ -47,12 +51,18 @@ mod error;
 mod patch;
 pub mod resolver;
 
-pub use crate::chain_graggle::ChainGraggle;
-pub use crate::error::{Error, PatchIdError};
-pub use crate::patch::{Change, Changes, Patch, PatchId, UnidentifiedPatch};
-pub use crate::storage::graggle::{Edge, EdgeKind};
-pub use crate::storage::{File, FullGraph, Graggle, LiveGraph};
-pub use ojo_diff::LineDiff;
+pub use {
+    crate::{
+        chain_graggle::ChainGraggle,
+        error::{Error, PatchIdError},
+        patch::{Change, Changes, Patch, PatchId, UnidentifiedPatch},
+        storage::{
+            File, FullGraph, Graggle, LiveGraph,
+            graggle::{Edge, EdgeKind},
+        },
+    },
+    ojo_diff::LineDiff,
+};
 
 /// A globally unique ID for identifying a node.
 #[derive(Clone, Copy, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
@@ -203,10 +213,9 @@ impl Repo {
     }
 
     fn inode(&self, branch: &str) -> Result<storage::INode, Error> {
-        Ok(self
-            .storage
+        self.storage
             .inode(branch)
-            .ok_or_else(|| Error::UnknownBranch(branch.to_owned()))?)
+            .ok_or_else(|| Error::UnknownBranch(branch.to_owned()))
     }
 
     /// Returns a read-only view to the data associated with a branch.
@@ -260,7 +269,7 @@ impl Repo {
             .patches
             .get(id)
             .map(|s| s.as_bytes())
-            .ok_or_else(|| Error::UnknownPatch(*id))
+            .ok_or(Error::UnknownPatch(*id))
     }
 
     /// Introduces a patch to the repository.
@@ -345,15 +354,11 @@ impl Repo {
 
         // Record the deps and reverse-deps.
         for dep in patch.deps() {
-            self.storage
-                .patch_deps
-                .insert(patch.id().clone(), dep.clone());
-            self.storage
-                .patch_rev_deps
-                .insert(dep.clone(), patch.id().clone());
+            self.storage.patch_deps.insert(*patch.id(), *dep);
+            self.storage.patch_rev_deps.insert(*dep, *patch.id());
         }
 
-        self.storage.patches.insert(patch.id().clone(), data);
+        self.storage.patches.insert(*patch.id(), data);
         Ok(())
     }
 
@@ -373,7 +378,7 @@ impl Repo {
             .apply_changes(inode, patch.changes(), *patch_id);
         self.storage
             .branch_patches
-            .insert(branch.to_owned(), patch.id().clone());
+            .insert(branch.to_owned(), *patch.id());
         Ok(())
     }
 
@@ -394,16 +399,16 @@ impl Repo {
             let unapplied_deps = self
                 .storage
                 .patch_deps
-                .get(&cur)
+                .get(cur)
                 .filter(|dep| !self.storage.branch_patches.contains(branch, dep))
                 .cloned()
                 .collect::<Vec<_>>();
             if unapplied_deps.is_empty() {
                 // It's possible that this patch was already applied, because it was a dep of
                 // multiple other patches.
-                if !self.storage.branch_patches.contains(branch, &cur) {
-                    self.apply_one_patch(branch, &cur)?;
-                    applied.push(cur.clone());
+                if !self.storage.branch_patches.contains(branch, cur) {
+                    self.apply_one_patch(branch, cur)?;
+                    applied.push(*cur);
                 }
                 patch_stack.pop();
             } else {
@@ -449,16 +454,16 @@ impl Repo {
             let applied_rev_deps = self
                 .storage
                 .patch_rev_deps
-                .get(&cur)
+                .get(cur)
                 .filter(|dep| self.storage.branch_patches.contains(branch, dep))
                 .cloned()
                 .collect::<Vec<_>>();
             if applied_rev_deps.is_empty() {
                 // It's possible that this patch was already unapplied, because it was a revdep of
                 // multiple other patches.
-                if self.storage.branch_patches.contains(branch, &cur) {
-                    self.unapply_one_patch(branch, &cur)?;
-                    unapplied.push(cur.clone());
+                if self.storage.branch_patches.contains(branch, cur) {
+                    self.unapply_one_patch(branch, cur)?;
+                    unapplied.push(*cur);
                 }
                 patch_stack.pop();
             } else {

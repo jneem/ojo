@@ -9,17 +9,23 @@
 // See the LICENSE-APACHE or LICENSE-MIT files at the top-level directory
 // of this distribution.
 
-use crate::patch::{Change, Changes};
-use crate::{NodeId, PatchId};
-use ojo_multimap::MMap;
-use std::collections::{BTreeMap, HashMap};
+use {
+    crate::{
+        NodeId, PatchId,
+        patch::{Change, Changes},
+    },
+    ojo_multimap::MMap,
+    std::collections::{BTreeMap, HashMap},
+};
 
 #[macro_use]
 pub mod graggle;
 pub mod file;
 
-pub use self::file::File;
-pub use self::graggle::{FullGraph, Graggle, LiveGraph};
+pub use self::{
+    file::File,
+    graggle::{FullGraph, Graggle, LiveGraph},
+};
 
 use self::graggle::GraggleData;
 
@@ -165,15 +171,15 @@ impl Storage {
             match *ch {
                 Change::NewNode { ref id, .. } => {
                     debug!("adding node {:?}", id);
-                    graggle.add_node(id.clone());
+                    graggle.add_node(*id);
                 }
                 Change::DeleteNode { ref id } => {
                     debug!("deleting node {:?}", id);
-                    graggle.delete_node(&id);
+                    graggle.delete_node(id);
                 }
                 Change::NewEdge { ref src, ref dest } => {
                     debug!("adding edge {:?} -- {:?}", src, dest);
-                    graggle.add_edge(src.clone(), dest.clone(), patch);
+                    graggle.add_edge(*src, *dest, patch);
                 }
             }
         }
@@ -186,7 +192,7 @@ impl Storage {
                 ref contents,
             } = *ch
             {
-                self.add_contents(id.clone(), contents.to_owned());
+                self.add_contents(*id, contents.to_owned());
             }
         }
     }

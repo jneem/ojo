@@ -9,15 +9,16 @@
 // See the LICENSE-APACHE or LICENSE-MIT files at the top-level directory
 // of this distribution.
 
-use super::*;
-use crate::patch::Change;
-use crate::{NodeId, PatchId};
+use {
+    super::*,
+    crate::{NodeId, PatchId, patch::Change},
+};
 
-use byteorder::{LittleEndian, WriteBytesExt};
-use proptest::collection::hash_set;
-use proptest::prelude::*;
-use proptest::sample::subsequence;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use {
+    byteorder::{LittleEndian, WriteBytesExt},
+    proptest::{collection::hash_set, prelude::*, sample::subsequence},
+    std::sync::atomic::{AtomicUsize, Ordering},
+};
 
 #[doc(hidden)]
 #[macro_export]
@@ -92,8 +93,10 @@ macro_rules! assert_pseudoedges {
     }
 }
 
+#[allow(dead_code)]
 trait GraggleExt {
     fn has_pseudoedge(&self, i: u64, j: u64) -> bool;
+
     fn pseudoedges(&self) -> HashSet<(u64, u64)>;
 }
 
@@ -468,7 +471,7 @@ static CUR_ID: AtomicUsize = AtomicUsize::new(1);
 // Create arbitrary patches on top of graggles. Basically, an arbitrary patch consists of an
 // arbitrary subset of nodes to delete, and an arbitrary set of nodes to add, with arbitrary
 // edges between the new nodes, and also between the new nodes and the old ones.
-fn arb_changes<'a>(graggle: &'a GraggleData, size: usize) -> BoxedStrategy<ChangesWithId> {
+fn arb_changes(graggle: &GraggleData, size: usize) -> BoxedStrategy<ChangesWithId> {
     fn make_changes(
         old_ids: Vec<NodeId>,
         nodes_to_delete: Vec<NodeId>,
@@ -564,11 +567,9 @@ proptest! {
 fn apply_changes(graggle: &mut GraggleData, changes: &ChangesWithId) {
     for ch in &changes.changes {
         match *ch {
-            Change::NewNode { ref id, .. } => graggle.add_node(id.clone()),
-            Change::DeleteNode { ref id } => graggle.delete_node(&id),
-            Change::NewEdge { ref src, ref dest } => {
-                graggle.add_edge(src.clone(), dest.clone(), changes.id)
-            }
+            Change::NewNode { ref id, .. } => graggle.add_node(*id),
+            Change::DeleteNode { ref id } => graggle.delete_node(id),
+            Change::NewEdge { ref src, ref dest } => graggle.add_edge(*src, *dest, changes.id),
         }
     }
 }

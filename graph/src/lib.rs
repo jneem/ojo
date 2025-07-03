@@ -13,9 +13,10 @@
 #[macro_use]
 extern crate proptest;
 
-use itertools::Itertools;
-use std::collections::HashSet;
-use std::hash::Hash;
+use {
+    itertools::Itertools,
+    std::{collections::HashSet, hash::Hash},
+};
 
 pub mod dfs;
 pub mod partition;
@@ -42,20 +43,20 @@ pub trait Graph {
     fn out_edges<'a>(&'a self, u: &Self::Node) -> Box<dyn Iterator<Item = Self::Edge> + 'a>;
     fn in_edges<'a>(&'a self, u: &Self::Node) -> Box<dyn Iterator<Item = Self::Edge> + 'a>;
 
+    #[expect(clippy::type_complexity)]
     fn out_neighbors<'a>(
         &'a self,
         u: &Self::Node,
-    ) -> std::iter::Map<Box<dyn Iterator<Item = Self::Edge> + 'a>, fn(Self::Edge) -> Self::Node>
-    {
+    ) -> std::iter::Map<impl Iterator<Item = Self::Edge> + 'a, fn(Self::Edge) -> Self::Node> {
         self.out_edges(u)
             .map((|e| e.target()) as fn(Self::Edge) -> Self::Node)
     }
 
+    #[expect(clippy::type_complexity)]
     fn in_neighbors<'a>(
         &'a self,
         u: &Self::Node,
-    ) -> std::iter::Map<Box<dyn Iterator<Item = Self::Edge> + 'a>, fn(Self::Edge) -> Self::Node>
-    {
+    ) -> std::iter::Map<impl Iterator<Item = Self::Edge> + 'a, fn(Self::Edge) -> Self::Node> {
         self.in_edges(u)
             .map((|e| e.target()) as fn(Self::Edge) -> Self::Node)
     }
@@ -147,7 +148,7 @@ pub trait Graph {
 
     /// If this graph is acyclic, returns a topological sort of the vertices. Otherwise, returns
     /// `None`.
-    fn top_sort<'a>(&'a self) -> Option<Vec<Self::Node>> {
+    fn top_sort(&self) -> Option<Vec<Self::Node>> {
         use self::dfs::Visit;
 
         let mut visiting = HashSet::new();
@@ -166,17 +167,17 @@ pub trait Graph {
                         return None;
                     }
                     if status == dfs::Status::New {
-                        visiting.insert(dst.clone());
+                        visiting.insert(*dst);
                     }
                 }
                 Visit::Retreat { ref u, parent: _ } => {
-                    top_sort.push(u.clone());
+                    top_sort.push(*u);
                     let removed = visiting.remove(u);
                     assert!(removed);
                 }
                 Visit::Root(ref u) => {
                     assert!(visiting.is_empty());
-                    visiting.insert(u.clone());
+                    visiting.insert(*u);
                 }
             }
         }
@@ -184,15 +185,13 @@ pub trait Graph {
         Some(top_sort)
     }
 
-    fn linear_order<'a>(&'a self) -> Option<Vec<Self::Node>> {
+    fn linear_order(&self) -> Option<Vec<Self::Node>> {
         if let Some(top) = self.top_sort() {
             // A graph has a linear order if and only if it has a unique topological sort. A
             // topological sort is unique if and only if every node in it has an edge pointing to
             // the subsequent node.
             for (u, v) in top.iter().tuple_windows() {
-                if self.out_neighbors(u).position(|x| x == *v).is_none() {
-                    return None;
-                }
+                self.out_neighbors(u).position(|x| x == *v)?;
             }
             Some(top)
         } else {
@@ -322,8 +321,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use proptest::prelude::*;
-    use std::collections::HashSet;
+    use {proptest::prelude::*, std::collections::HashSet};
 
     use super::Graph;
 
@@ -341,7 +339,7 @@ mod tests {
 
     impl GraphData {
         fn has_edge(&self, u: u32, v: u32) -> bool {
-            self.nodes[u as usize].next.iter().any(|x| *x == v)
+            self.nodes[u as usize].next.contains(&v)
         }
     }
 

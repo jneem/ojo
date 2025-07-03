@@ -1,11 +1,11 @@
-use askama_escape::escape;
-use clap::ArgMatches;
-use failure::Error;
-use libojo::ChainGraggle;
-use libojo::{NodeId, Repo};
-use ojo_graph::Graph;
-use std::fs::File;
-use std::io::prelude::*;
+use {
+    askama_escape::escape,
+    clap::ArgMatches,
+    failure::Error,
+    libojo::{ChainGraggle, NodeId, Repo},
+    ojo_graph::Graph,
+    std::{fs::File, io::prelude::*},
+};
 
 pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     let output = m.value_of("out").unwrap_or("out.dot");
@@ -38,7 +38,7 @@ fn node_id(n: &NodeId) -> String {
 }
 
 fn single_node_label(repo: &Repo, graggle: libojo::Graggle, id: &NodeId) -> String {
-    let contents = String::from_utf8_lossy(repo.contents(&id)).to_string();
+    let contents = String::from_utf8_lossy(repo.contents(id)).to_string();
 
     if graggle.is_live(id) {
         format!(

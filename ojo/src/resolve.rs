@@ -1,13 +1,16 @@
-use clap::ArgMatches;
-use failure::{Error, ResultExt};
-use libojo::resolver::{CandidateChain, CycleResolver, OrderResolver};
-use libojo::{Changes, Graggle, NodeId, Repo};
-use std::io::Write;
-use termion::event::Key;
-use termion::input::TermRead;
-use termion::raw::IntoRawMode;
-use termion::screen::AlternateScreen;
-use termion::{clear, cursor, style};
+use {
+    clap::ArgMatches,
+    failure::{Error, ResultExt},
+    libojo::{
+        Changes, Graggle, NodeId, Repo,
+        resolver::{CandidateChain, CycleResolver, OrderResolver},
+    },
+    std::io::Write,
+    termion::{
+        clear, cursor, event::Key, input::TermRead, raw::IntoRawMode, screen::AlternateScreen,
+        style,
+    },
+};
 
 pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     // The unwrap is ok because this is a required argument.
@@ -38,11 +41,10 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
         // TODO: check if the terminal is big enough.
         write!(std::io::stdout(), "{}", cursor::Hide)?;
         let cycle = CycleResolverState::new(&repo, screen, stdin.keys(), graggle)?;
-        match cycle.run()? { Some(order) => {
-            order.run()?
-        } _ => {
-            None
-        }}
+        match cycle.run()? {
+            Some(order) => order.run()?,
+            _ => None,
+        }
     };
     write!(std::io::stdout(), "{}", cursor::Show)?;
     // TODO: the flush is currently necessary for the eprintln to work; see
@@ -252,11 +254,9 @@ impl<'a> OrderResolverState<'a> {
                         if self.shown_first + 5 < candidates.len() {
                             self.shown_first += 5;
                         }
-                    } else if c == 'k' {
-                        if self.shown_first > 0 {
-                            assert!(self.shown_first >= 5);
-                            self.shown_first -= 5;
-                        }
+                    } else if c == 'k' && self.shown_first > 0 {
+                        assert!(self.shown_first >= 5);
+                        self.shown_first -= 5;
                     }
                 }
                 Key::Esc => {
@@ -276,9 +276,7 @@ impl<'a> OrderResolverState<'a> {
             "{clear}{goto}{line}",
             clear = clear::All,
             goto = cursor::Goto(1, divider_row),
-            line = std::iter::repeat('═')
-                .take(self.width as usize)
-                .collect::<String>()
+            line = std::iter::repeat_n('═', self.width as usize).collect::<String>()
         )?;
 
         // Draw all the lines that are finished.
@@ -318,7 +316,7 @@ impl<'a> OrderResolverState<'a> {
     }
 
     fn redraw_two_choices(&mut self, candidates: Vec<CandidateChain>) -> Result<(), Error> {
-        let divider_col = (self.width + 1) / 2;
+        let divider_col = self.width.div_ceil(2);
         let divider_row = self.height - 5;
 
         for i in 1..=5 {
@@ -461,7 +459,7 @@ fn draw_keybindings(
         screen,
         "{goto}└{line}",
         goto = cursor::Goto(width - 20, row),
-        line = std::iter::repeat("─").take(20).collect::<String>()
+        line = std::iter::repeat_n("─", 20).collect::<String>()
     )?;
     Ok(())
 }

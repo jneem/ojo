@@ -1,18 +1,21 @@
-#[macro_use]
-extern crate log;
-
-#[macro_use]
-extern crate serde_derive;
-
-use wasm_bindgen::prelude::*;
-
-use libojo::{EdgeKind, NodeId, PatchId};
-use ojo_graph::Graph;
-use std::collections::{HashMap, HashSet};
+use {
+    libojo::{EdgeKind, NodeId, PatchId},
+    log::debug,
+    ojo_graph::Graph,
+    serde::{Deserialize, Serialize},
+    std::collections::{HashMap, HashSet},
+    wasm_bindgen::prelude::*,
+};
 
 #[wasm_bindgen]
 pub struct Repo {
     inner: libojo::Repo,
+}
+
+impl Default for Repo {
+    fn default() -> Self {
+        Repo::new()
+    }
 }
 
 #[wasm_bindgen]
@@ -83,7 +86,7 @@ impl Repo {
         for p in &ids {
             patches.push(Patch {
                 id: p.to_base64(),
-                applied: applied_ids.contains(&p),
+                applied: applied_ids.contains(p),
             });
             for q in self.inner.patch_deps(p) {
                 deps.push((id_idx[p], id_idx[q]));
@@ -143,12 +146,12 @@ pub struct Patches {
 impl Patches {
     // Returns a vec of strings
     pub fn patches(&self) -> JsValue {
-        JsValue::from_serde(&self.patches).unwrap()
+        serde_wasm_bindgen::to_value(&self.patches).unwrap()
     }
 
     // Returns a vec of pairs
     pub fn deps(&self) -> JsValue {
-        JsValue::from_serde(&self.deps).unwrap()
+        serde_wasm_bindgen::to_value(&self.deps).unwrap()
     }
 }
 
@@ -192,11 +195,11 @@ pub struct Graggle {
 #[wasm_bindgen]
 impl Graggle {
     pub fn nodes(&self) -> JsValue {
-        JsValue::from_serde(&self.nodes).unwrap()
+        serde_wasm_bindgen::to_value(&self.nodes).unwrap()
     }
 
     pub fn edges(&self) -> JsValue {
-        JsValue::from_serde(&self.edges).unwrap()
+        serde_wasm_bindgen::to_value(&self.edges).unwrap()
     }
 }
 
@@ -215,12 +218,12 @@ impl Changes {
     /// should be an array of pairs of strings (the sources and destinations of the edges to be
     /// added).
     #[wasm_bindgen(constructor)]
-    pub fn new(nodes: &JsValue, edges: &JsValue) -> Changes {
-        debug!("{:?}", nodes);
-        debug!("{:?}", edges);
+    pub fn new(nodes: JsValue, edges: JsValue) -> Changes {
+        debug!("{nodes:?}");
+        debug!("{edges:?}");
         Changes {
-            deleted_nodes: nodes.into_serde().unwrap(),
-            added_edges: edges.into_serde().unwrap(),
+            deleted_nodes: serde_wasm_bindgen::from_value(nodes).unwrap(),
+            added_edges: serde_wasm_bindgen::from_value(edges).unwrap(),
         }
     }
 
@@ -236,14 +239,14 @@ impl Changes {
         let nodes = self
             .deleted_nodes
             .iter()
-            .map(|node| libojo::Change::DeleteNode { id: node_id(&node) });
+            .map(|node| libojo::Change::DeleteNode { id: node_id(node) });
 
         let edges = self
             .added_edges
             .iter()
             .map(|(src, dest)| libojo::Change::NewEdge {
-                src: node_id(&src),
-                dest: node_id(&dest),
+                src: node_id(src),
+                dest: node_id(dest),
             });
         libojo::Changes {
             changes: nodes.chain(edges).collect(),

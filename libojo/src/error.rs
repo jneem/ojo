@@ -13,10 +13,7 @@
 // errors we're exposing.
 #![allow(missing_docs)]
 
-use serde_yaml;
-use std::ffi::OsString;
-use std::path::PathBuf;
-use std::{self, fmt, io};
+use std::{self, ffi::OsString, fmt, io, path::PathBuf};
 
 use crate::{NodeId, PatchId};
 
