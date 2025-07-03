@@ -126,7 +126,7 @@ mod tests {
                 let g = graph($graph);
                 let d = g.tarjan();
                 let expected: Vec<_> = $expected
-                    .into_iter()
+                    .iter()
                     .map(|scc| scc.into_iter().cloned().collect::<HashSet<u32>>())
                     .collect();
                 assert_eq!(d.sets, expected);

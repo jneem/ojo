@@ -38,11 +38,11 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
         // TODO: check if the terminal is big enough.
         write!(std::io::stdout(), "{}", cursor::Hide)?;
         let cycle = CycleResolverState::new(&repo, screen, stdin.keys(), graggle)?;
-        if let Some(order) = cycle.run()? {
+        match cycle.run()? { Some(order) => {
             order.run()?
-        } else {
+        } _ => {
             None
-        }
+        }}
     };
     write!(std::io::stdout(), "{}", cursor::Show)?;
     // TODO: the flush is currently necessary for the eprintln to work; see

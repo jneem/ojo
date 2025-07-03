@@ -13,9 +13,10 @@
 #[macro_use]
 extern crate proptest;
 
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    hash::{Hash, Hasher},
+};
 
 mod lis;
 
@@ -194,11 +195,9 @@ pub fn diff<T: Hash + Eq>(a: &[T], b: &[T]) -> Vec<LineDiff> {
 
 #[cfg(test)]
 mod tests {
-    use proptest::prelude::*;
-    use std::fmt::Debug;
+    use {proptest::prelude::*, std::fmt::Debug};
 
-    use super::LineDiff::*;
-    use super::*;
+    use super::{LineDiff::*, *};
 
     macro_rules! test_diff_ends {
         ($name:ident, $a:expr, $b:expr, $expected:expr) => {

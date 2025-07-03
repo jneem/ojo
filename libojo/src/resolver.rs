@@ -163,7 +163,7 @@ impl<'a> CandidateChain<'a> {
     }
 
     /// Returns an iterator over all elements of this chain (including the first).
-    pub fn iter(&self) -> impl Iterator<Item = NodeId> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = NodeId> + 'a + use<'a> {
         ChainIter::new(self.graggle, self.id)
     }
 }

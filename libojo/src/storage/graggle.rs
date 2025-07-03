@@ -9,13 +9,14 @@
 // See the LICENSE-APACHE or LICENSE-MIT files at the top-level directory
 // of this distribution.
 
-use ojo_graph::Graph;
-use ojo_multimap::MMap;
-use ojo_partition::Partition;
-use std::collections::BTreeSet as Set;
-use std::collections::HashSet;
-
-use crate::{NodeId, PatchId};
+use {
+    crate::{NodeId, PatchId},
+    ojo_graph::Graph,
+    ojo_multimap::MMap,
+    ojo_partition::Partition,
+    serde_derive::{Deserialize, Serialize},
+    std::collections::{BTreeSet as Set, HashSet},
+};
 
 /// The different kinds of edges.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
@@ -153,11 +154,11 @@ impl GraggleData {
         Graggle { data: self }
     }
 
-    pub fn all_out_edges<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b Edge> + 'b {
+    pub fn all_out_edges<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b Edge> + 'b + use<'b> {
         self.edges.get(node)
     }
 
-    pub fn all_in_edges<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b Edge> + 'b {
+    pub fn all_in_edges<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b Edge> + 'b + use<'b> {
         self.back_edges.get(node)
     }
 
@@ -169,13 +170,13 @@ impl GraggleData {
         // Construct the smallest (in the sense of Edge's order) edge that could possibly go from
         // src to dest.
         let e = Edge::new_live(*dest, PatchId::cur());
-        if let Some(actual_e) = self.edges.get_from(src, &e).next() {
+        match self.edges.get_from(src, &e).next() { Some(actual_e) => {
             // actual_e is an edge going from src to something greater than or equal to dest.
             // There's an edge from src to dest if and only if actual_e goes to dest.
             actual_e.dest == *dest && actual_e.kind == EdgeKind::Live
-        } else {
+        } _ => {
             false
-        }
+        }}
     }
 
     // We just deleted the pseudo-edge from src to dest. Clean up the corresponding entries in
@@ -664,27 +665,27 @@ impl<'a> Graggle<'a> {
     }
 
     /// Returns an iterator over all edges pointing from `node` to another live node.
-    pub fn out_edges(self, node: &NodeId) -> impl Iterator<Item = &'a Edge> + 'a {
+    pub fn out_edges(self, node: &NodeId) -> impl Iterator<Item = &'a Edge> + 'a + use<'a> {
         self.data.edges.get(node).take_while(|e| e.not_deleted())
     }
 
     /// Returns an iterator over all live out-neighbors of `node`.
-    pub fn out_neighbors(self, node: &NodeId) -> impl Iterator<Item = &'a NodeId> + 'a {
+    pub fn out_neighbors(self, node: &NodeId) -> impl Iterator<Item = &'a NodeId> + 'a + use<'a> {
         self.out_edges(node).map(|e| &e.dest)
     }
 
     /// Returns an iterator over all live in-neighbors of `node`.
-    pub fn in_neighbors(self, node: &NodeId) -> impl Iterator<Item = &'a NodeId> + 'a {
+    pub fn in_neighbors(self, node: &NodeId) -> impl Iterator<Item = &'a NodeId> + 'a + use<'a> {
         self.in_edges(node).map(|e| &e.dest)
     }
 
     /// Returns an iterator over all edges pointing out of `node`, including those that point to
     /// deleted edges.
-    pub fn all_out_edges(self, node: &NodeId) -> impl Iterator<Item = &'a Edge> + 'a {
+    pub fn all_out_edges(self, node: &NodeId) -> impl Iterator<Item = &'a Edge> + 'a + use<'a> {
         self.data.edges.get(node)
     }
     /// Returns an iterator over all backwards edges pointing from `node` to another live node.
-    pub fn in_edges(self, node: &NodeId) -> impl Iterator<Item = &'a Edge> + 'a {
+    pub fn in_edges(self, node: &NodeId) -> impl Iterator<Item = &'a Edge> + 'a + use<'a> {
         self.data
             .back_edges
             .get(node)
@@ -693,7 +694,7 @@ impl<'a> Graggle<'a> {
 
     /// Returns an iterator over all backwards edges pointing out of `node`, including those that
     /// point to deleted edges.
-    pub fn all_in_edges(self, node: &NodeId) -> impl Iterator<Item = &'a Edge> + 'a {
+    pub fn all_in_edges(self, node: &NodeId) -> impl Iterator<Item = &'a Edge> + 'a + use<'a> {
         self.data.back_edges.get(node)
     }
 

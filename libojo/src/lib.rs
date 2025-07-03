@@ -292,7 +292,7 @@ impl Repo {
             .changes
             .iter()
             .filter_map(|ch| {
-                if let Change::NewNode { ref id, .. } = ch {
+                if let Change::NewNode { id, .. } = ch {
                     Some(id)
                 } else {
                     None
@@ -306,12 +306,12 @@ impl Repo {
                     || (self.storage.contains_node(id) && dep_set.contains(&id.patch))
             };
             match ch {
-                NewNode { ref id, .. } => {
+                NewNode { id, .. } => {
                     if !has_node(id) {
                         return Err(Error::UnknownNode(*id));
                     }
                 }
-                NewEdge { ref src, ref dest } => {
+                NewEdge { src, dest } => {
                     if !has_node(src) {
                         return Err(Error::UnknownNode(*src));
                     }
@@ -319,7 +319,7 @@ impl Repo {
                         return Err(Error::UnknownNode(*dest));
                     }
                 }
-                DeleteNode { ref id } => {
+                DeleteNode { id } => {
                     if !has_node(id) {
                         return Err(Error::UnknownNode(*id));
                     }
@@ -479,17 +479,17 @@ impl Repo {
 
     /// Returns an iterator over all of the patches being used in a branch.
     // TODO: maybe a way to check whether a patch is applied to a branch?
-    pub fn patches(&self, branch: &str) -> impl Iterator<Item = &PatchId> {
+    pub fn patches(&self, branch: &str) -> impl Iterator<Item = &PatchId> + use<'_> {
         self.storage.branch_patches.get(branch)
     }
 
     /// Returns an iterator over all direct dependencies of the given patch.
-    pub fn patch_deps(&self, patch: &PatchId) -> impl Iterator<Item = &PatchId> {
+    pub fn patch_deps(&self, patch: &PatchId) -> impl Iterator<Item = &PatchId> + use<'_> {
         self.storage.patch_deps.get(patch)
     }
 
     /// Returns an iterator over all direct dependents of the given patch.
-    pub fn patch_rev_deps(&self, patch: &PatchId) -> impl Iterator<Item = &PatchId> {
+    pub fn patch_rev_deps(&self, patch: &PatchId) -> impl Iterator<Item = &PatchId> + use<'_> {
         self.storage.patch_rev_deps.get(patch)
     }
 
