@@ -8,8 +8,7 @@ repository.workspace = true
 license.workspace = true
 
 [dependencies]
-serde = "1.0"
-serde_derive = "1.0"
+serde.workspace = true
 
 [dev-dependencies]
-serde_yaml = "0.7"
+serde_yaml.workspace = true

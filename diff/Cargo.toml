@@ -7,7 +7,5 @@ edition.workspace = true
 repository.workspace = true
 license.workspace = true
 
-[dependencies]
-
 [dev-dependencies]
-proptest = "0.8"
+proptest.workspace = true

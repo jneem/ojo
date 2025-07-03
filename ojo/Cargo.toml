@@ -8,13 +8,13 @@ repository.workspace = true
 license.workspace = true
 
 [dependencies]
-askama_escape = "0.1"
-clap = { version = "2", features = ["yaml"] }
-colored = "1.9"
-failure = "0.1.8"
-flexi_logger = "0.10"
-libojo = { path = "../libojo", version = "0.1.0" }
-log = "0.4"
-ojo_diff = { path = "../diff", version = "0.1.0" }
-ojo_graph = { path = "../graph", version = "0.1.0" }
-termion = "1.5"
+askama_escape.workspace = true
+clap.workspace = true
+colored.workspace = true
+failure.workspace = true
+flexi_logger.workspace = true
+libojo.workspace = true
+log.workspace = true
+ojo_diff.workspace = true
+ojo_graph.workspace = true
+termion.workspace = true
