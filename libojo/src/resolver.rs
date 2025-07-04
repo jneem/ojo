@@ -342,9 +342,7 @@ impl<'a> Iterator for ChainIter<'a> {
 
 #[cfg(test)]
 mod tests {
-    use itertools::Itertools;
-
-    use super::*;
+    use {super::*, crate::graggle, itertools::Itertools};
 
     #[test]
     fn chain_iter() {

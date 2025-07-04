@@ -18,30 +18,30 @@ repository = "https://github.com/jneem/ojo"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-askama_escape = "0.1"
-base64 = "0.9"
+askama_escape = "0.13"
+base64 = "0.22"
 byteorder = "1.5"
 chrono = { version = "0.4", features = ["serde"] }
-clap = { version = "2", features = ["yaml"] }
-colored = "1.9"
-console_log = "0.1"
+clap = { version = "4", features = [] }
+colored = "3.0"
+console_log = "1.0"
 anyhow = "1.0"
-flexi_logger = "0.10"
-itertools = "0.8"
+flexi_logger = "0.31"
+itertools = "0.14"
 libojo = { path = "libojo", version = "0.1.1" }
 log = "0.4"
 ojo_diff = { path = "diff", version = "0.1.1" }
 ojo_graph = { path = "graph", version = "0.1.1" }
 ojo_multimap = { path = "multimap", version = "0.1.1" }
 ojo_partition = { path = "partition", version = "0.1.1" }
-pretty_assertions = "0.5"
+pretty_assertions = "1.4"
 proptest = "1.7"
 rand = "0.9.1"
 serde = { version = "1.0", features = ["derive"] }
-serde-wasm-bindgen = "0.4"
-serde_yaml = "0.7"
-sha2 = "0.7"
-termion = "1.5"
+serde-wasm-bindgen = "0.6"
+serde_yaml = "0.9"
+sha2 = "0.10"
+termion = "4.0"
 thiserror = "2.0"
 wasm-bindgen = { version = "0.2.100", features = ["serde-serialize"] }
 

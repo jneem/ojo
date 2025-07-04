@@ -19,9 +19,8 @@ use {
     std::collections::{BTreeMap, HashMap},
 };
 
-#[macro_use]
-pub mod graggle;
 pub mod file;
+pub mod graggle;
 
 pub use self::{
     file::File,

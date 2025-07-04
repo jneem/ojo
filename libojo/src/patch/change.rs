@@ -153,11 +153,11 @@ impl Change {
 
 #[cfg(test)]
 mod tests {
-    use super::Change::*;
-    use super::Changes;
-    use crate::storage::File;
-    use crate::NodeId;
-    use ojo_diff::LineDiff::*;
+    use {
+        super::{Change::*, Changes},
+        crate::{NodeId, storage::File},
+        ojo_diff::LineDiff::*,
+    };
 
     #[test]
     fn from_diff_empty_first() {

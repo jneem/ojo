@@ -18,10 +18,6 @@
 //! are documented in some [`blog posts`](https://jneem.github.io). This crate itself is not so
 //! well documented, but doing so is one of my goals.
 
-#[cfg(test)]
-#[macro_use]
-extern crate pretty_assertions;
-
 use {
     ojo_graph::Graph,
     serde::{Deserialize, Serialize},
