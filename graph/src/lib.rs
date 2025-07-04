@@ -144,11 +144,11 @@ pub trait Graph {
 
     /// If this graph is acyclic, returns a topological sort of the vertices. Otherwise, returns
     /// `None`.
-    fn top_sort(&self) -> Option<Vec<Self::Node>> {
+    fn topo_sort(&self) -> Option<Vec<Self::Node>> {
         use self::dfs::Visit;
 
         let mut visiting = HashSet::new();
-        let mut top_sort = Vec::new();
+        let mut topo_sort = Vec::new();
         // We build up a topological sort in reverse, by running a DFS and adding a node to the
         // topological sort each time we retreat from it.
         for visit in self.dfs() {
@@ -167,7 +167,7 @@ pub trait Graph {
                     }
                 }
                 Visit::Retreat { ref u, parent: _ } => {
-                    top_sort.push(*u);
+                    topo_sort.push(*u);
                     let removed = visiting.remove(u);
                     assert!(removed);
                 }
@@ -177,12 +177,12 @@ pub trait Graph {
                 }
             }
         }
-        top_sort.reverse();
-        Some(top_sort)
+        topo_sort.reverse();
+        Some(topo_sort)
     }
 
     fn linear_order(&self) -> Option<Vec<Self::Node>> {
-        if let Some(top) = self.top_sort() {
+        if let Some(top) = self.topo_sort() {
             // A graph has a linear order if and only if it has a unique topological sort. A
             // topological sort is unique if and only if every node in it has an edge pointing to
             // the subsequent node.
@@ -391,7 +391,7 @@ mod tests {
             #[test]
             fn $name() {
                 let g = graph($graph);
-                let top_sort = g.top_sort();
+                let top_sort = g.topo_sort();
                 assert_eq!(top_sort, $expected);
             }
         };
@@ -473,7 +473,7 @@ mod tests {
     proptest! {
         #[test]
         fn top_sort_proptest(ref g in arb_graph()) {
-            if let Some(sort) = g.top_sort() {
+            if let Some(sort) = g.topo_sort() {
                 for i in 0..sort.len() {
                     for j in (i+1)..sort.len() {
                         let u = sort[i];

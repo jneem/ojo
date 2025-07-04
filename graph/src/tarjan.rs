@@ -185,7 +185,7 @@ mod tests {
         #[test]
         fn tarjan_scc_dag(ref g in arb_graph()) {
             let sccs = g.tarjan();
-            assert!(sccs.top_sort().is_some());
+            assert!(sccs.topo_sort().is_some());
         }
     }
 }
