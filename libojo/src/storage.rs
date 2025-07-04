@@ -15,6 +15,7 @@ use {
         patch::{Change, Changes},
     },
     ojo_multimap::MMap,
+    serde::{Deserialize, Serialize},
     std::collections::{BTreeMap, HashMap},
 };
 

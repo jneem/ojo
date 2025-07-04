@@ -19,9 +19,6 @@
 //! well documented, but doing so is one of my goals.
 
 #[macro_use]
-extern crate serde_derive;
-
-#[macro_use]
 extern crate log;
 
 #[cfg(test)]
@@ -30,6 +27,7 @@ extern crate pretty_assertions;
 
 use {
     ojo_graph::Graph,
+    serde::{Deserialize, Serialize},
     std::{
         collections::HashSet,
         fs,

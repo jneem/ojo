@@ -11,6 +11,7 @@
 
 use {
     chrono::{DateTime, Utc},
+    serde::{Deserialize, Serialize},
     sha2::{Digest, Sha256},
     std::{
         collections::HashSet,

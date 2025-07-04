@@ -9,10 +9,11 @@
 // See the LICENSE-APACHE or LICENSE-MIT files at the top-level directory
 // of this distribution.
 
-use ojo_diff::LineDiff;
-
-use crate::storage::File;
-use crate::{NodeId, PatchId};
+use {
+    crate::{NodeId, PatchId, storage::File},
+    ojo_diff::LineDiff,
+    serde::{Deserialize, Serialize},
+};
 
 /// A set of [`Change`]s.
 ///

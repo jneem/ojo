@@ -15,8 +15,8 @@
 
 use {
     ojo_multimap::MMap,
-    serde_derive::{Deserialize, Serialize},
-    std::collections::{btree_map::Entry, BTreeMap as Map},
+    serde::{Deserialize, Serialize},
+    std::collections::{BTreeMap as Map, btree_map::Entry},
 };
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

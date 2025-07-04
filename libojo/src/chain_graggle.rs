@@ -9,12 +9,14 @@
 // See the LICENSE-APACHE or LICENSE-MIT files at the top-level directory
 // of this distribution.
 
-use itertools::Itertools;
-use ojo_graph::Graph;
-use ojo_multimap::MMap;
-use std::collections::{BTreeMap, HashSet};
-
-use crate::NodeId;
+use {
+    crate::NodeId,
+    itertools::Itertools,
+    ojo_graph::Graph,
+    ojo_multimap::MMap,
+    serde::{Deserialize, Serialize},
+    std::collections::{BTreeMap, HashSet},
+};
 
 /// A version of a [`Graggle`](crate::Graggle) that has been decomposed into "chains" (for example, for
 /// prettier rendering).

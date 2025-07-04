@@ -14,7 +14,7 @@ use {
     ojo_graph::Graph,
     ojo_multimap::MMap,
     ojo_partition::Partition,
-    serde_derive::{Deserialize, Serialize},
+    serde::{Deserialize, Serialize},
     std::collections::{BTreeSet as Set, HashSet},
 };
 
