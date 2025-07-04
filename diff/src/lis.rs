@@ -140,7 +140,7 @@ mod tests {
 
     proptest! {
         #[test]
-        fn output_is_increasing(ref seq in prop::collection::vec(1..10000, 1..100)) {
+        fn output_is_increasing(ref seq in proptest::collection::vec(1..10000, 1..100)) {
             let lis = longest_increasing_subsequence(seq);
             let lis = lis.into_iter().map(|i| seq[i]).collect::<Vec<_>>();
             assert!(lis.windows(2).all(|pair| pair[0] < pair[1]))

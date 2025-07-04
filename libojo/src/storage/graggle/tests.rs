@@ -441,7 +441,7 @@ fn delete_and_undelete() {
 
 prop_compose! {
     // Creates an arbitrary graggle with no deleted nodes.
-    [pub(crate)] fn arb_live_graggle(max_nodes: usize)
+    pub(crate) fn arb_live_graggle(max_nodes: usize)
                      (num_nodes in 1..max_nodes)
                      (edges in hash_set((0..num_nodes, 0..num_nodes), 0..(num_nodes * MAX_AVG_DEGREE)),
                       num_nodes in Just(num_nodes))

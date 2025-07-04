@@ -125,6 +125,7 @@ mod tests {
             Graph,
             tests::{arb_dag, arb_graph, graph},
         },
+        proptest::prelude::*,
     };
 
     macro_rules! tarjan_test {

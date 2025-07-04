@@ -188,10 +188,12 @@ impl Graph for ChainGraggle {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-
-    use super::*;
-    use crate::storage::graggle::tests::arb_live_graggle;
+    use {
+        super::*,
+        crate::{graggle, storage::graggle::tests::arb_live_graggle},
+        proptest::prelude::*,
+        std::collections::HashSet,
+    };
 
     #[test]
     fn diamond() {

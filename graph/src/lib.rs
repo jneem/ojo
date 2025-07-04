@@ -9,10 +9,6 @@
 // See the LICENSE-APACHE or LICENSE-MIT files at the top-level directory
 // of this distribution.
 
-#[cfg(test)]
-#[macro_use]
-extern crate proptest;
-
 use {
     itertools::Itertools,
     std::{collections::HashSet, hash::Hash},
@@ -433,7 +429,7 @@ mod tests {
 
     // A strategy for generating arbitrary graphs (with up to 20 nodes and up to 40 edges).
     prop_compose! {
-        [pub(crate)] fn arb_graph()
+        pub(crate) fn arb_graph()
         (size in 1u32..20)
         (edges in proptest::collection::vec((0..size, 0..size), 1..40), size in Just(size))
         -> GraphData {
@@ -451,7 +447,7 @@ mod tests {
 
     // A strategy for generating arbitrary DAGs (with up to 20 nodes and up to 40 edges).
     prop_compose! {
-        [pub(crate)] fn arb_dag()
+        pub(crate) fn arb_dag()
         (size in 1u32..20)
         (edges in proptest::collection::vec((0..size, 0..size), 1..40), size in Just(size))
         -> GraphData {
