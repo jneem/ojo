@@ -1,7 +1,7 @@
 use {
+    anyhow::{Context, Result, anyhow},
     clap::ArgMatches,
     colored::*,
-    failure::{Error, Fail},
     libojo::Repo,
     ojo_diff::LineDiff,
     std::fmt,
@@ -30,23 +30,22 @@ impl fmt::Display for DiffDisplay {
     }
 }
 
-pub fn diff(repo: &Repo, branch: &str, file_name: &str) -> Result<libojo::Diff, Error> {
+pub fn diff(repo: &Repo, branch: &str, file_name: &str) -> Result<libojo::Diff> {
     let mut path = repo.root_dir.clone();
     path.push(file_name);
-    let fs_file_contents = std::fs::read(&path)
-        .map_err(|e| e.context(format!("Could not read the file {}", file_name)))?;
+    let fs_file_contents =
+        std::fs::read(&path).with_context(|| format!("Reading the file {}", file_name))?;
 
     repo.diff(branch, &fs_file_contents[..]).map_err(|e| {
         if let libojo::Error::NotOrdered = e {
-            e.context("Cannot create a diff because the repo's contents aren't ordered".to_string())
-                .into()
+            anyhow!("Cannot create a diff because the repo's contents aren't ordered")
         } else {
-            Error::from(e)
+            e.into()
         }
     })
 }
 
-pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
+pub fn run(m: &ArgMatches<'_>) -> Result<()> {
     let repo = super::open_repo()?;
     let branch = super::branch(&repo, m);
     let file_name = super::file_path(m);

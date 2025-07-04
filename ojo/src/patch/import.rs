@@ -1,13 +1,15 @@
-use clap::ArgMatches;
-use failure::{Error, ResultExt};
+use {
+    anyhow::{Context, Result},
+    clap::ArgMatches,
+};
 
-pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
+pub fn run(m: &ArgMatches<'_>) -> Result<()> {
     // The unwrap is ok because this is a required argument.
     let path = m.value_of("PATH").unwrap();
 
     let mut repo = crate::open_repo()?;
     let contents =
-        std::fs::read(path).with_context(|_| format!("Failed to read file '{}'", path))?;
+        std::fs::read(path).with_context(|| format!("Failed to read file '{}'", path))?;
     let id = repo.register_patch(&contents)?;
     repo.write()?;
 

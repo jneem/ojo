@@ -1,13 +1,13 @@
 use {
+    anyhow::Result,
     askama_escape::escape,
     clap::ArgMatches,
-    failure::Error,
     libojo::{ChainGraggle, NodeId, Repo},
     ojo_graph::Graph,
     std::{fs::File, io::prelude::*},
 };
 
-pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
+pub fn run(m: &ArgMatches<'_>) -> Result<()> {
     let output = m.value_of("out").unwrap_or("out.dot");
     let repo = super::open_repo()?;
     let graggle = repo.graggle("master")?;
@@ -61,7 +61,7 @@ fn write_single_node<W: std::io::Write>(
     graggle: libojo::Graggle,
     id: &NodeId,
     idx: usize,
-) -> Result<(), Error> {
+) -> Result<()> {
     writeln!(
         write,
         "\"{}\" [shape=box, style=rounded, label=<{}>]",
@@ -77,7 +77,7 @@ fn write_chain_node<W: std::io::Write>(
     graggle: libojo::Graggle,
     ids: &[NodeId],
     idx: usize,
-) -> Result<(), Error> {
+) -> Result<()> {
     let mut label = ids
         .iter()
         .map(|id| single_node_label(repo, graggle, id))

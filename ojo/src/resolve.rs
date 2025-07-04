@@ -1,6 +1,6 @@
 use {
+    anyhow::{Context, Result, anyhow},
     clap::ArgMatches,
-    failure::{Error, ResultExt},
     libojo::{
         Changes, Graggle, NodeId, Repo,
         resolver::{CandidateChain, CycleResolver, OrderResolver},
@@ -12,7 +12,7 @@ use {
     },
 };
 
-pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
+pub fn run(m: &ArgMatches<'_>) -> Result<()> {
     // The unwrap is ok because this is a required argument.
     let author = m.value_of("author").unwrap();
 
@@ -29,7 +29,7 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
             Box::new(
                 AlternateScreen::from(stdout)
                     .into_raw_mode()
-                    .with_context(|_| "Failed to open the terminal in raw mode")?,
+                    .context("Failed to open the terminal in raw mode")?,
             )
         } else {
             // In testing mode, we just ignore all the output (because into_raw_mode fails with
@@ -86,7 +86,7 @@ impl<'a> CycleResolverState<'a> {
         screen: Screen,
         input: Input,
         graggle: Graggle<'a>,
-    ) -> Result<CycleResolverState<'a>, Error> {
+    ) -> Result<CycleResolverState<'a>> {
         let (width, _) = termion::terminal_size().unwrap_or((80, 24));
 
         Ok(CycleResolverState {
@@ -98,7 +98,7 @@ impl<'a> CycleResolverState<'a> {
         })
     }
 
-    fn run(mut self) -> Result<Option<OrderResolverState<'a>>, Error> {
+    fn run(mut self) -> Result<Option<OrderResolverState<'a>>> {
         while let Some(component) = self.resolver.next_component() {
             let component = component.iter().cloned().collect::<Vec<_>>();
 
@@ -112,7 +112,7 @@ impl<'a> CycleResolverState<'a> {
                 let key = self
                     .input
                     .next()
-                    .ok_or_else(|| failure::err_msg("Unexpected end of input"))??;
+                    .ok_or_else(|| anyhow!("Unexpected end of input"))??;
                 match key {
                     Key::Char(c) => {
                         if let Some(x) = NUMBERS.iter().position(|&a| a == c as u8) {
@@ -139,7 +139,7 @@ impl<'a> CycleResolverState<'a> {
         OrderResolverState::new(self.repo, self.screen, self.input, resolver).map(Some)
     }
 
-    fn redraw(&mut self, lines: &[NodeId]) -> Result<(), Error> {
+    fn redraw(&mut self, lines: &[NodeId]) -> Result<()> {
         for (i, u) in lines.iter().enumerate() {
             write!(
                 self.screen,
@@ -188,7 +188,7 @@ impl<'a> OrderResolverState<'a> {
         screen: Screen,
         input: Input,
         resolver: OrderResolver<'a>,
-    ) -> Result<OrderResolverState<'a>, Error> {
+    ) -> Result<OrderResolverState<'a>> {
         // If we fail to get a real width and height, try to keep going anyway. It probably just
         // means that stdin and stdout are pipes (which is probably because we're running some
         // tests).
@@ -205,7 +205,7 @@ impl<'a> OrderResolverState<'a> {
         })
     }
 
-    fn run(mut self) -> Result<Option<Changes>, Error> {
+    fn run(mut self) -> Result<Option<Changes>> {
         loop {
             let candidates = self.resolver.candidates().collect::<Vec<_>>();
             if candidates.is_empty() {
@@ -219,7 +219,7 @@ impl<'a> OrderResolverState<'a> {
             let key = self
                 .input
                 .next()
-                .ok_or_else(|| failure::err_msg("Unexpected end of input"))??;
+                .ok_or_else(|| anyhow!("Unexpected end of input"))??;
             match key {
                 Key::Char(c) => {
                     let chosen = |x: usize| {
@@ -269,7 +269,7 @@ impl<'a> OrderResolverState<'a> {
         }
     }
 
-    fn redraw(&mut self) -> Result<(), Error> {
+    fn redraw(&mut self) -> Result<()> {
         let divider_row = self.height - 5;
         write!(
             self.screen,
@@ -304,7 +304,7 @@ impl<'a> OrderResolverState<'a> {
         Ok(())
     }
 
-    fn redraw_one_choice(&mut self, candidate: &CandidateChain) -> Result<(), Error> {
+    fn redraw_one_choice(&mut self, candidate: &CandidateChain) -> Result<()> {
         self.write_candidate_chain(candidate, 1, self.width)?;
         self.draw_keybindings(vec![
             ("1", "take one"),
@@ -315,7 +315,7 @@ impl<'a> OrderResolverState<'a> {
         Ok(())
     }
 
-    fn redraw_two_choices(&mut self, candidates: Vec<CandidateChain>) -> Result<(), Error> {
+    fn redraw_two_choices(&mut self, candidates: Vec<CandidateChain>) -> Result<()> {
         let divider_col = self.width.div_ceil(2);
         let divider_row = self.height - 5;
 
@@ -352,7 +352,7 @@ impl<'a> OrderResolverState<'a> {
         ])
     }
 
-    fn redraw_many_choices(&mut self, candidates: Vec<CandidateChain>) -> Result<(), Error> {
+    fn redraw_many_choices(&mut self, candidates: Vec<CandidateChain>) -> Result<()> {
         let divider_row = self.height - 5;
         let num_candidates = 5.min(candidates.len() - self.shown_first);
         let mut row = divider_row;
@@ -416,7 +416,7 @@ impl<'a> OrderResolverState<'a> {
         Ok(())
     }
 
-    fn draw_keybindings(&mut self, bindings: Vec<(&str, &str)>) -> Result<(), Error> {
+    fn draw_keybindings(&mut self, bindings: Vec<(&str, &str)>) -> Result<()> {
         draw_keybindings(&mut self.screen, bindings, self.width)
     }
 
@@ -425,7 +425,7 @@ impl<'a> OrderResolverState<'a> {
         chain: &CandidateChain,
         col: u16,
         max_width: u16,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         let mut row = self.height - 5;
         for u in chain.iter().take(5) {
             row += 1;
@@ -436,11 +436,7 @@ impl<'a> OrderResolverState<'a> {
     }
 }
 
-fn draw_keybindings(
-    screen: &mut Screen,
-    bindings: Vec<(&str, &str)>,
-    width: u16,
-) -> Result<(), Error> {
+fn draw_keybindings(screen: &mut Screen, bindings: Vec<(&str, &str)>, width: u16) -> Result<()> {
     let mut row = 1;
     for (key, msg) in bindings {
         write!(
@@ -470,7 +466,7 @@ fn write_truncated(
     col: u16,
     row: u16,
     max_width: u16,
-) -> Result<(), Error> {
+) -> Result<()> {
     let mut data = String::from_utf8_lossy(data);
     // TODO: Here, we're pretending that the number of chars is the same as the displayed
     // width. Is there some crate to help us figure out the actual width?

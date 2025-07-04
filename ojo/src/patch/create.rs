@@ -1,8 +1,6 @@
-use clap::ArgMatches;
-use failure::Error;
-use libojo::Changes;
+use {anyhow::Result, clap::ArgMatches, libojo::Changes};
 
-pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
+pub fn run(m: &ArgMatches<'_>) -> Result<()> {
     // The unwraps are ok because these are required arguments.
     let msg = m.value_of("description").unwrap();
     let author = m.value_of("author").unwrap();

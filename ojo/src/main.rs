@@ -1,13 +1,9 @@
-#[macro_use]
-extern crate clap;
-
-#[macro_use]
-extern crate failure;
-
-use clap::{App, ArgMatches};
-use failure::{Error, ResultExt};
-use flexi_logger::Logger;
-use libojo::Repo;
+use {
+    anyhow::{Context, Result, bail},
+    clap::{App, ArgMatches, load_yaml},
+    flexi_logger::Logger,
+    libojo::Repo,
+};
 
 mod branch;
 mod clear;
@@ -27,7 +23,7 @@ fn main() {
     Logger::with_env()
         //.log_to_file()
         .start()
-        .unwrap_or_else(|e| panic!("Logger initialization failed with {}", e));
+        .unwrap_or_else(|e| panic!("Logger initialization failed with {e}"));
 
     let result = match m.subcommand_name() {
         Some("branch") => branch::run(m.subcommand_matches("branch").unwrap()),
@@ -44,21 +40,21 @@ fn main() {
     };
 
     if let Err(e) = result {
-        println!("Error: {}", e);
-        for cause in e.iter_causes() {
-            println!("\tcaused by: {}", cause);
+        println!("Error: {e}");
+        for cause in e.chain().skip(1) {
+            println!("\tcaused by: {cause}");
         }
         std::process::exit(1);
     }
 }
 
-fn open_repo() -> Result<libojo::Repo, Error> {
+fn open_repo() -> Result<libojo::Repo> {
     let mut dir = std::env::current_dir().context("Could not open the current directory")?;
     loop {
         let mut ojo_dir = dir.clone();
         ojo_dir.push(".ojo");
         if ojo_dir.is_dir() {
-            return Ok(libojo::Repo::open(dir).context("Failed to open the ojo repository")?);
+            return libojo::Repo::open(dir).context("Failed to open the ojo repository");
         }
         if !dir.pop() {
             bail!("Failed to find a ojo repository");

@@ -1,7 +1,6 @@
-use clap::ArgMatches;
-use failure::Error;
+use {anyhow::Result, clap::ArgMatches};
 
-pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
+pub fn run(m: &ArgMatches<'_>) -> Result<()> {
     let mut repo = super::open_repo()?;
     let branch = super::branch(&repo, m);
     repo.clear(&branch)?;

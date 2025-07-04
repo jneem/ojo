@@ -1,8 +1,6 @@
-use clap::ArgMatches;
-use failure::Error;
-use libojo::PatchId;
+use {anyhow::Result, clap::ArgMatches, libojo::PatchId};
 
-pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
+pub fn run(m: &ArgMatches<'_>) -> Result<()> {
     // The unwrap is ok because this is a required argument.
     let patch_id = m.value_of("PATCH").unwrap();
     let patch_id = PatchId::from_base64(patch_id)?;

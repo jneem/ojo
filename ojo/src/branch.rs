@@ -1,7 +1,6 @@
-use clap::ArgMatches;
-use failure::Error;
+use {anyhow::Result, clap::ArgMatches};
 
-pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
+pub fn run(m: &ArgMatches<'_>) -> Result<()> {
     match m.subcommand_name() {
         Some("clone") => clone_run(m.subcommand_matches("clone").unwrap()),
         Some("delete") => delete_run(m.subcommand_matches("delete").unwrap()),
@@ -12,7 +11,7 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     }
 }
 
-fn clone_run(m: &ArgMatches<'_>) -> Result<(), Error> {
+fn clone_run(m: &ArgMatches<'_>) -> Result<()> {
     // The unwrap is ok, because NAME is a required argument.
     let name = m.value_of("NAME").unwrap();
     let mut repo = crate::open_repo()?;
@@ -23,7 +22,7 @@ fn clone_run(m: &ArgMatches<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-fn delete_run(m: &ArgMatches<'_>) -> Result<(), Error> {
+fn delete_run(m: &ArgMatches<'_>) -> Result<()> {
     // The unwrap is ok, because NAME is a required argument.
     let name = m.value_of("NAME").unwrap();
     let mut repo = crate::open_repo()?;
@@ -33,7 +32,7 @@ fn delete_run(m: &ArgMatches<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-fn list_run(_m: &ArgMatches<'_>) -> Result<(), Error> {
+fn list_run(_m: &ArgMatches<'_>) -> Result<()> {
     let repo = crate::open_repo()?;
     let mut branches = repo.branches().collect::<Vec<_>>();
     branches.sort();
@@ -47,7 +46,7 @@ fn list_run(_m: &ArgMatches<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-fn new_run(m: &ArgMatches<'_>) -> Result<(), Error> {
+fn new_run(m: &ArgMatches<'_>) -> Result<()> {
     // The unwrap is ok, because NAME is a required argument.
     let name = m.value_of("NAME").unwrap();
     let mut repo = crate::open_repo()?;
@@ -57,7 +56,7 @@ fn new_run(m: &ArgMatches<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-fn switch_run(m: &ArgMatches<'_>) -> Result<(), Error> {
+fn switch_run(m: &ArgMatches<'_>) -> Result<()> {
     // The unwrap is ok, because NAME is a required argument.
     let name = m.value_of("NAME").unwrap();
     let mut repo = crate::open_repo()?;
