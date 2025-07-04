@@ -130,7 +130,7 @@ impl<'a> CycleResolverState<'a> {
                         return Ok(None);
                     }
                     _ => {
-                        debug!("unknown key");
+                        log::debug!("unknown key");
                     }
                 }
             }
@@ -263,7 +263,7 @@ impl<'a> OrderResolverState<'a> {
                     return Ok(None);
                 }
                 _ => {
-                    debug!("unknown key");
+                    log::debug!("unknown key");
                 }
             }
         }

@@ -171,15 +171,15 @@ impl Storage {
         for ch in &changes.changes {
             match *ch {
                 Change::NewNode { ref id, .. } => {
-                    debug!("adding node {:?}", id);
+                    log::debug!("adding node {id:?}");
                     graggle.add_node(*id);
                 }
                 Change::DeleteNode { ref id } => {
-                    debug!("deleting node {:?}", id);
+                    log::debug!("deleting node {id:?}");
                     graggle.delete_node(id);
                 }
                 Change::NewEdge { ref src, ref dest } => {
-                    debug!("adding edge {:?} -- {:?}", src, dest);
+                    log::debug!("adding edge {src:?} -- {dest:?}");
                     graggle.add_edge(*src, *dest, patch);
                 }
             }
@@ -206,11 +206,11 @@ impl Storage {
         for ch in &changes.changes {
             match *ch {
                 Change::DeleteNode { ref id } => {
-                    debug!("undeleting node {:?}", id);
+                    log::debug!("undeleting node {id:?}");
                     graggle.undelete_node(id);
                 }
                 Change::NewEdge { ref src, ref dest } => {
-                    debug!("unadding edge {:?} -- {:?}", src, dest);
+                    log::debug!("unadding edge {src:?} -- {dest:?}");
                     graggle.unadd_edge(src, dest, patch);
                 }
                 Change::NewNode { .. } => {}
@@ -218,7 +218,7 @@ impl Storage {
         }
         for ch in &changes.changes {
             if let Change::NewNode { ref id, .. } = *ch {
-                debug!("unadding node {:?}", id);
+                log::debug!("unadding node {id:?}");
                 graggle.unadd_node(id);
             }
         }

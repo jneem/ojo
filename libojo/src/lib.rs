@@ -18,9 +18,6 @@
 //! are documented in some [`blog posts`](https://jneem.github.io). This crate itself is not so
 //! well documented, but doing so is one of my goals.
 
-#[macro_use]
-extern crate log;
-
 #[cfg(test)]
 #[macro_use]
 extern crate pretty_assertions;
@@ -413,7 +410,7 @@ impl Repo {
     }
 
     fn unapply_one_patch(&mut self, branch: &str, patch_id: &PatchId) -> Result<(), Error> {
-        debug!("unapplying patch {:?} from branch {:?}", patch_id, branch);
+        log::debug!("unapplying patch {patch_id:?} from branch {branch:?}");
 
         let patch = self.open_patch(patch_id)?;
         let inode = self.inode(branch)?;

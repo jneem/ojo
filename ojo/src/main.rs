@@ -4,9 +4,6 @@ extern crate clap;
 #[macro_use]
 extern crate failure;
 
-#[macro_use]
-extern crate log as other_log;
-
 use clap::{App, ArgMatches};
 use failure::{Error, ResultExt};
 use flexi_logger::Logger;

@@ -75,7 +75,7 @@ impl Edge {
 
     fn new_pseudo(dest: NodeId) -> Edge {
         Edge {
-            dest: dest,
+            dest,
             kind: EdgeKind::Pseudo,
             patch: PatchId::cur(),
         }
