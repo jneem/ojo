@@ -24,6 +24,6 @@ pub fn run(opts: Opts) -> Result<()> {
     std::fs::write(&out, patch_data)
         .with_context(|| format!("Couldn't create file '{}'", out.display()))?;
 
-    eprintln!("Successfully wrote the file '{}'", out.display());
+    println!("Successfully wrote the file '{}'", out.display());
     Ok(())
 }

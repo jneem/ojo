@@ -47,7 +47,7 @@ pub fn diff(repo: &Repo, branch: &str, file_name: &Path) -> Result<libojo::Diff>
     let mut path = repo.root_dir.clone();
     path.push(file_name);
     let fs_file_contents = std::fs::read(&path)
-        .with_context(|| format!("Reading the file {}", file_name.display()))?;
+        .with_context(|| format!("Could not read the file {}", file_name.display()))?;
 
     repo.diff(branch, &fs_file_contents[..]).map_err(|e| {
         if let libojo::Error::NotOrdered = e {

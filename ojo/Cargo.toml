@@ -18,3 +18,11 @@ log.workspace = true
 ojo_diff.workspace = true
 ojo_graph.workspace = true
 termion.workspace = true
+
+[dev-dependencies]
+assert_cmd.workspace = true
+assert_fs.workspace = true
+cmd_lib.workspace = true
+predicates.workspace = true
+tempfile.workspace = true
+test-context.workspace = true

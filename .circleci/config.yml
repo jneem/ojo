@@ -1,7 +1,6 @@
-version: 2
+version: 2.1
 
 jobs:
-
   test:
     docker:
       - image: rust:latest
@@ -14,12 +13,12 @@ jobs:
             - v3-cargo-cache-test-{{ arch }}
 
       - run:
-          name: Run unit tests
-          command: cargo test --all
+          name: Run clippy
+          command: cargo clippy
 
       - run:
-          name: Run CLI tests
-          command: bash ojo/tests/run_all.sh
+          name: Run tests
+          command: cargo test --all
 
       # Save cache
       - save_cache:
