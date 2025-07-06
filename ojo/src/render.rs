@@ -25,7 +25,7 @@ pub fn run(opts: Opts) -> Result<()> {
     })?;
 
     std::fs::write(&opts.path, file.as_bytes())?;
-    eprintln!("Successfully wrote file '{}'", opts.path.display());
+    println!("Successfully wrote file '{}'", opts.path.display());
 
     Ok(())
 }

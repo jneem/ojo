@@ -50,7 +50,7 @@ fn clone_run(name: String) -> Result<()> {
     let cur_branch = repo.current_branch.clone();
     repo.clone_branch(&cur_branch, &name)?;
     repo.write()?;
-    eprintln!("Cloned branch \"{}\" to branch \"{}\"", cur_branch, name);
+    println!("Cloned branch \"{cur_branch}\" to branch \"{name}\"");
     Ok(())
 }
 
@@ -58,7 +58,7 @@ fn delete_run(name: String) -> Result<()> {
     let mut repo = crate::open_repo()?;
     repo.delete_branch(&name)?;
     repo.write()?;
-    eprintln!("Deleted branch \"{}\"", name);
+    println!("Deleted branch \"{name}\"");
     Ok(())
 }
 
@@ -68,9 +68,9 @@ fn list_run() -> Result<()> {
     branches.sort();
     for b in branches {
         if b == repo.current_branch {
-            println!("* {}", b);
+            println!("* {b}");
         } else {
-            println!("  {}", b);
+            println!("  {b}");
         }
     }
     Ok(())
@@ -80,7 +80,7 @@ fn new_run(name: String) -> Result<()> {
     let mut repo = crate::open_repo()?;
     repo.create_branch(&name)?;
     repo.write()?;
-    eprintln!("Created empty branch \"{}\"", name);
+    println!("Created empty branch \"{name}\"");
     Ok(())
 }
 
@@ -88,6 +88,6 @@ fn switch_run(name: String) -> Result<()> {
     let mut repo = crate::open_repo()?;
     repo.switch_branch(&name)?;
     repo.write()?;
-    eprintln!("Current branch is \"{}\"", name);
+    println!("Current branch is \"{name}\"");
     Ok(())
 }

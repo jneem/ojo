@@ -17,6 +17,6 @@ pub fn run(opts: Opts) -> Result<()> {
     let id = repo.register_patch(&contents)?;
     repo.write()?;
 
-    eprintln!("Successfully imported a patch with id {}", id.to_base64());
+    println!("Successfully imported a patch with id {}", id.to_base64());
     Ok(())
 }

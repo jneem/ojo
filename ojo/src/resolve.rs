@@ -61,7 +61,7 @@ pub fn run(opts: Opts) -> Result<()> {
     if let Some(changes) = changes {
         let id = repo.create_patch(&opts.author, "Resolve to a file", changes)?;
         repo.write()?;
-        eprintln!("Created patch {}", id.to_base64());
+        println!("Created patch {}", id.to_base64());
     } else {
         eprintln!("No patch created");
     }

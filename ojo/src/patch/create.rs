@@ -45,12 +45,12 @@ pub fn run(opts: Opts) -> Result<()> {
         repo.apply_patch(&branch, &id)?;
         repo.write()?;
         if !output_hash {
-            eprintln!("Created and applied patch {}", id.to_base64());
+            println!("Created and applied patch {}", id.to_base64());
         }
     } else {
         repo.write()?;
         if !output_hash {
-            eprintln!("Created patch {}", id.to_base64());
+            println!("Created patch {}", id.to_base64());
         }
     }
 

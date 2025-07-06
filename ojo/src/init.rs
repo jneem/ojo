@@ -10,6 +10,6 @@ pub fn run() -> Result<()> {
     let repo = Repo::init(&dir)?;
     repo.write()
         .context("Failed to write repository to disk.")?;
-    eprintln!("Created empty ojo repository.");
+    println!("Created empty ojo repository.");
     Ok(())
 }

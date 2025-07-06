@@ -23,9 +23,9 @@ pub fn run(opts: Opts) -> Result<()> {
         if unapplied.is_empty() {
             eprintln!("No patches to unapply.");
         } else {
-            eprintln!("Unapplied:");
+            println!("Unapplied:");
             for u in unapplied {
-                eprintln!("  {}", u.to_base64());
+                println!("  {}", u.to_base64());
             }
         }
     } else {
@@ -33,9 +33,9 @@ pub fn run(opts: Opts) -> Result<()> {
         if applied.is_empty() {
             eprintln!("No patches to apply.");
         } else {
-            eprintln!("Applied:");
+            println!("Applied:");
             for a in applied {
-                eprintln!("  {}", a.to_base64());
+                println!("  {}", a.to_base64());
             }
         }
     }

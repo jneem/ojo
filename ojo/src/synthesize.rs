@@ -49,6 +49,6 @@ pub fn run() -> Result<(), Error> {
     repo.write()
         .context("Failed to write repository to disk.")?;
 
-    eprintln!("Synthesized a ojo repository.");
+    println!("Synthesized a ojo repository.");
     Ok(())
 }
