@@ -29,6 +29,7 @@ clap = { version = "4", features = ["derive"] }
 cmd_lib = "1.9"
 colored = "3.0"
 console_log = "1.0"
+crossterm = "0.29"
 flexi_logger = "0.31"
 itertools = "0.14"
 libojo = { path = "libojo", version = "0.1.1" }
@@ -41,12 +42,12 @@ predicates = "3.1.3"
 pretty_assertions = "1.4"
 proptest = "1.7"
 rand = "0.9.1"
+ratatui = "0.29"
 serde = { version = "1.0", features = ["derive"] }
 serde-wasm-bindgen = "0.6"
 serde_yaml = "0.9"
 sha2 = "0.10"
 tempfile = "3.20"
-termion = "4.0"
 test-context = "0.4"
 thiserror = "2.0"
 wasm-bindgen = { version = "0.2.100", features = ["serde-serialize"] }

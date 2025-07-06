@@ -12,12 +12,13 @@ anyhow.workspace = true
 askama_escape.workspace = true
 clap.workspace = true
 colored.workspace = true
+crossterm.workspace = true
 flexi_logger.workspace = true
 libojo.workspace = true
 log.workspace = true
 ojo_diff.workspace = true
 ojo_graph.workspace = true
-termion.workspace = true
+ratatui.workspace = true
 
 [dev-dependencies]
 assert_cmd.workspace = true
