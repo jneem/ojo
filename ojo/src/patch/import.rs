@@ -1,15 +1,19 @@
 use {
     anyhow::{Context, Result},
-    clap::ArgMatches,
+    clap::Parser,
+    std::path::PathBuf,
 };
 
-pub fn run(m: &ArgMatches<'_>) -> Result<()> {
-    // The unwrap is ok because this is a required argument.
-    let path = m.value_of("PATH").unwrap();
+#[derive(Parser, Debug)]
+pub struct Opts {
+    /// path to the patch file
+    path: PathBuf,
+}
 
+pub fn run(opts: Opts) -> Result<()> {
     let mut repo = crate::open_repo()?;
-    let contents =
-        std::fs::read(path).with_context(|| format!("Failed to read file '{}'", path))?;
+    let contents = std::fs::read(&opts.path)
+        .with_context(|| format!("Failed to read file '{}'", opts.path.display()))?;
     let id = repo.register_patch(&contents)?;
     repo.write()?;
 

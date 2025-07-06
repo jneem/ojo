@@ -22,7 +22,7 @@ askama_escape = "0.13"
 base64 = "0.22"
 byteorder = "1.5"
 chrono = { version = "0.4", features = ["serde"] }
-clap = { version = "4", features = [] }
+clap = { version = "4", features = ["derive"] }
 colored = "3.0"
 console_log = "1.0"
 anyhow = "1.0"

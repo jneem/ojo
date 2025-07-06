@@ -1,34 +1,41 @@
 use {
     anyhow::{Context, Result, anyhow},
-    clap::ArgMatches,
+    clap::Parser,
     libojo::{
         Changes, Graggle, NodeId, Repo,
         resolver::{CandidateChain, CycleResolver, OrderResolver},
     },
     std::io::Write,
-    termion::{
-        clear, cursor, event::Key, input::TermRead, raw::IntoRawMode, screen::AlternateScreen,
-        style,
-    },
+    termion::{clear, cursor, event::Key, input::TermRead, screen::IntoAlternateScreen, style},
 };
+//raw::IntoRawMode,
 
-pub fn run(m: &ArgMatches<'_>) -> Result<()> {
-    // The unwrap is ok because this is a required argument.
-    let author = m.value_of("author").unwrap();
+#[derive(Parser, Debug)]
+pub struct Opts {
+    /// branch to work on
+    #[arg(short, long)]
+    branch: Option<String>,
+    /// the person doing the resolving
+    #[arg(short, long)]
+    author: String,
+    /// disables the display, which is useful when writing tests
+    #[arg(long)]
+    testing: bool,
+}
 
+pub fn run(opts: Opts) -> Result<()> {
     let mut repo = super::open_repo()?;
-    let branch = super::branch(&repo, m);
+    let branch = super::branch(&repo, opts.branch);
     let graggle = repo.graggle(&branch)?;
-    let testing = m.is_present("testing");
 
     let changes = {
         // Here we use the alternate screen, so nothing we print in this scope will be visible
         // after the scope ends.
         let stdout = std::io::stdout();
-        let screen: Screen = if !testing {
+        let screen: Box<dyn std::io::Write> = if !opts.testing {
             Box::new(
-                AlternateScreen::from(stdout)
-                    .into_raw_mode()
+                stdout
+                    .into_alternate_screen()
                     .context("Failed to open the terminal in raw mode")?,
             )
         } else {
@@ -52,7 +59,7 @@ pub fn run(m: &ArgMatches<'_>) -> Result<()> {
     std::io::stdout().flush()?;
 
     if let Some(changes) = changes {
-        let id = repo.create_patch(author, "Resolve to a file", changes)?;
+        let id = repo.create_patch(&opts.author, "Resolve to a file", changes)?;
         repo.write()?;
         eprintln!("Created patch {}", id.to_base64());
     } else {

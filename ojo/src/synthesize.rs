@@ -1,9 +1,10 @@
 use {
     anyhow::{Context, Error, Result, anyhow},
-    clap::ArgMatches,
     libojo::{Change, Changes, NodeId, Repo},
     std::io::{Read, stdin},
 };
+
+// no any Opts
 
 fn parse_edge(s: &str) -> Option<(usize, usize)> {
     let dash_idx = s.find('-')?;
@@ -12,7 +13,7 @@ fn parse_edge(s: &str) -> Option<(usize, usize)> {
     Some((u, v))
 }
 
-pub fn run(_m: &ArgMatches<'_>) -> Result<(), Error> {
+pub fn run() -> Result<(), Error> {
     let dir = std::env::current_dir().context("Couldn't open the current directory.")?;
     let mut repo = Repo::init(&dir)?;
     // We need to write the repo before creating the patch, so that the directories all exist.

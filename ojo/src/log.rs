@@ -1,8 +1,15 @@
-use {anyhow::Result, clap::ArgMatches};
+use {anyhow::Result, clap::Parser};
 
-pub fn run(m: &ArgMatches<'_>) -> Result<()> {
+#[derive(Parser, Debug)]
+pub struct Opts {
+    /// branch whose patches we want to print (defaults to the current branch)
+    #[arg(short, long)]
+    branch: Option<String>,
+}
+
+pub fn run(opts: Opts) -> Result<()> {
     let repo = super::open_repo()?;
-    let branch = super::branch(&repo, m);
+    let branch = super::branch(&repo, opts.branch);
 
     for patch_id in repo.patches(&branch) {
         let patch = repo.open_patch(patch_id)?;
