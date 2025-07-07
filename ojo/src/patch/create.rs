@@ -1,18 +1,37 @@
-use clap::ArgMatches;
-use failure::Error;
-use libojo::Changes;
+use {anyhow::Result, clap::Parser, libojo::Changes, std::path::PathBuf};
 
-pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
-    // The unwraps are ok because these are required arguments.
-    let msg = m.value_of("description").unwrap();
-    let author = m.value_of("author").unwrap();
+#[derive(Parser, Debug)]
+pub struct Opts {
+    /// message describing the patch
+    #[arg(short('m'), long)]
+    description: String,
+    /// the author of the patch
+    #[arg(short, long)]
+    author: String,
+    /// branch to compare against (defaults to the current branch)
+    #[arg(short, long)]
+    branch: Option<String>,
+    /// path to the file
+    #[arg(default_value = "ojo_file.txt")]
+    path: PathBuf,
+    /// prints the hash value of the newly created patch to stdout
+    #[arg(short('p'), default_value_t = false, long = "output-hash")]
+    output_hash: bool,
+    /// after creating the patch, apply it
+    #[arg(short, long = "then-apply")]
+    then_apply: bool,
+}
+
+pub fn run(opts: Opts) -> Result<()> {
+    let msg = opts.description;
+    let author = opts.author;
 
     let mut repo = crate::open_repo()?;
-    let branch = crate::branch(&repo, m);
-    let path = crate::file_path(m);
+    let branch = crate::branch(&repo, opts.branch);
+    let path = opts.path;
     let diff = crate::diff::diff(&repo, &branch, &path)?;
     let changes = Changes::from_diff(&diff.file_a, &diff.file_b, &diff.diff);
-    let output_hash = m.is_present("output-hash");
+    let output_hash = opts.output_hash;
 
     if changes.changes.is_empty() {
         if !output_hash {
@@ -21,17 +40,17 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
         return Ok(());
     }
 
-    let id = repo.create_patch(author, msg, changes)?;
-    if m.is_present("then-apply") {
+    let id = repo.create_patch(&author, &msg, changes)?;
+    if opts.then_apply {
         repo.apply_patch(&branch, &id)?;
         repo.write()?;
         if !output_hash {
-            eprintln!("Created and applied patch {}", id.to_base64());
+            println!("Created and applied patch {}", id.to_base64());
         }
     } else {
         repo.write()?;
         if !output_hash {
-            eprintln!("Created patch {}", id.to_base64());
+            println!("Created patch {}", id.to_base64());
         }
     }
 

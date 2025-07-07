@@ -1,23 +1,31 @@
-use clap::ArgMatches;
-use failure::Error;
-use libojo::PatchId;
+use {anyhow::Result, clap::Parser, libojo::PatchId};
 
-pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
-    // The unwrap is ok because this is a required argument.
-    let patch_id = m.value_of("PATCH").unwrap();
-    let patch_id = PatchId::from_base64(patch_id)?;
+#[derive(Parser, Debug)]
+pub struct Opts {
+    /// hash of the patch
+    patch: String,
+    /// branch to apply the patch to (defaults to the current branch)
+    #[arg(short, long)]
+    branch: Option<String>,
+    /// if set, unapplies the patch instead of applying it
+    #[arg(short('R'), long)]
+    revert: bool,
+}
+
+pub fn run(opts: Opts) -> Result<()> {
+    let patch_id = PatchId::from_base64(&opts.patch)?;
 
     let mut repo = crate::open_repo()?;
-    let branch = crate::branch(&repo, m);
+    let branch = crate::branch(&repo, opts.branch);
 
-    if m.is_present("revert") {
+    if opts.revert {
         let unapplied = repo.unapply_patch(&branch, &patch_id)?;
         if unapplied.is_empty() {
             eprintln!("No patches to unapply.");
         } else {
-            eprintln!("Unapplied:");
+            println!("Unapplied:");
             for u in unapplied {
-                eprintln!("  {}", u.to_base64());
+                println!("  {}", u.to_base64());
             }
         }
     } else {
@@ -25,9 +33,9 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
         if applied.is_empty() {
             eprintln!("No patches to apply.");
         } else {
-            eprintln!("Applied:");
+            println!("Applied:");
             for a in applied {
-                eprintln!("  {}", a.to_base64());
+                println!("  {}", a.to_base64());
             }
         }
     }

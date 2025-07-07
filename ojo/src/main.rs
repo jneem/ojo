@@ -1,16 +1,9 @@
-#[macro_use]
-extern crate clap;
-
-#[macro_use]
-extern crate failure;
-
-#[macro_use]
-extern crate log as other_log;
-
-use clap::{App, ArgMatches};
-use failure::{Error, ResultExt};
-use flexi_logger::Logger;
-use libojo::Repo;
+use {
+    anyhow::{Context, Result, bail},
+    clap::{ColorChoice, Parser},
+    flexi_logger::Logger,
+    libojo::Repo,
+};
 
 mod branch;
 mod clear;
@@ -23,45 +16,79 @@ mod render;
 mod resolve;
 mod synthesize;
 
-fn main() {
-    let yml = load_yaml!("main.yaml");
-    let m = App::from_yaml(yml).get_matches();
+#[derive(Parser, Debug)]
+#[clap(version, author, color(ColorChoice::Auto), infer_subcommands = true)]
+#[command(
+    name = "ojo",
+    about = "An educational and proof-of-concept version control system."
+)]
+pub struct Opts {
+    #[clap(subcommand)]
+    pub subcmd: SubCommand,
+}
 
-    Logger::with_env()
+#[derive(Parser, Debug)]
+pub enum SubCommand {
+    /// Various commands related to branches
+    Branch(branch::Opts),
+    /// Delete all patches from a branch (mainly for debugging)
+    Clear(clear::Opts),
+    /// Show changes between commits
+    Diff(diff::Opts),
+    /// Create a .dot file for visualizing the stored file
+    Graph(graph::Opts),
+    /// Create a new ojo repository
+    Init,
+    /// Print all of the patches present on a branch
+    Log(log::Opts),
+    /// Various commands related to patches
+    Patch(patch::Opts),
+    /// Output the tracked data to a file
+    Render(render::Opts),
+    /// Interactive utility to make the file totally ordered
+    Resolve(resolve::Opts),
+    /// Synthesize a repository with an arbitrary graph (for testing)
+    Synthesize,
+}
+
+fn main() {
+    let opts = Opts::parse();
+
+    Logger::try_with_env()
+        .unwrap()
         //.log_to_file()
         .start()
-        .unwrap_or_else(|e| panic!("Logger initialization failed with {}", e));
+        .unwrap_or_else(|e| panic!("Logger initialization failed with {e}"));
 
-    let result = match m.subcommand_name() {
-        Some("branch") => branch::run(m.subcommand_matches("branch").unwrap()),
-        Some("clear") => clear::run(m.subcommand_matches("clear").unwrap()),
-        Some("diff") => diff::run(m.subcommand_matches("diff").unwrap()),
-        Some("graph") => graph::run(m.subcommand_matches("graph").unwrap()),
-        Some("init") => init::run(m.subcommand_matches("init").unwrap()),
-        Some("log") => log::run(m.subcommand_matches("log").unwrap()),
-        Some("patch") => patch::run(m.subcommand_matches("patch").unwrap()),
-        Some("render") => render::run(m.subcommand_matches("render").unwrap()),
-        Some("resolve") => resolve::run(m.subcommand_matches("resolve").unwrap()),
-        Some("synthesize") => synthesize::run(m.subcommand_matches("synthesize").unwrap()),
-        _ => panic!("Unknown subcommand"),
+    let result = match opts.subcmd {
+        SubCommand::Branch(b) => branch::run(b),
+        SubCommand::Clear(c) => clear::run(c),
+        SubCommand::Diff(d) => diff::run(d),
+        SubCommand::Graph(g) => graph::run(g),
+        SubCommand::Init => init::run(),
+        SubCommand::Log(l) => log::run(l),
+        SubCommand::Patch(p) => patch::run(p),
+        SubCommand::Render(r) => render::run(r),
+        SubCommand::Resolve(r) => resolve::run(r),
+        SubCommand::Synthesize => synthesize::run(),
     };
 
     if let Err(e) = result {
-        println!("Error: {}", e);
-        for cause in e.iter_causes() {
-            println!("\tcaused by: {}", cause);
+        println!("Error: {e}");
+        for cause in e.chain().skip(1) {
+            println!("\tcaused by: {cause}");
         }
         std::process::exit(1);
     }
 }
 
-fn open_repo() -> Result<libojo::Repo, Error> {
+fn open_repo() -> Result<libojo::Repo> {
     let mut dir = std::env::current_dir().context("Could not open the current directory")?;
     loop {
         let mut ojo_dir = dir.clone();
         ojo_dir.push(".ojo");
         if ojo_dir.is_dir() {
-            return Ok(libojo::Repo::open(dir).context("Failed to open the ojo repository")?);
+            return libojo::Repo::open(dir).context("Failed to open the ojo repository");
         }
         if !dir.pop() {
             bail!("Failed to find a ojo repository");
@@ -69,12 +96,6 @@ fn open_repo() -> Result<libojo::Repo, Error> {
     }
 }
 
-fn branch(repo: &Repo, m: &ArgMatches<'_>) -> String {
-    m.value_of("branch")
-        .unwrap_or(&repo.current_branch)
-        .to_owned()
-}
-
-fn file_path(m: &ArgMatches<'_>) -> String {
-    m.value_of("path").unwrap_or("ojo_file.txt").to_owned()
+fn branch(repo: &Repo, branch: Option<String>) -> String {
+    branch.unwrap_or(repo.current_branch.clone()).to_owned()
 }

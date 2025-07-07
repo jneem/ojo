@@ -9,13 +9,14 @@
 // See the LICENSE-APACHE or LICENSE-MIT files at the top-level directory
 // of this distribution.
 
-use ojo_graph::Graph;
-use ojo_multimap::MMap;
-use ojo_partition::Partition;
-use std::collections::BTreeSet as Set;
-use std::collections::HashSet;
-
-use crate::{NodeId, PatchId};
+use {
+    crate::{NodeId, PatchId},
+    ojo_graph::Graph,
+    ojo_multimap::MMap,
+    ojo_partition::Partition,
+    serde::{Deserialize, Serialize},
+    std::collections::{BTreeSet as Set, HashSet},
+};
 
 /// The different kinds of edges.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
@@ -74,7 +75,7 @@ impl Edge {
 
     fn new_pseudo(dest: NodeId) -> Edge {
         Edge {
-            dest: dest,
+            dest,
             kind: EdgeKind::Pseudo,
             patch: PatchId::cur(),
         }
@@ -144,6 +145,7 @@ impl PartialEq<GraggleData> for GraggleData {
     }
 }
 
+#[allow(dead_code)]
 impl GraggleData {
     pub fn new() -> GraggleData {
         Default::default()
@@ -153,11 +155,17 @@ impl GraggleData {
         Graggle { data: self }
     }
 
-    pub fn all_out_edges<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b Edge> + 'b {
+    pub fn all_out_edges<'b>(
+        &'b self,
+        node: &NodeId,
+    ) -> impl Iterator<Item = &'b Edge> + 'b + use<'b> {
         self.edges.get(node)
     }
 
-    pub fn all_in_edges<'b>(&'b self, node: &NodeId) -> impl Iterator<Item = &'b Edge> + 'b {
+    pub fn all_in_edges<'b>(
+        &'b self,
+        node: &NodeId,
+    ) -> impl Iterator<Item = &'b Edge> + 'b + use<'b> {
         self.back_edges.get(node)
     }
 
@@ -169,12 +177,13 @@ impl GraggleData {
         // Construct the smallest (in the sense of Edge's order) edge that could possibly go from
         // src to dest.
         let e = Edge::new_live(*dest, PatchId::cur());
-        if let Some(actual_e) = self.edges.get_from(src, &e).next() {
-            // actual_e is an edge going from src to something greater than or equal to dest.
-            // There's an edge from src to dest if and only if actual_e goes to dest.
-            actual_e.dest == *dest && actual_e.kind == EdgeKind::Live
-        } else {
-            false
+        match self.edges.get_from(src, &e).next() {
+            Some(actual_e) => {
+                // actual_e is an edge going from src to something greater than or equal to dest.
+                // There's an edge from src to dest if and only if actual_e goes to dest.
+                actual_e.dest == *dest && actual_e.kind == EdgeKind::Live
+            }
+            _ => false,
         }
     }
 
@@ -255,11 +264,11 @@ impl GraggleData {
     pub fn delete_node(&mut self, id: &NodeId) {
         assert!(self.nodes.contains(id));
         self.nodes.remove(id);
-        self.deleted_nodes.insert(id.clone());
+        self.deleted_nodes.insert(*id);
         // It's possible that deleted_partition already contains this node (if pseudo-edges weren't
         // resolved recently).
-        if !self.deleted_partition.contains(id.clone()) {
-            self.deleted_partition.insert(id.clone());
+        if !self.deleted_partition.contains(*id) {
+            self.deleted_partition.insert(*id);
         }
 
         // All the edges (both forward and backwards) pointing towards the newly deleted node need
@@ -278,7 +287,7 @@ impl GraggleData {
     pub fn undelete_node(&mut self, id: &NodeId) {
         assert!(self.deleted_nodes.contains(id));
         self.deleted_nodes.remove(id);
-        self.nodes.insert(id.clone());
+        self.nodes.insert(*id);
 
         // All the edges (both forward and backwards) pointing towards the newly deleted node need
         // to be marked as live.
@@ -455,15 +464,15 @@ impl GraggleData {
     /// Panics unless `from` and `to` are nodes in this graggle. In particular, if you're planning to
     /// remove some nodes and the edge between them, you need to remove the edge first.
     pub fn unadd_edge(&mut self, from: &NodeId, to: &NodeId, patch: PatchId) {
-        let from_deleted = self.deleted_nodes.contains(&from);
-        let to_deleted = self.deleted_nodes.contains(&to);
-        assert!(from_deleted || self.nodes.contains(&from));
-        assert!(to_deleted || self.nodes.contains(&to));
+        let from_deleted = self.deleted_nodes.contains(from);
+        let to_deleted = self.deleted_nodes.contains(to);
+        assert!(from_deleted || self.nodes.contains(from));
+        assert!(to_deleted || self.nodes.contains(to));
 
         let forward_edge = Edge::new_real(*to, to_deleted, patch);
         let back_edge = Edge::new_real(*from, from_deleted, patch);
-        self.edges.remove(&from, &forward_edge);
-        self.back_edges.remove(&to, &back_edge);
+        self.edges.remove(from, &forward_edge);
+        self.back_edges.remove(to, &back_edge);
 
         if from_deleted {
             self.mark_dirty(from);
@@ -598,18 +607,19 @@ impl GraggleData {
         // If the pseudo-edges are up-to-date, there are some additional checks we can do.
         if self.dirty_reps.is_empty() {
             // Everything in the deleted partition should be a deleted node.
-            for u in self.deleted_partition.iter_parts().flat_map(|p| p) {
+            for u in self.deleted_partition.iter_parts().flatten() {
                 assert!(self.deleted_nodes.contains(&u));
             }
 
             // Every pseudo-edge should have at least one reason.
             for (src, edge) in self.edges.iter() {
                 if edge.kind == EdgeKind::Pseudo {
-                    assert!(self
-                        .pseudo_edge_reasons
-                        .get(&(*src, edge.dest))
-                        .next()
-                        .is_some());
+                    assert!(
+                        self.pseudo_edge_reasons
+                            .get(&(*src, edge.dest))
+                            .next()
+                            .is_some()
+                    );
                 }
             }
 
@@ -664,27 +674,27 @@ impl<'a> Graggle<'a> {
     }
 
     /// Returns an iterator over all edges pointing from `node` to another live node.
-    pub fn out_edges(self, node: &NodeId) -> impl Iterator<Item = &'a Edge> + 'a {
+    pub fn out_edges(self, node: &NodeId) -> impl Iterator<Item = &'a Edge> + 'a + use<'a> {
         self.data.edges.get(node).take_while(|e| e.not_deleted())
     }
 
     /// Returns an iterator over all live out-neighbors of `node`.
-    pub fn out_neighbors(self, node: &NodeId) -> impl Iterator<Item = &'a NodeId> + 'a {
+    pub fn out_neighbors(self, node: &NodeId) -> impl Iterator<Item = &'a NodeId> + 'a + use<'a> {
         self.out_edges(node).map(|e| &e.dest)
     }
 
     /// Returns an iterator over all live in-neighbors of `node`.
-    pub fn in_neighbors(self, node: &NodeId) -> impl Iterator<Item = &'a NodeId> + 'a {
+    pub fn in_neighbors(self, node: &NodeId) -> impl Iterator<Item = &'a NodeId> + 'a + use<'a> {
         self.in_edges(node).map(|e| &e.dest)
     }
 
     /// Returns an iterator over all edges pointing out of `node`, including those that point to
     /// deleted edges.
-    pub fn all_out_edges(self, node: &NodeId) -> impl Iterator<Item = &'a Edge> + 'a {
+    pub fn all_out_edges(self, node: &NodeId) -> impl Iterator<Item = &'a Edge> + 'a + use<'a> {
         self.data.edges.get(node)
     }
     /// Returns an iterator over all backwards edges pointing from `node` to another live node.
-    pub fn in_edges(self, node: &NodeId) -> impl Iterator<Item = &'a Edge> + 'a {
+    pub fn in_edges(self, node: &NodeId) -> impl Iterator<Item = &'a Edge> + 'a + use<'a> {
         self.data
             .back_edges
             .get(node)
@@ -693,7 +703,7 @@ impl<'a> Graggle<'a> {
 
     /// Returns an iterator over all backwards edges pointing out of `node`, including those that
     /// point to deleted edges.
-    pub fn all_in_edges(self, node: &NodeId) -> impl Iterator<Item = &'a Edge> + 'a {
+    pub fn all_in_edges(self, node: &NodeId) -> impl Iterator<Item = &'a Edge> + 'a + use<'a> {
         self.data.back_edges.get(node)
     }
 

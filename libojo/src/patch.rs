@@ -9,14 +9,17 @@
 // See the LICENSE-APACHE or LICENSE-MIT files at the top-level directory
 // of this distribution.
 
-use chrono::{DateTime, Utc};
-use serde_yaml;
-use sha2::{Digest, Sha256};
-use std::collections::HashSet;
-use std::io::{self, prelude::*};
-
-use crate::error::PatchIdError;
-use crate::Error;
+use {
+    crate::{Error, error::PatchIdError},
+    base64::{Engine, engine::general_purpose::URL_SAFE},
+    chrono::{DateTime, Utc},
+    serde::{Deserialize, Serialize},
+    sha2::{Digest, Sha256},
+    std::{
+        collections::HashSet,
+        io::{self, prelude::*},
+    },
+};
 
 mod change;
 pub use self::change::{Change, Changes};
@@ -39,7 +42,7 @@ impl<W: Write> HashingWriter<W> {
 
 impl<W: Write> Write for HashingWriter<W> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.hasher.input(buf);
+        self.hasher.update(buf);
         self.writer.write(buf)
     }
 
@@ -65,7 +68,7 @@ impl<R: Read> HashingReader<R> {
 impl<R: Read> Read for HashingReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let size = self.reader.read(buf)?;
-        self.hasher.input(&buf[..size]);
+        self.hasher.update(&buf[..size]);
         Ok(size)
     }
 }
@@ -74,12 +77,14 @@ impl<R: Read> Read for HashingReader<R> {
 // human-readable formats). To make the output more compact and readable, it's better to convert it
 // to a base64 string.
 mod patch_id_base64 {
+    use base64::{Engine, engine::general_purpose::URL_SAFE};
+
     pub fn serialize<S>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
         if serializer.is_human_readable() {
-            serializer.serialize_str(&base64::encode_config(bytes, base64::URL_SAFE))
+            serializer.serialize_str(&URL_SAFE.encode(bytes))
         } else {
             serializer.serialize_bytes(bytes)
         }
@@ -92,8 +97,7 @@ mod patch_id_base64 {
         if deserializer.is_human_readable() {
             let s = <String as serde::Deserialize>::deserialize(deserializer)?;
             let mut ret = [0; 32];
-            let vec =
-                base64::decode_config(&s, base64::URL_SAFE).map_err(serde::de::Error::custom)?;
+            let vec = URL_SAFE.decode(&s).map_err(serde::de::Error::custom)?;
             ret.copy_from_slice(&vec[..]);
             Ok(ret)
         } else {
@@ -141,7 +145,9 @@ impl PatchId {
         // base64 requires 44 characters to represent 32 bytes. Add one for the 'P'.
         let mut ret = vec![0; 45];
         ret[0] = b'P';
-        base64::encode_config_slice(&self.data[..], base64::URL_SAFE, &mut ret[1..]);
+        URL_SAFE
+            .encode_slice(&self.data[..], &mut ret[1..])
+            .unwrap();
 
         // We can safely unwrap because base64 is guaranteed to be ASCII.
         String::from_utf8(ret).unwrap()
@@ -149,7 +155,8 @@ impl PatchId {
 
     /// Converts from base64 (as returned by [`PatchId::to_base64`]) to a `PatchId`.
     pub fn from_base64<S: ?Sized + AsRef<[u8]>>(name: &S) -> Result<PatchId, Error> {
-        let data = base64::decode_config(&name.as_ref()[1..], base64::URL_SAFE)
+        let data = URL_SAFE
+            .decode(&name.as_ref()[1..])
             .map_err(PatchIdError::from)?;
         let mut ret = PatchId::cur();
         if data.len() != ret.data.len() {
@@ -163,7 +170,7 @@ impl PatchId {
     // Creates a PatchId from a Sha256 hasher
     fn from_sha256(hasher: Sha256) -> PatchId {
         let mut ret = PatchId::cur();
-        ret.data.copy_from_slice(&hasher.result()[..]);
+        ret.data.copy_from_slice(&hasher.finalize()[..]);
         ret
     }
 }

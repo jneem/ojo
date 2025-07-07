@@ -18,8 +18,10 @@
 //! using [`CycleResolver`](crate::resolver::CycleResolver); then, we add any necessary edges using
 //! [`OrderResolver`](crate::resolver::OrderResolver).
 
-use ojo_graph::Graph;
-use std::collections::{HashMap, HashSet};
+use {
+    ojo_graph::Graph,
+    std::collections::{HashMap, HashSet},
+};
 
 use crate::{Change, Changes, Graggle, LiveGraph, NodeId};
 
@@ -163,7 +165,7 @@ impl<'a> CandidateChain<'a> {
     }
 
     /// Returns an iterator over all elements of this chain (including the first).
-    pub fn iter(&self) -> impl Iterator<Item = NodeId> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = NodeId> + 'a + use<'a> {
         ChainIter::new(self.graggle, self.id)
     }
 }
@@ -322,7 +324,7 @@ impl<'a> Iterator for ChainIter<'a> {
 
             let mut neighbors = self.graggle.out_neighbors(&cur);
             if let Some(next) = neighbors.next() {
-                let mut next_in = self.graggle.in_neighbors(&next);
+                let mut next_in = self.graggle.in_neighbors(next);
 
                 // We want to continue iterating if and only if cur has exactly one out-neighbor and
                 // that out-neighbor has exactly one in-neighbor.
@@ -340,9 +342,7 @@ impl<'a> Iterator for ChainIter<'a> {
 
 #[cfg(test)]
 mod tests {
-    use itertools::Itertools;
-
-    use super::*;
+    use {super::*, crate::graggle, itertools::Itertools};
 
     #[test]
     fn chain_iter() {
@@ -353,10 +353,7 @@ mod tests {
         let check = |init: u64, expected: Vec<u64>| {
             let actual =
                 ChainIter::new(graggle.as_graggle(), NodeId::cur(init)).collect::<Vec<_>>();
-            let expected = expected
-                .into_iter()
-                .map(|x| NodeId::cur(x))
-                .collect::<Vec<_>>();
+            let expected = expected.into_iter().map(NodeId::cur).collect::<Vec<_>>();
             assert_eq!(actual, expected);
         };
         check(0, vec![0]);
@@ -386,8 +383,7 @@ mod tests {
         assert_eq!(res.candidates().count(), 2);
         assert_eq!(
             res.candidates()
-                .map(|x| x.iter())
-                .flatten()
+                .flat_map(|x| x.iter())
                 .sorted()
                 .collect::<Vec<_>>(),
             vec![NodeId::cur(1), NodeId::cur(2)]

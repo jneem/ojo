@@ -1,28 +1,27 @@
 [package]
 name = "libojo"
-version = "0.1.1"
-authors = ["Joe Neeman <joeneeman@gmail.com>"]
-edition = "2018"
 description = "A library for interacting with ojo repositories (part of the ojo project)"
-repository = "https://github.com/jneem/ojo"
-license = "MIT/Apache-2.0"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
 
 [dependencies]
-base64 = "0.9"
-chrono = { version = "0.4", features = ["serde"] }
-itertools = "0.8"
-log = "0.4"
-ojo_diff = { path = "../diff", version = "0.1.0" }
-ojo_graph = { path = "../graph", version = "0.1.0" }
-ojo_multimap = { path = "../multimap", version = "0.1.0" }
-ojo_partition = { path = "../partition", version = "0.1.0" }
-serde = "1.0"
-serde_derive = "1.0"
-serde_yaml = "0.7"
-sha2 = "0.7"
+base64.workspace = true
+chrono.workspace = true
+itertools.workspace = true
+log.workspace = true
+ojo_diff.workspace = true
+ojo_graph.workspace = true
+ojo_multimap.workspace = true
+ojo_partition.workspace = true
+serde.workspace = true
+serde_yaml.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
-byteorder = "1.2"
-pretty_assertions = "0.5"
-proptest = "0.8"
-
+byteorder.workspace = true
+pretty_assertions.workspace = true
+proptest.workspace = true

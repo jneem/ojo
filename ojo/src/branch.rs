@@ -1,68 +1,93 @@
-use clap::ArgMatches;
-use failure::Error;
+use {
+    anyhow::Result,
+    clap::{Parser, Subcommand},
+};
 
-pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
-    match m.subcommand_name() {
-        Some("clone") => clone_run(m.subcommand_matches("clone").unwrap()),
-        Some("delete") => delete_run(m.subcommand_matches("delete").unwrap()),
-        Some("list") => list_run(m.subcommand_matches("list").unwrap()),
-        Some("new") => new_run(m.subcommand_matches("new").unwrap()),
-        Some("switch") => switch_run(m.subcommand_matches("switch").unwrap()),
-        _ => panic!("Unknown subcommand"),
+#[derive(Parser, Debug)]
+pub struct Opts {
+    #[clap(subcommand)]
+    subcmd: SubCommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum SubCommand {
+    /// Create a copy of the current branch
+    Clone {
+        /// name of the branch to create
+        name: String,
+    },
+    /// Delete a branch
+    Delete {
+        /// name of the branch to delete
+        name: String,
+    },
+    /// List all branches
+    List,
+    /// Create a new, empty, branch
+    New {
+        /// name of the branch to create
+        name: String,
+    },
+    /// Switch the current branch
+    Switch {
+        /// name of the branch to switch to
+        name: String,
+    },
+}
+
+pub fn run(opts: Opts) -> Result<()> {
+    match opts.subcmd {
+        SubCommand::Clone { name } => clone_run(name),
+        SubCommand::Delete { name } => delete_run(name),
+        SubCommand::List => list_run(),
+        SubCommand::New { name } => new_run(name),
+        SubCommand::Switch { name } => switch_run(name),
     }
 }
 
-fn clone_run(m: &ArgMatches<'_>) -> Result<(), Error> {
-    // The unwrap is ok, because NAME is a required argument.
-    let name = m.value_of("NAME").unwrap();
+fn clone_run(name: String) -> Result<()> {
     let mut repo = crate::open_repo()?;
     let cur_branch = repo.current_branch.clone();
-    repo.clone_branch(&cur_branch, name)?;
+    repo.clone_branch(&cur_branch, &name)?;
     repo.write()?;
-    eprintln!("Cloned branch \"{}\" to branch \"{}\"", cur_branch, name);
+    println!("Cloned branch \"{cur_branch}\" to branch \"{name}\"");
     Ok(())
 }
 
-fn delete_run(m: &ArgMatches<'_>) -> Result<(), Error> {
-    // The unwrap is ok, because NAME is a required argument.
-    let name = m.value_of("NAME").unwrap();
+fn delete_run(name: String) -> Result<()> {
     let mut repo = crate::open_repo()?;
-    repo.delete_branch(name)?;
+    repo.delete_branch(&name)?;
     repo.write()?;
-    eprintln!("Deleted branch \"{}\"", name);
+    println!("Deleted branch \"{name}\"");
     Ok(())
 }
 
-fn list_run(_m: &ArgMatches<'_>) -> Result<(), Error> {
+fn list_run() -> Result<()> {
     let repo = crate::open_repo()?;
     let mut branches = repo.branches().collect::<Vec<_>>();
     branches.sort();
     for b in branches {
         if b == repo.current_branch {
-            println!("* {}", b);
+            println!("* {b}");
         } else {
-            println!("  {}", b);
+            println!("  {b}");
         }
     }
     Ok(())
 }
 
-fn new_run(m: &ArgMatches<'_>) -> Result<(), Error> {
-    // The unwrap is ok, because NAME is a required argument.
-    let name = m.value_of("NAME").unwrap();
+fn new_run(name: String) -> Result<()> {
     let mut repo = crate::open_repo()?;
-    repo.create_branch(name)?;
+    repo.create_branch(&name)?;
     repo.write()?;
-    eprintln!("Created empty branch \"{}\"", name);
+    println!("Created empty branch \"{name}\"");
     Ok(())
 }
 
-fn switch_run(m: &ArgMatches<'_>) -> Result<(), Error> {
-    // The unwrap is ok, because NAME is a required argument.
-    let name = m.value_of("NAME").unwrap();
+fn switch_run(name: String) -> Result<()> {
     let mut repo = crate::open_repo()?;
-    repo.switch_branch(name)?;
+    repo.switch_branch(&name)?;
     repo.write()?;
-    eprintln!("Current branch is \"{}\"", name);
+    println!("Current branch is \"{name}\"");
     Ok(())
 }

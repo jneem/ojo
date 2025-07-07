@@ -9,11 +9,15 @@
 // See the LICENSE-APACHE or LICENSE-MIT files at the top-level directory
 // of this distribution.
 
-use std::cmp::min;
-use std::collections::{HashMap, HashSet};
+use std::{
+    cmp::min,
+    collections::{HashMap, HashSet},
+};
 
-use crate::dfs::{Dfs, Status, Visit};
-use crate::{Graph, Partition};
+use crate::{
+    Graph, Partition,
+    dfs::{Dfs, Status, Visit},
+};
 
 struct NodeState {
     on_stack: bool,
@@ -25,7 +29,7 @@ impl NodeState {
     fn new(index: usize) -> NodeState {
         NodeState {
             on_stack: true,
-            index: index,
+            index,
             lowlink: index,
         }
     }
@@ -75,7 +79,7 @@ impl<'a, G: Graph + ?Sized> Tarjan<'a, G> {
                             // guaranteed never to run out of stack.
                             let v = self.stack.pop().unwrap();
                             self.node_states.entry(v).and_modify(|s| s.on_stack = false);
-                            scc.insert(v.clone());
+                            scc.insert(v);
                             if v == u {
                                 break;
                             }
@@ -84,7 +88,7 @@ impl<'a, G: Graph + ?Sized> Tarjan<'a, G> {
                     }
                 }
                 Visit::Root(u) => {
-                    self.stack.push(u.clone());
+                    self.stack.push(u);
                     self.node_states.insert(u, NodeState::new(self.next_index));
                     self.next_index += 1;
                 }
@@ -92,7 +96,7 @@ impl<'a, G: Graph + ?Sized> Tarjan<'a, G> {
                     if status == Status::New {
                         // The DFS is about to recurse on the destination node, so we'll update our
                         // state to reflect that.
-                        self.stack.push(dst.clone());
+                        self.stack.push(dst);
                         self.node_states
                             .insert(dst, NodeState::new(self.next_index));
                         self.next_index += 1;
@@ -115,9 +119,14 @@ impl<'a, G: Graph + ?Sized> Tarjan<'a, G> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::tests::{arb_dag, arb_graph, graph};
-    use crate::Graph;
+    use {
+        super::*,
+        crate::{
+            Graph,
+            tests::{arb_dag, arb_graph, graph},
+        },
+        proptest::prelude::*,
+    };
 
     macro_rules! tarjan_test {
         ($name:ident, $graph:expr, $expected:expr) => {
@@ -126,7 +135,7 @@ mod tests {
                 let g = graph($graph);
                 let d = g.tarjan();
                 let expected: Vec<_> = $expected
-                    .into_iter()
+                    .iter()
                     .map(|scc| scc.into_iter().cloned().collect::<HashSet<u32>>())
                     .collect();
                 assert_eq!(d.sets, expected);
@@ -176,7 +185,7 @@ mod tests {
         #[test]
         fn tarjan_scc_dag(ref g in arb_graph()) {
             let sccs = g.tarjan();
-            assert!(sccs.top_sort().is_some());
+            assert!(sccs.topo_sort().is_some());
         }
     }
 }

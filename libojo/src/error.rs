@@ -13,127 +13,58 @@
 // errors we're exposing.
 #![allow(missing_docs)]
 
-use serde_yaml;
-use std::ffi::OsString;
-use std::path::PathBuf;
-use std::{self, fmt, io};
+use std::{self, ffi::OsString, io, path::PathBuf};
 
 use crate::{NodeId, PatchId};
 
-#[derive(Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum PatchIdError {
-    Base64Decode(base64::DecodeError),
+    #[error(transparent)]
+    Base64Decode(#[from] base64::DecodeError),
+    #[error("Found the wrong number of bytes: {0}")]
     InvalidLength(usize),
+    #[error("Encountered a collision between patch hashes: {}", .0.to_base64())]
     Collision(crate::PatchId),
 }
 
-impl From<base64::DecodeError> for PatchIdError {
-    fn from(e: base64::DecodeError) -> PatchIdError {
-        PatchIdError::Base64Decode(e)
-    }
-}
-
-impl fmt::Display for PatchIdError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use self::PatchIdError::*;
-
-        match self {
-            Base64Decode(e) => e.fmt(f),
-            InvalidLength(n) => write!(f, "Found the wrong number of bytes: {}", n),
-            Collision(p) => write!(
-                f,
-                "Encountered a collision between patch hashes: {}",
-                p.to_base64()
-            ),
-        }
-    }
-}
-
-impl std::error::Error for PatchIdError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        use self::PatchIdError::*;
-
-        match self {
-            Base64Decode(e) => Some(e),
-            _ => None,
-        }
-    }
-}
-
-#[derive(Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum Error {
+    #[error("The branch \"{0}\" already exists")]
     BranchExists(String),
+    #[error("\"{0}\" is the current branch")]
     CurrentBranch(String),
+    #[error("Found corruption in the database")]
     DbCorruption,
-    Encoding(std::string::FromUtf8Error),
+    #[error(transparent)]
+    Encoding(#[from] std::string::FromUtf8Error),
+    #[error("Expected {}, found {}", .1.to_base64(), .0.to_base64())]
     IdMismatch(PatchId, PatchId),
+    #[error("I/O error: {}. Details: {}", .0, .1)]
     Io(io::Error, String),
+    #[error("Missing a dependency: {}", .0.to_base64())]
     MissingDep(PatchId),
+    #[error("This path didn't end in a filename: {0:?}")]
     NoFilename(PathBuf),
+    #[error("I could not find the parent directory of: {0:?}")]
     NoParent(PathBuf),
+    #[error("This filename couldn't be converted to UTF-8: {0:?}")]
     NonUtfFilename(OsString),
+    #[error("The data does not represent a totally ordered file")]
     NotOrdered,
-    PatchId(PatchIdError),
+    #[error("Found a broken PatchId\n\tcaused by: {0}")]
+    PatchId(#[from] PatchIdError),
+    #[error("There is already a repository in {0:?}")]
     RepoExists(PathBuf),
+    #[error("I could not find a repository tracking this path: {0:?}")]
     RepoNotFound(PathBuf),
-    Serde(serde_yaml::Error),
+    #[error(transparent)]
+    Serde(#[from] serde_yaml::Error),
+    #[error("There is no branch named {0:?}")]
     UnknownBranch(String),
+    #[error("There is no node with id {0:?}")]
     UnknownNode(NodeId),
+    #[error("There is no patch with hash {:?}", .0.to_base64())]
     UnknownPatch(PatchId),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Error::BranchExists(b) => write!(f, "The branch \"{}\" already exists", b),
-            Error::CurrentBranch(b) => write!(f, "\"{}\" is the current branch", b),
-            Error::DbCorruption => write!(f, "Found corruption in the database"),
-            Error::Encoding(e) => e.fmt(f),
-            Error::IdMismatch(actual, expected) => write!(
-                f,
-                "Expected {}, found {}",
-                expected.to_base64(),
-                actual.to_base64()
-            ),
-            Error::Io(e, msg) => write!(f, "I/O error: {}. Details: {}", msg, e),
-            Error::MissingDep(id) => write!(f, "Missing a dependency: {}", id.to_base64()),
-            Error::NoFilename(p) => write!(f, "This path didn't end in a filename: {:?}", p),
-            Error::NoParent(p) => write!(f, "I could not find the parent directory of: {:?}", p),
-            Error::NonUtfFilename(p) => {
-                write!(f, "This filename couldn't be converted to UTF-8: {:?}", p)
-            }
-            Error::NotOrdered => write!(f, "The data does not represent a totally ordered file"),
-            Error::PatchId(e) => write!(f, "Found a broken PatchId\n\tcaused by: {}", e),
-            Error::RepoExists(p) => write!(f, "There is already a repository in {:?}", p),
-            Error::RepoNotFound(p) => write!(
-                f,
-                "I could not find a repository tracking this path: {:?}",
-                p
-            ),
-            Error::Serde(e) => e.fmt(f),
-            Error::UnknownBranch(b) => write!(f, "There is no branch named {:?}", b),
-            Error::UnknownNode(n) => write!(f, "There is no node with id {:?}", n),
-            Error::UnknownPatch(p) => write!(f, "There is no patch with hash {:?}", p.to_base64()),
-        }
-    }
-}
-
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Error::Encoding(e) => Some(e),
-            Error::Io(e, _) => Some(e),
-            Error::PatchId(e) => Some(e),
-            Error::Serde(e) => Some(e),
-            _ => None,
-        }
-    }
-}
-
-impl From<PatchIdError> for Error {
-    fn from(e: PatchIdError) -> Error {
-        Error::PatchId(e)
-    }
 }
 
 impl From<io::Error> for Error {
@@ -145,17 +76,5 @@ impl From<io::Error> for Error {
 impl From<(io::Error, &'static str)> for Error {
     fn from((e, msg): (io::Error, &'static str)) -> Error {
         Error::Io(e, msg.to_owned())
-    }
-}
-
-impl From<serde_yaml::Error> for Error {
-    fn from(e: serde_yaml::Error) -> Error {
-        Error::Serde(e)
-    }
-}
-
-impl From<std::string::FromUtf8Error> for Error {
-    fn from(e: std::string::FromUtf8Error) -> Error {
-        Error::Encoding(e)
     }
 }

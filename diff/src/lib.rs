@@ -9,13 +9,10 @@
 // See the LICENSE-APACHE or LICENSE-MIT files at the top-level directory
 // of this distribution.
 
-#[cfg(test)]
-#[macro_use]
-extern crate proptest;
-
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
+use std::{
+    collections::{HashMap, hash_map::Entry},
+    hash::{Hash, Hasher},
+};
 
 mod lis;
 
@@ -194,11 +191,17 @@ pub fn diff<T: Hash + Eq>(a: &[T], b: &[T]) -> Vec<LineDiff> {
 
 #[cfg(test)]
 mod tests {
-    use proptest::prelude::*;
-    use std::fmt::Debug;
-
-    use super::LineDiff::*;
-    use super::*;
+    use {
+        super::{
+            LineDiff::{Delete, Keep, New},
+            *,
+        },
+        proptest::{
+            prelude::{BoxedStrategy, Rng},
+            proptest,
+        },
+        std::fmt::Debug,
+    };
 
     macro_rules! test_diff_ends {
         ($name:ident, $a:expr, $b:expr, $expected:expr) => {
@@ -246,7 +249,7 @@ mod tests {
                 Delete(i) => Some(i),
             })
             .collect::<Vec<_>>();
-        assert_eq!(input_indices, (0..a.len()).into_iter().collect::<Vec<_>>());
+        assert_eq!(input_indices, (0..a.len()).collect::<Vec<_>>());
 
         let output_indices = diff
             .iter()
@@ -256,7 +259,7 @@ mod tests {
                 Delete(_) => None,
             })
             .collect::<Vec<_>>();
-        assert_eq!(output_indices, (0..b.len()).into_iter().collect::<Vec<_>>());
+        assert_eq!(output_indices, (0..b.len()).collect::<Vec<_>>());
 
         for line in diff {
             if let &Keep(i, j) = line {
@@ -269,8 +272,9 @@ mod tests {
     // rare numbers (up to 1000). The common numbers are to make diff's job harder, and the rare
     // numbers are to ensure that there are some unique lines.
     fn file() -> BoxedStrategy<Vec<i32>> {
-        prop::collection::vec(
-            prop::strategy::Union::new_weighted(vec![(10, 0..10), (1, 0..1000)]),
+        use proptest::strategy::Strategy;
+        proptest::collection::vec(
+            proptest::strategy::Union::new_weighted(vec![(10, 0..10), (1, 0..1000)]),
             1..100,
         )
         .boxed()
@@ -279,27 +283,28 @@ mod tests {
     // Generates two files for diffing by first generating one, and then making another by changing
     // the first one a bit.
     fn two_files() -> BoxedStrategy<(Vec<i32>, Vec<i32>)> {
+        use {proptest::strategy::Strategy, rand::seq::IndexedRandom};
         file()
             .prop_perturb(|f, mut rng| {
                 let mut g = f.clone();
                 // Make between 0 and 19 random changes.
-                for _ in 0..rng.gen_range(0, 20) {
+                for _ in 0..rng.random_range(0..20) {
                     let g_len = g.len();
-                    match rng.choose(&[1, 2, 3]).unwrap() {
+                    match [1, 2, 3].choose(&mut rng).unwrap() {
                         1 => {
                             // delete a line
                             if !g.is_empty() {
-                                g.remove(rng.gen_range(0, g_len));
+                                g.remove(rng.random_range(0..g_len));
                             }
                         }
                         2 => {
                             // insert a line
-                            g.insert(rng.gen_range(0, g_len + 1), rng.gen_range(0, 10));
+                            g.insert(rng.random_range(0..=g_len), rng.random_range(0..10));
                         }
                         3 => {
                             // swap two lines
                             if !g.is_empty() {
-                                g.swap(rng.gen_range(0, g_len), rng.gen_range(0, g_len));
+                                g.swap(rng.random_range(0..g_len), rng.random_range(0..g_len));
                             }
                         }
                         _ => unreachable!(),

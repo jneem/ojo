@@ -1,23 +1,29 @@
 [package]
 name = "ojo"
-version = "0.1.1"
-authors = ["Joe Neeman <joeneeman@gmail.com>"]
-edition = "2018"
 description = "An experimental and educational version control system"
-repository = "https://github.com/jneem/ojo"
-license = "MIT/Apache-2.0"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
 
 [dependencies]
-askama_escape = "0.1"
-colored = "1.6"
-failure = "0.1.3"
-flexi_logger = "0.10"
-libojo = { path = "../libojo", version = "0.1.0" }
-log = "0.4"
-ojo_diff = { path = "../diff", version = "0.1.0" }
-ojo_graph = { path = "../graph", version = "0.1.0" }
-termion = "1.5"
+anyhow.workspace = true
+askama_escape.workspace = true
+clap.workspace = true
+colored.workspace = true
+crossterm.workspace = true
+flexi_logger.workspace = true
+libojo.workspace = true
+log.workspace = true
+ojo_diff.workspace = true
+ojo_graph.workspace = true
+ratatui.workspace = true
 
-[dependencies.clap]
-version = "2"
-features = ["yaml"]
+[dev-dependencies]
+assert_cmd.workspace = true
+assert_fs.workspace = true
+cmd_lib.workspace = true
+predicates.workspace = true
+tempfile.workspace = true
+test-context.workspace = true

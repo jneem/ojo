@@ -18,41 +18,34 @@
 //! are documented in some [`blog posts`](https://jneem.github.io). This crate itself is not so
 //! well documented, but doing so is one of my goals.
 
-#[macro_use]
-extern crate serde_derive;
-
-#[macro_use]
-extern crate log;
-
-#[cfg(test)]
-#[macro_use]
-extern crate proptest;
-
-#[cfg(test)]
-#[macro_use]
-extern crate pretty_assertions;
-
-use ojo_graph::Graph;
-use std::collections::HashSet;
-use std::fs;
-use std::path::{Path, PathBuf};
-
-// This module needs to go first, because it supplies some macros (for testing) that the other
-// modules use.
-#[macro_use]
-mod storage;
+use {
+    ojo_graph::Graph,
+    serde::{Deserialize, Serialize},
+    std::{
+        collections::HashSet,
+        fs,
+        path::{Path, PathBuf},
+    },
+};
 
 mod chain_graggle;
 mod error;
 mod patch;
 pub mod resolver;
+mod storage;
 
-pub use crate::chain_graggle::ChainGraggle;
-pub use crate::error::{Error, PatchIdError};
-pub use crate::patch::{Change, Changes, Patch, PatchId, UnidentifiedPatch};
-pub use crate::storage::graggle::{Edge, EdgeKind};
-pub use crate::storage::{File, FullGraph, Graggle, LiveGraph};
-pub use ojo_diff::LineDiff;
+pub use {
+    crate::{
+        chain_graggle::ChainGraggle,
+        error::{Error, PatchIdError},
+        patch::{Change, Changes, Patch, PatchId, UnidentifiedPatch},
+        storage::{
+            File, FullGraph, Graggle, LiveGraph,
+            graggle::{Edge, EdgeKind},
+        },
+    },
+    ojo_diff::LineDiff,
+};
 
 /// A globally unique ID for identifying a node.
 #[derive(Clone, Copy, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
@@ -203,10 +196,9 @@ impl Repo {
     }
 
     fn inode(&self, branch: &str) -> Result<storage::INode, Error> {
-        Ok(self
-            .storage
+        self.storage
             .inode(branch)
-            .ok_or_else(|| Error::UnknownBranch(branch.to_owned()))?)
+            .ok_or_else(|| Error::UnknownBranch(branch.to_owned()))
     }
 
     /// Returns a read-only view to the data associated with a branch.
@@ -260,7 +252,7 @@ impl Repo {
             .patches
             .get(id)
             .map(|s| s.as_bytes())
-            .ok_or_else(|| Error::UnknownPatch(*id))
+            .ok_or(Error::UnknownPatch(*id))
     }
 
     /// Introduces a patch to the repository.
@@ -292,7 +284,7 @@ impl Repo {
             .changes
             .iter()
             .filter_map(|ch| {
-                if let Change::NewNode { ref id, .. } = ch {
+                if let Change::NewNode { id, .. } = ch {
                     Some(id)
                 } else {
                     None
@@ -306,12 +298,12 @@ impl Repo {
                     || (self.storage.contains_node(id) && dep_set.contains(&id.patch))
             };
             match ch {
-                NewNode { ref id, .. } => {
+                NewNode { id, .. } => {
                     if !has_node(id) {
                         return Err(Error::UnknownNode(*id));
                     }
                 }
-                NewEdge { ref src, ref dest } => {
+                NewEdge { src, dest } => {
                     if !has_node(src) {
                         return Err(Error::UnknownNode(*src));
                     }
@@ -319,7 +311,7 @@ impl Repo {
                         return Err(Error::UnknownNode(*dest));
                     }
                 }
-                DeleteNode { ref id } => {
+                DeleteNode { id } => {
                     if !has_node(id) {
                         return Err(Error::UnknownNode(*id));
                     }
@@ -345,15 +337,11 @@ impl Repo {
 
         // Record the deps and reverse-deps.
         for dep in patch.deps() {
-            self.storage
-                .patch_deps
-                .insert(patch.id().clone(), dep.clone());
-            self.storage
-                .patch_rev_deps
-                .insert(dep.clone(), patch.id().clone());
+            self.storage.patch_deps.insert(*patch.id(), *dep);
+            self.storage.patch_rev_deps.insert(*dep, *patch.id());
         }
 
-        self.storage.patches.insert(patch.id().clone(), data);
+        self.storage.patches.insert(*patch.id(), data);
         Ok(())
     }
 
@@ -373,7 +361,7 @@ impl Repo {
             .apply_changes(inode, patch.changes(), *patch_id);
         self.storage
             .branch_patches
-            .insert(branch.to_owned(), patch.id().clone());
+            .insert(branch.to_owned(), *patch.id());
         Ok(())
     }
 
@@ -394,16 +382,16 @@ impl Repo {
             let unapplied_deps = self
                 .storage
                 .patch_deps
-                .get(&cur)
+                .get(cur)
                 .filter(|dep| !self.storage.branch_patches.contains(branch, dep))
                 .cloned()
                 .collect::<Vec<_>>();
             if unapplied_deps.is_empty() {
                 // It's possible that this patch was already applied, because it was a dep of
                 // multiple other patches.
-                if !self.storage.branch_patches.contains(branch, &cur) {
-                    self.apply_one_patch(branch, &cur)?;
-                    applied.push(cur.clone());
+                if !self.storage.branch_patches.contains(branch, cur) {
+                    self.apply_one_patch(branch, cur)?;
+                    applied.push(*cur);
                 }
                 patch_stack.pop();
             } else {
@@ -418,7 +406,7 @@ impl Repo {
     }
 
     fn unapply_one_patch(&mut self, branch: &str, patch_id: &PatchId) -> Result<(), Error> {
-        debug!("unapplying patch {:?} from branch {:?}", patch_id, branch);
+        log::debug!("unapplying patch {patch_id:?} from branch {branch:?}");
 
         let patch = self.open_patch(patch_id)?;
         let inode = self.inode(branch)?;
@@ -449,16 +437,16 @@ impl Repo {
             let applied_rev_deps = self
                 .storage
                 .patch_rev_deps
-                .get(&cur)
+                .get(cur)
                 .filter(|dep| self.storage.branch_patches.contains(branch, dep))
                 .cloned()
                 .collect::<Vec<_>>();
             if applied_rev_deps.is_empty() {
                 // It's possible that this patch was already unapplied, because it was a revdep of
                 // multiple other patches.
-                if self.storage.branch_patches.contains(branch, &cur) {
-                    self.unapply_one_patch(branch, &cur)?;
-                    unapplied.push(cur.clone());
+                if self.storage.branch_patches.contains(branch, cur) {
+                    self.unapply_one_patch(branch, cur)?;
+                    unapplied.push(*cur);
                 }
                 patch_stack.pop();
             } else {
@@ -479,17 +467,17 @@ impl Repo {
 
     /// Returns an iterator over all of the patches being used in a branch.
     // TODO: maybe a way to check whether a patch is applied to a branch?
-    pub fn patches(&self, branch: &str) -> impl Iterator<Item = &PatchId> {
+    pub fn patches(&self, branch: &str) -> impl Iterator<Item = &PatchId> + use<'_> {
         self.storage.branch_patches.get(branch)
     }
 
     /// Returns an iterator over all direct dependencies of the given patch.
-    pub fn patch_deps(&self, patch: &PatchId) -> impl Iterator<Item = &PatchId> {
+    pub fn patch_deps(&self, patch: &PatchId) -> impl Iterator<Item = &PatchId> + use<'_> {
         self.storage.patch_deps.get(patch)
     }
 
     /// Returns an iterator over all direct dependents of the given patch.
-    pub fn patch_rev_deps(&self, patch: &PatchId) -> impl Iterator<Item = &PatchId> {
+    pub fn patch_rev_deps(&self, patch: &PatchId) -> impl Iterator<Item = &PatchId> + use<'_> {
         self.storage.patch_rev_deps.get(patch)
     }
 

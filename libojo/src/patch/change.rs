@@ -9,10 +9,11 @@
 // See the LICENSE-APACHE or LICENSE-MIT files at the top-level directory
 // of this distribution.
 
-use ojo_diff::LineDiff;
-
-use crate::storage::File;
-use crate::{NodeId, PatchId};
+use {
+    crate::{NodeId, PatchId, storage::File},
+    ojo_diff::LineDiff,
+    serde::{Deserialize, Serialize},
+};
 
 /// A set of [`Change`]s.
 ///
@@ -152,11 +153,11 @@ impl Change {
 
 #[cfg(test)]
 mod tests {
-    use super::Change::*;
-    use super::Changes;
-    use crate::storage::File;
-    use crate::NodeId;
-    use ojo_diff::LineDiff::*;
+    use {
+        super::{Change::*, Changes},
+        crate::{NodeId, storage::File},
+        ojo_diff::LineDiff::*,
+    };
 
     #[test]
     fn from_diff_empty_first() {

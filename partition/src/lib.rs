@@ -13,12 +13,11 @@
 //! a pair of multimaps. (The reason for this weird implementation is that once multimaps is fully
 //! persistent, this will be also.)
 
-#[macro_use]
-extern crate serde_derive;
-
-use ojo_multimap::MMap;
-use std::collections::btree_map::Entry;
-use std::collections::BTreeMap as Map;
+use {
+    ojo_multimap::MMap,
+    serde::{Deserialize, Serialize},
+    std::collections::{BTreeMap as Map, btree_map::Entry},
+};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Partition<T: Copy + Ord> {

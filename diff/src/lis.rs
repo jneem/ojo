@@ -9,8 +9,6 @@
 // See the LICENSE-APACHE or LICENSE-MIT files at the top-level directory
 // of this distribution.
 
-use std::usize;
-
 // Here, we implement the "patience" algorithm for the longest increasing subsequence. In our
 // applications of this algorithm, we always expect the sequence to have unique elements, but in
 // any case this function will compute the longest *strictly* increasing subsequence.
@@ -118,8 +116,7 @@ pub fn longest_increasing_subsequence<T: Ord>(seq: &[T]) -> Vec<usize> {
 
 #[cfg(test)]
 mod tests {
-    use super::longest_increasing_subsequence;
-    use proptest::prelude::*;
+    use {super::longest_increasing_subsequence, proptest::prelude::*};
 
     macro_rules! lis_test {
         ($name:ident, $seq:expr, $expected:expr) => {
@@ -143,8 +140,8 @@ mod tests {
 
     proptest! {
         #[test]
-        fn output_is_increasing(ref seq in prop::collection::vec(1..10000, 1..100)) {
-            let lis = longest_increasing_subsequence(&seq);
+        fn output_is_increasing(ref seq in proptest::collection::vec(1..10000, 1..100)) {
+            let lis = longest_increasing_subsequence(seq);
             let lis = lis.into_iter().map(|i| seq[i]).collect::<Vec<_>>();
             assert!(lis.windows(2).all(|pair| pair[0] < pair[1]))
         }

@@ -1,58 +1,66 @@
-use clap::ArgMatches;
-use failure::{Error, ResultExt};
-use libojo::resolver::{CandidateChain, CycleResolver, OrderResolver};
-use libojo::{Changes, Graggle, NodeId, Repo};
-use std::io::Write;
-use termion::event::Key;
-use termion::input::TermRead;
-use termion::raw::IntoRawMode;
-use termion::screen::AlternateScreen;
-use termion::{clear, cursor, style};
+use {
+    anyhow::Result,
+    clap::Parser,
+    crossterm::{
+        event::{self, Event, KeyCode, KeyEvent},
+        execute,
+        terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+    },
+    libojo::{
+        Changes, Graggle, NodeId, Repo,
+        resolver::{CandidateChain, CycleResolver, OrderResolver},
+    },
+    ratatui::{
+        Frame, Terminal,
+        backend::CrosstermBackend,
+        layout::{Constraint, Direction, Layout, Rect},
+        style::{Color, Modifier, Style},
+        text::{Line, Span, Text},
+        widgets::{Block, Borders, List, ListItem, Paragraph},
+    },
+    std::{
+        io::{self, Stdout},
+        time::Duration,
+    },
+};
 
-pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
-    // The unwrap is ok because this is a required argument.
-    let author = m.value_of("author").unwrap();
+#[derive(Parser, Debug)]
+pub struct Opts {
+    /// branch to work on
+    #[arg(short, long)]
+    branch: Option<String>,
+    /// the person doing the resolving
+    #[arg(short, long)]
+    author: String,
+    /// disables the display, which is useful when writing tests
+    #[arg(long)]
+    testing: bool,
+}
 
+pub fn run(opts: Opts) -> Result<()> {
     let mut repo = super::open_repo()?;
-    let branch = super::branch(&repo, m);
+    let branch = super::branch(&repo, opts.branch);
     let graggle = repo.graggle(&branch)?;
-    let testing = m.is_present("testing");
 
-    let changes = {
-        // Here we use the alternate screen, so nothing we print in this scope will be visible
-        // after the scope ends.
-        let stdout = std::io::stdout();
-        let screen: Screen = if !testing {
-            Box::new(
-                AlternateScreen::from(stdout)
-                    .into_raw_mode()
-                    .with_context(|_| "Failed to open the terminal in raw mode")?,
-            )
-        } else {
-            // In testing mode, we just ignore all the output (because into_raw_mode fails with
-            // piped stdin).
-            Box::new(std::io::sink())
-        };
-        let stdin = std::io::stdin();
-
-        // TODO: check if the terminal is big enough.
-        write!(std::io::stdout(), "{}", cursor::Hide)?;
-        let cycle = CycleResolverState::new(&repo, screen, stdin.keys(), graggle)?;
-        if let Some(order) = cycle.run()? {
-            order.run()?
-        } else {
-            None
+    let changes = if opts.testing {
+        // In testing mode, we bypass the UI and just use stdin directly
+        let mut cycle_resolver = CycleResolver::new(graggle);
+        while let Some(component) = cycle_resolver.next_component() {
+            let component = component.iter().cloned().collect::<Vec<_>>();
+            if let Some(first) = component.first() {
+                cycle_resolver.resolve_component(*first);
+            }
         }
+        let order_resolver = cycle_resolver.into_order_resolver();
+        Some(order_resolver.changes())
+    } else {
+        run_ui(&repo, graggle)?
     };
-    write!(std::io::stdout(), "{}", cursor::Show)?;
-    // TODO: the flush is currently necessary for the eprintln to work; see
-    // https://gitlab.redox-os.org/redox-os/termion/issues/158
-    std::io::stdout().flush()?;
 
     if let Some(changes) = changes {
-        let id = repo.create_patch(author, "Resolve to a file", changes)?;
+        let id = repo.create_patch(&opts.author, "Resolve to a file", changes)?;
         repo.write()?;
-        eprintln!("Created patch {}", id.to_base64());
+        println!("Created patch {}", id.to_base64());
     } else {
         eprintln!("No patch created");
     }
@@ -60,431 +68,543 @@ pub fn run(m: &ArgMatches<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-const NUMBERS: &[u8] = b"1234567890";
-const NUMBERS_UPPER: &[u8] = b"!@#$%^&*()";
-const QWERTY: &[u8] = b"qwertyuiop";
-const QWERTY_UPPER: &[u8] = b"QWERTYUIOP";
+fn run_ui(repo: &Repo, graggle: Graggle) -> Result<Option<Changes>> {
+    // Setup terminal
+    enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
 
-type Screen = Box<dyn std::io::Write>;
-type Input = termion::input::Keys<std::io::Stdin>;
+    let result = run_app(&mut terminal, repo, graggle);
+
+    // Restore terminal
+    disable_raw_mode()?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    terminal.show_cursor()?;
+
+    result
+}
+
+fn run_app(
+    terminal: &mut Terminal<CrosstermBackend<Stdout>>,
+    repo: &Repo,
+    graggle: Graggle,
+) -> Result<Option<Changes>> {
+    let mut cycle_state = CycleResolverState::new(repo, CycleResolver::new(graggle));
+
+    // First, resolve all cycles
+    while let Some(component) = cycle_state.resolver.next_component() {
+        let component = component.iter().cloned().collect::<Vec<_>>();
+        let selected = run_cycle_ui(terminal, &mut cycle_state, component)?;
+        if let Some(selected) = selected {
+            cycle_state.resolver.resolve_component(selected);
+        } else {
+            return Ok(None); // User cancelled
+        }
+    }
+
+    // Then resolve the ordering
+    let order_resolver = cycle_state.resolver.into_order_resolver();
+    let mut order_state = OrderResolverState::new(repo, order_resolver);
+    run_order_ui(terminal, &mut order_state)
+}
 
 struct CycleResolverState<'a> {
     repo: &'a Repo,
-    screen: Screen,
-    input: Input,
     resolver: CycleResolver<'a>,
-
-    // Dimensions of the screen.
-    width: u16,
+    offset: usize,
 }
 
 impl<'a> CycleResolverState<'a> {
-    fn new(
-        repo: &'a Repo,
-        screen: Screen,
-        input: Input,
-        graggle: Graggle<'a>,
-    ) -> Result<CycleResolverState<'a>, Error> {
-        let (width, _) = termion::terminal_size().unwrap_or((80, 24));
-
-        Ok(CycleResolverState {
+    fn new(repo: &'a Repo, resolver: CycleResolver<'a>) -> Self {
+        Self {
             repo,
-            screen,
-            input,
-            resolver: CycleResolver::new(graggle),
-            width,
-        })
-    }
-
-    fn run(mut self) -> Result<Option<OrderResolverState<'a>>, Error> {
-        while let Some(component) = self.resolver.next_component() {
-            let component = component.iter().cloned().collect::<Vec<_>>();
-
-            // We show at most 10 lines on a page; this is the index of the first shown line.
-            let mut offset = 0;
-
-            // Loop until we resolve the current component.
-            loop {
-                let end = (offset + 10).max(component.len());
-                self.redraw(&component[offset..end])?;
-                let key = self
-                    .input
-                    .next()
-                    .ok_or_else(|| failure::err_msg("Unexpected end of input"))??;
-                match key {
-                    Key::Char(c) => {
-                        if let Some(x) = NUMBERS.iter().position(|&a| a == c as u8) {
-                            if offset + x < end {
-                                self.resolver.resolve_component(component[offset + x]);
-                                break;
-                            }
-                        } else if c == 'j' && offset + 10 < component.len() {
-                            offset += 10;
-                        } else if c == 'k' && offset > 0 {
-                            offset -= 10;
-                        }
-                    }
-                    Key::Esc => {
-                        return Ok(None);
-                    }
-                    _ => {
-                        debug!("unknown key");
-                    }
-                }
-            }
+            resolver,
+            offset: 0,
         }
-        let resolver = self.resolver.into_order_resolver();
-        OrderResolverState::new(self.repo, self.screen, self.input, resolver).map(Some)
-    }
-
-    fn redraw(&mut self, lines: &[NodeId]) -> Result<(), Error> {
-        for (i, u) in lines.iter().enumerate() {
-            write!(
-                self.screen,
-                "{goto}{key} {line}",
-                key = NUMBERS[i],
-                goto = cursor::Goto(1, 1 + (i as u16)),
-                line = String::from_utf8_lossy(self.repo.contents(u)),
-            )?;
-        }
-
-        let keys = format!("1-{}", NUMBERS[lines.len() - 1] as char);
-        draw_keybindings(
-            &mut self.screen,
-            vec![
-                (&keys[..], "choose line"),
-                ("k", "show previous"),
-                ("j", "show next"),
-                ("ESC", "quit"),
-            ],
-            self.width,
-        )?;
-
-        self.screen.flush()?;
-        Ok(())
     }
 }
 
 struct OrderResolverState<'a> {
     repo: &'a Repo,
-    screen: Screen,
-    input: Input,
     resolver: OrderResolver<'a>,
-
-    // Dimensions of the screen.
-    width: u16,
-    height: u16,
-
-    // If there are many candidates available, we only show a few (up to 5) at a time. What's the
-    // index of the first visible one?
     shown_first: usize,
 }
 
 impl<'a> OrderResolverState<'a> {
-    fn new(
-        repo: &'a Repo,
-        screen: Screen,
-        input: Input,
-        resolver: OrderResolver<'a>,
-    ) -> Result<OrderResolverState<'a>, Error> {
-        // If we fail to get a real width and height, try to keep going anyway. It probably just
-        // means that stdin and stdout are pipes (which is probably because we're running some
-        // tests).
-        let (width, height) = termion::terminal_size().unwrap_or((80, 24));
-
-        Ok(OrderResolverState {
+    fn new(repo: &'a Repo, resolver: OrderResolver<'a>) -> Self {
+        Self {
             repo,
-            screen,
-            input,
             resolver,
-            width,
-            height,
             shown_first: 0,
-        })
+        }
     }
+}
 
-    fn run(mut self) -> Result<Option<Changes>, Error> {
-        loop {
-            let candidates = self.resolver.candidates().collect::<Vec<_>>();
-            if candidates.is_empty() {
-                return Ok(Some(self.resolver.changes()));
+fn run_cycle_ui(
+    terminal: &mut Terminal<CrosstermBackend<Stdout>>,
+    state: &mut CycleResolverState,
+    component: Vec<NodeId>,
+) -> Result<Option<NodeId>> {
+    loop {
+        terminal.draw(|f| draw_cycle_ui(f, state, &component))?;
+
+        if event::poll(Duration::from_millis(100))? {
+            if let Event::Key(key) = event::read()? {
+                match handle_cycle_input(key, state, &component) {
+                    InputResult::Select(node_id) => return Ok(Some(node_id)),
+                    InputResult::Cancel => return Ok(None),
+                    InputResult::Continue => {}
+                }
             }
+        }
+    }
+}
 
-            self.shown_first = 0;
+fn run_order_ui(
+    terminal: &mut Terminal<CrosstermBackend<Stdout>>,
+    state: &mut OrderResolverState,
+) -> Result<Option<Changes>> {
+    loop {
+        let candidates = state.resolver.candidates().collect::<Vec<_>>();
+        if candidates.is_empty() {
+            return Ok(Some(state.resolver.changes()));
+        }
 
-            self.redraw()?;
+        terminal.draw(|f| draw_order_ui(f, state, &candidates))?;
 
-            let key = self
-                .input
-                .next()
-                .ok_or_else(|| failure::err_msg("Unexpected end of input"))??;
-            match key {
-                Key::Char(c) => {
-                    let chosen = |x: usize| {
-                        if x < 5 && self.shown_first + x < candidates.len() {
-                            Some(&candidates[self.shown_first + x])
-                        } else {
-                            None
-                        }
+        if event::poll(Duration::from_millis(100))? {
+            if let Event::Key(key) = event::read()? {
+                match handle_order_input(key, state, &candidates) {
+                    InputResult::Continue => {}
+                    InputResult::Cancel => return Ok(None),
+                    InputResult::Select(_) => {} // Not used in order phase
+                }
+            }
+        }
+    }
+}
+
+enum InputResult {
+    Continue,
+    Cancel,
+    Select(NodeId),
+}
+
+fn handle_cycle_input(
+    key: KeyEvent,
+    state: &mut CycleResolverState,
+    component: &[NodeId],
+) -> InputResult {
+    match key.code {
+        KeyCode::Esc => InputResult::Cancel,
+        KeyCode::Char(c) => {
+            if let Some(digit) = c.to_digit(10) {
+                let index = digit as usize - 1;
+                if index < 10 && state.offset + index < component.len() {
+                    return InputResult::Select(component[state.offset + index]);
+                }
+            }
+            match c {
+                'j' => {
+                    if state.offset + 10 < component.len() {
+                        state.offset += 10;
+                    }
+                }
+                'k' => {
+                    if state.offset >= 10 {
+                        state.offset -= 10;
+                    } else {
+                        state.offset = 0;
+                    }
+                }
+                _ => {}
+            }
+            InputResult::Continue
+        }
+        _ => InputResult::Continue,
+    }
+}
+
+fn handle_order_input(
+    key: KeyEvent,
+    state: &mut OrderResolverState,
+    candidates: &[CandidateChain],
+) -> InputResult {
+    match key.code {
+        KeyCode::Esc => InputResult::Cancel,
+        KeyCode::Char(c) => {
+            let chosen = |x: usize| {
+                if x < 5 && state.shown_first + x < candidates.len() {
+                    Some(&candidates[state.shown_first + x])
+                } else {
+                    None
+                }
+            };
+
+            match c {
+                '1'..='5' => {
+                    let index = c as usize - '1' as usize;
+                    if let Some(cand) = chosen(index) {
+                        state.resolver.choose(&cand.first());
+                    }
+                }
+                'q' | 'w' | 'e' | 'r' | 't' => {
+                    let index = match c {
+                        'q' => 0,
+                        'w' => 1,
+                        'e' => 2,
+                        'r' => 3,
+                        't' => 4,
+                        _ => return InputResult::Continue,
                     };
-
-                    if let Some(x) = NUMBERS.iter().position(|&a| a == c as u8) {
-                        if let Some(cand) = chosen(x) {
-                            self.resolver.choose(&cand.first());
-                        }
-                    } else if let Some(x) = QWERTY.iter().position(|&a| a == c as u8) {
-                        if let Some(cand) = chosen(x) {
-                            self.resolver.delete(&cand.first());
-                        }
-                    } else if let Some(x) = NUMBERS_UPPER.iter().position(|&a| a == c as u8) {
-                        if let Some(cand) = chosen(x) {
-                            for u in cand.iter() {
-                                self.resolver.choose(&u);
-                            }
-                        }
-                    } else if let Some(x) = QWERTY_UPPER.iter().position(|&a| a == c as u8) {
-                        if let Some(cand) = chosen(x) {
-                            for u in cand.iter() {
-                                self.resolver.delete(&u);
-                            }
-                        }
-                    } else if c == 'j' {
-                        if self.shown_first + 5 < candidates.len() {
-                            self.shown_first += 5;
-                        }
-                    } else if c == 'k' {
-                        if self.shown_first > 0 {
-                            assert!(self.shown_first >= 5);
-                            self.shown_first -= 5;
+                    if let Some(cand) = chosen(index) {
+                        state.resolver.delete(&cand.first());
+                    }
+                }
+                '!' | '@' | '#' | '$' | '%' => {
+                    let index = match c {
+                        '!' => 0,
+                        '@' => 1,
+                        '#' => 2,
+                        '$' => 3,
+                        '%' => 4,
+                        _ => return InputResult::Continue,
+                    };
+                    if let Some(cand) = chosen(index) {
+                        for u in cand.iter() {
+                            state.resolver.choose(&u);
                         }
                     }
                 }
-                Key::Esc => {
-                    return Ok(None);
+                'Q' | 'W' | 'E' | 'R' | 'T' => {
+                    let index = match c {
+                        'Q' => 0,
+                        'W' => 1,
+                        'E' => 2,
+                        'R' => 3,
+                        'T' => 4,
+                        _ => return InputResult::Continue,
+                    };
+                    if let Some(cand) = chosen(index) {
+                        for u in cand.iter() {
+                            state.resolver.delete(&u);
+                        }
+                    }
                 }
-                _ => {
-                    debug!("unknown key");
+                'j' => {
+                    if state.shown_first + 5 < candidates.len() {
+                        state.shown_first += 5;
+                    }
                 }
+                'k' => {
+                    if state.shown_first >= 5 {
+                        state.shown_first -= 5;
+                    } else {
+                        state.shown_first = 0;
+                    }
+                }
+                _ => {}
             }
+            InputResult::Continue
         }
-    }
-
-    fn redraw(&mut self) -> Result<(), Error> {
-        let divider_row = self.height - 5;
-        write!(
-            self.screen,
-            "{clear}{goto}{line}",
-            clear = clear::All,
-            goto = cursor::Goto(1, divider_row),
-            line = std::iter::repeat('═')
-                .take(self.width as usize)
-                .collect::<String>()
-        )?;
-
-        // Draw all the lines that are finished.
-        // TODO: add line numbers
-        let done = self.resolver.ordered_nodes().to_owned();
-        let mut row = divider_row;
-        for u in done.iter().rev().take(divider_row as usize - 1) {
-            row -= 1;
-            write_truncated(&mut self.screen, self.repo.contents(u), 1, row, self.width)?;
-        }
-
-        let candidates = self.resolver.candidates().collect::<Vec<_>>();
-        // If there are no candidates, we are already done.
-        assert!(!candidates.is_empty());
-
-        if candidates.len() == 1 {
-            self.redraw_one_choice(&candidates[0])?;
-        } else if candidates.len() == 2 {
-            self.redraw_two_choices(candidates)?;
-        } else {
-            self.redraw_many_choices(candidates)?;
-        }
-
-        self.screen.flush()?;
-        Ok(())
-    }
-
-    fn redraw_one_choice(&mut self, candidate: &CandidateChain) -> Result<(), Error> {
-        self.write_candidate_chain(candidate, 1, self.width)?;
-        self.draw_keybindings(vec![
-            ("1", "take one"),
-            ("q", "delete one"),
-            ("!", "take all"),
-            ("Q", "delete all"),
-        ])?;
-        Ok(())
-    }
-
-    fn redraw_two_choices(&mut self, candidates: Vec<CandidateChain>) -> Result<(), Error> {
-        let divider_col = (self.width + 1) / 2;
-        let divider_row = self.height - 5;
-
-        for i in 1..=5 {
-            write!(
-                self.screen,
-                "{goto}│",
-                goto = cursor::Goto(divider_col, divider_row + i)
-            )?;
-        }
-
-        // Draw the two columns of options.
-        self.write_candidate_chain(&candidates[0], 1, divider_col - 1)?;
-        let col2_start = divider_col + 1;
-        let col2_width = self.width - divider_col - 1;
-        self.write_candidate_chain(&candidates[1], col2_start, col2_width)?;
-
-        // Draw little boxes with the numbers 1 and 2 in them.
-        write!(
-            self.screen,
-            "{goto1}│1│{goto2}│2{goto3}└─┤{goto4}└─",
-            goto1 = cursor::Goto(divider_col - 2, divider_row + 1),
-            goto2 = cursor::Goto(self.width - 1, divider_row + 1),
-            goto3 = cursor::Goto(divider_col - 2, divider_row + 2),
-            goto4 = cursor::Goto(self.width - 1, divider_row + 2),
-        )?;
-
-        self.draw_keybindings(vec![
-            ("1", "take left"),
-            ("2", "take right"),
-            ("q", "delete left"),
-            ("w", "delete right"),
-            ("ESC", "quit"),
-        ])
-    }
-
-    fn redraw_many_choices(&mut self, candidates: Vec<CandidateChain>) -> Result<(), Error> {
-        let divider_row = self.height - 5;
-        let num_candidates = 5.min(candidates.len() - self.shown_first);
-        let mut row = divider_row;
-
-        for i in 0..num_candidates {
-            row += 1;
-
-            let cand_idx = self.shown_first + i;
-            let key = (b'1' + i as u8) as char;
-            write!(
-                self.screen,
-                "{goto}{bold}{key}{unbold}",
-                goto = cursor::Goto(1, row),
-                bold = style::Bold,
-                key = key,
-                unbold = style::NoBold,
-            )?;
-            let u = candidates[cand_idx].first();
-            write_truncated(
-                &mut self.screen,
-                self.repo.contents(&u),
-                3,
-                row,
-                self.width - 2,
-            )?;
-        }
-
-        let mut choose_range = b"1-5".to_owned();
-        let mut choose_all_range = b"!-%".to_owned();
-        let mut delete_range = b"q-t".to_owned();
-        let mut delete_all_range = b"Q-T".to_owned();
-        choose_range[2] = NUMBERS[num_candidates - 1];
-        choose_all_range[2] = NUMBERS_UPPER[num_candidates - 1];
-        delete_range[2] = QWERTY[num_candidates - 1];
-        delete_all_range[2] = QWERTY_UPPER[num_candidates - 1];
-
-        let mut keybindings = vec![
-            (std::str::from_utf8(&choose_range[..]).unwrap(), "take line"),
-            (
-                std::str::from_utf8(&delete_range[..]).unwrap(),
-                "delete line",
-            ),
-            (
-                std::str::from_utf8(&choose_all_range[..]).unwrap(),
-                "take lines",
-            ),
-            (
-                std::str::from_utf8(&delete_all_range[..]).unwrap(),
-                "delete lines",
-            ),
-        ];
-
-        if self.shown_first > 0 {
-            keybindings.push(("k", "show previous"));
-        }
-        if self.shown_first + 5 < candidates.len() {
-            keybindings.push(("j", "show next"));
-        }
-        keybindings.push(("ESC", "quit"));
-        self.draw_keybindings(keybindings)?;
-        Ok(())
-    }
-
-    fn draw_keybindings(&mut self, bindings: Vec<(&str, &str)>) -> Result<(), Error> {
-        draw_keybindings(&mut self.screen, bindings, self.width)
-    }
-
-    fn write_candidate_chain(
-        &mut self,
-        chain: &CandidateChain,
-        col: u16,
-        max_width: u16,
-    ) -> Result<(), Error> {
-        let mut row = self.height - 5;
-        for u in chain.iter().take(5) {
-            row += 1;
-            let data = self.repo.contents(&u);
-            write_truncated(&mut self.screen, data, col, row, max_width)?;
-        }
-        Ok(())
+        _ => InputResult::Continue,
     }
 }
 
-fn draw_keybindings(
-    screen: &mut Screen,
-    bindings: Vec<(&str, &str)>,
-    width: u16,
-) -> Result<(), Error> {
-    let mut row = 1;
-    for (key, msg) in bindings {
-        write!(
-            screen,
-            "{goto}│{bold}{key}{reset}{gotomsg}{msg}",
-            goto = cursor::Goto(width - 20, row),
-            bold = style::Bold,
-            key = key,
-            reset = style::Reset,
-            gotomsg = cursor::Goto(width - 15, row),
-            msg = msg,
-        )?;
-        row += 1;
-    }
-    write!(
-        screen,
-        "{goto}└{line}",
-        goto = cursor::Goto(width - 20, row),
-        line = std::iter::repeat("─").take(20).collect::<String>()
-    )?;
-    Ok(())
+fn draw_cycle_ui(f: &mut Frame, state: &CycleResolverState, component: &[NodeId]) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(0), Constraint::Length(8)].as_ref())
+        .split(f.area());
+
+    // Draw the component lines
+    let end = (state.offset + 10).min(component.len());
+    let visible_items = &component[state.offset..end];
+
+    let items: Vec<ListItem> = visible_items
+        .iter()
+        .enumerate()
+        .map(|(i, node_id)| {
+            let content = String::from_utf8_lossy(state.repo.contents(node_id));
+            let line = Line::from(vec![
+                Span::styled(
+                    format!("{} ", i + 1),
+                    Style::default().add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(content.trim_end().to_string()),
+            ]);
+            ListItem::new(line)
+        })
+        .collect();
+
+    let list = List::new(items).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title("Choose a line to resolve cycle"),
+    );
+    f.render_widget(list, chunks[0]);
+
+    // Draw keybindings
+    let keybindings = create_cycle_keybindings(visible_items.len(), state.offset, component.len());
+    let help_text = Text::from(keybindings);
+    let help = Paragraph::new(help_text)
+        .block(Block::default().borders(Borders::ALL).title("Keybindings"));
+    f.render_widget(help, chunks[1]);
 }
 
-fn write_truncated(
-    screen: &mut Screen,
-    data: &[u8],
-    col: u16,
-    row: u16,
-    max_width: u16,
-) -> Result<(), Error> {
-    let mut data = String::from_utf8_lossy(data);
-    // TODO: Here, we're pretending that the number of chars is the same as the displayed
-    // width. Is there some crate to help us figure out the actual width?
-    if data.chars().count() > max_width as usize {
-        let mut truncated = data
-            .chars()
-            .take(max_width as usize - 3)
-            .collect::<String>();
-        truncated += "...";
-        data = std::borrow::Cow::from(truncated);
+fn draw_order_ui(f: &mut Frame, state: &OrderResolverState, candidates: &[CandidateChain]) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(
+            [
+                Constraint::Min(0),
+                Constraint::Length(1),
+                Constraint::Length(8),
+            ]
+            .as_ref(),
+        )
+        .split(f.area());
+
+    // Draw ordered nodes (completed part)
+    let done = state.resolver.ordered_nodes().to_owned();
+    let done_items: Vec<ListItem> = done
+        .iter()
+        .rev()
+        .take(chunks[0].height as usize)
+        .map(|node_id| {
+            let content = String::from_utf8_lossy(state.repo.contents(node_id));
+            ListItem::new(Line::from(content.trim_end().to_string()))
+        })
+        .collect();
+
+    let done_list =
+        List::new(done_items).block(Block::default().borders(Borders::ALL).title("Completed"));
+    f.render_widget(done_list, chunks[0]);
+
+    // Draw separator
+    let separator = Paragraph::new("═".repeat(chunks[1].width as usize))
+        .style(Style::default().fg(Color::Gray));
+    f.render_widget(separator, chunks[1]);
+
+    // Draw candidates
+    if candidates.len() == 1 {
+        draw_single_candidate(f, chunks[2], state, &candidates[0]);
+    } else if candidates.len() == 2 {
+        draw_two_candidates(f, chunks[2], state, candidates);
+    } else {
+        draw_many_candidates(f, chunks[2], state, candidates);
     }
-    // Trim the string, because if it ends with a '\n' then it will mess up our formatting.
-    write!(screen, "{}{}", cursor::Goto(col, row), data.trim_end())?;
-    Ok(())
+}
+
+fn draw_single_candidate(
+    f: &mut Frame,
+    area: Rect,
+    state: &OrderResolverState,
+    candidate: &CandidateChain,
+) {
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Min(0), Constraint::Length(25)].as_ref())
+        .split(area);
+
+    let items: Vec<ListItem> = candidate
+        .iter()
+        .take(5)
+        .map(|node_id| {
+            let content = String::from_utf8_lossy(state.repo.contents(&node_id));
+            ListItem::new(Line::from(content.trim_end().to_string()))
+        })
+        .collect();
+
+    let list = List::new(items).block(Block::default().borders(Borders::ALL).title("Candidate"));
+    f.render_widget(list, chunks[0]);
+
+    let help_lines = vec![
+        Line::from("1 - take one"),
+        Line::from("q - delete one"),
+        Line::from("! - take all"),
+        Line::from("Q - delete all"),
+        Line::from("ESC - quit"),
+    ];
+    let help =
+        Paragraph::new(help_lines).block(Block::default().borders(Borders::ALL).title("Keys"));
+    f.render_widget(help, chunks[1]);
+}
+
+fn draw_two_candidates(
+    f: &mut Frame,
+    area: Rect,
+    state: &OrderResolverState,
+    candidates: &[CandidateChain],
+) {
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(
+            [
+                Constraint::Percentage(40),
+                Constraint::Percentage(40),
+                Constraint::Percentage(20),
+            ]
+            .as_ref(),
+        )
+        .split(area);
+
+    // Left candidate
+    let left_items: Vec<ListItem> = candidates[0]
+        .iter()
+        .take(5)
+        .map(|node_id| {
+            let content = String::from_utf8_lossy(state.repo.contents(&node_id));
+            ListItem::new(Line::from(content.trim_end().to_string()))
+        })
+        .collect();
+
+    let left_list = List::new(left_items).block(Block::default().borders(Borders::ALL).title("1"));
+    f.render_widget(left_list, chunks[0]);
+
+    // Right candidate
+    let right_items: Vec<ListItem> = candidates[1]
+        .iter()
+        .take(5)
+        .map(|node_id| {
+            let content = String::from_utf8_lossy(state.repo.contents(&node_id));
+            ListItem::new(Line::from(content.trim_end().to_string()))
+        })
+        .collect();
+
+    let right_list =
+        List::new(right_items).block(Block::default().borders(Borders::ALL).title("2"));
+    f.render_widget(right_list, chunks[1]);
+
+    // Keybindings
+    let help_lines = vec![
+        Line::from("1 - take left"),
+        Line::from("2 - take right"),
+        Line::from("q - delete left"),
+        Line::from("w - delete right"),
+        Line::from("ESC - quit"),
+    ];
+    let help =
+        Paragraph::new(help_lines).block(Block::default().borders(Borders::ALL).title("Keys"));
+    f.render_widget(help, chunks[2]);
+}
+
+fn draw_many_candidates(
+    f: &mut Frame,
+    area: Rect,
+    state: &OrderResolverState,
+    candidates: &[CandidateChain],
+) {
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Min(0), Constraint::Length(30)].as_ref())
+        .split(area);
+
+    let num_candidates = 5.min(candidates.len() - state.shown_first);
+    let items: Vec<ListItem> = (0..num_candidates)
+        .map(|i| {
+            let cand_idx = state.shown_first + i;
+            let candidate = &candidates[cand_idx];
+            let key = (i + 1).to_string();
+            let first_node = candidate.first();
+            let content = String::from_utf8_lossy(state.repo.contents(&first_node));
+
+            let line = Line::from(vec![
+                Span::styled(
+                    format!("{key} "),
+                    Style::default().add_modifier(Modifier::BOLD),
+                ),
+                Span::raw(content.trim_end().to_string()),
+            ]);
+            ListItem::new(line)
+        })
+        .collect();
+
+    let list = List::new(items).block(Block::default().borders(Borders::ALL).title("Candidates"));
+    f.render_widget(list, chunks[0]);
+
+    let help_lines =
+        create_many_candidates_help(num_candidates, state.shown_first, candidates.len());
+    let help =
+        Paragraph::new(help_lines).block(Block::default().borders(Borders::ALL).title("Keys"));
+    f.render_widget(help, chunks[1]);
+}
+
+fn create_cycle_keybindings(
+    visible_count: usize,
+    offset: usize,
+    total_count: usize,
+) -> Vec<Line<'static>> {
+    let mut lines = Vec::new();
+
+    if visible_count > 0 {
+        lines.push(Line::from(format!("1-{visible_count} - choose line")));
+    }
+
+    if offset + 10 < total_count {
+        lines.push(Line::from("j - show next"));
+    }
+
+    if offset > 0 {
+        lines.push(Line::from("k - show previous"));
+    }
+
+    lines.push(Line::from("ESC - quit"));
+    lines
+}
+
+fn create_many_candidates_help(
+    num_candidates: usize,
+    shown_first: usize,
+    total_candidates: usize,
+) -> Vec<Line<'static>> {
+    let mut lines = Vec::new();
+
+    lines.push(Line::from(format!("1-{num_candidates} - take line")));
+    lines.push(Line::from(format!(
+        "q-{} - delete line",
+        match num_candidates {
+            1 => "q",
+            2 => "w",
+            3 => "e",
+            4 => "r",
+            5 => "t",
+            _ => "t",
+        }
+    )));
+    lines.push(Line::from(format!(
+        "!-{} - take all lines",
+        match num_candidates {
+            1 => "!",
+            2 => "@",
+            3 => "#",
+            4 => "$",
+            5 => "%",
+            _ => "%",
+        }
+    )));
+    lines.push(Line::from(format!(
+        "Q-{} - delete all lines",
+        match num_candidates {
+            1 => "Q",
+            2 => "W",
+            3 => "E",
+            4 => "R",
+            5 => "T",
+            _ => "T",
+        }
+    )));
+
+    if shown_first > 0 {
+        lines.push(Line::from("k - show previous"));
+    }
+
+    if shown_first + 5 < total_candidates {
+        lines.push(Line::from("j - show next"));
+    }
+
+    lines.push(Line::from("ESC - quit"));
+    lines
 }

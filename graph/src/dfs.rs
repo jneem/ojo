@@ -41,7 +41,7 @@ impl<'a, G: Graph + ?Sized> StackFrame<'a, G> {
     fn new(g: &'a G, u: G::Node) -> StackFrame<'a, G> {
         StackFrame {
             neighbors: g.out_edges(&u),
-            u: u,
+            u,
         }
     }
 }
@@ -56,7 +56,7 @@ pub struct Dfs<'a, G: Graph + ?Sized> {
 impl<'a, G: Graph + ?Sized> Dfs<'a, G> {
     pub(crate) fn new(g: &'a G) -> Dfs<'a, G> {
         Dfs {
-            g: g,
+            g,
             visited: HashSet::new(),
             stack: Vec::new(),
             roots: g.nodes(),
@@ -65,7 +65,7 @@ impl<'a, G: Graph + ?Sized> Dfs<'a, G> {
 
     pub(crate) fn new_from(g: &'a G, root: &G::Node) -> Dfs<'a, G> {
         Dfs {
-            g: g,
+            g,
             visited: HashSet::new(),
             stack: Vec::new(),
             roots: Box::new(Some(*root).into_iter()),
@@ -73,12 +73,9 @@ impl<'a, G: Graph + ?Sized> Dfs<'a, G> {
     }
 
     fn next_root(&mut self) -> Option<G::Node> {
-        while let Some(root) = self.roots.next() {
-            if !self.visited.contains(&root) {
-                return Some(root);
-            }
-        }
-        None
+        self.roots
+            .by_ref()
+            .find(|&root| !self.visited.contains(&root))
     }
 
     fn cur_node(&self) -> Option<G::Node> {
@@ -104,7 +101,7 @@ impl<'a, G: Graph + ?Sized> Iterator for Dfs<'a, G> {
                 Some(Visit::Edge {
                     src: cur,
                     dst: next,
-                    status: status,
+                    status,
                 })
             } else {
                 self.stack.pop();
@@ -125,10 +122,10 @@ impl<'a, G: Graph + ?Sized> Iterator for Dfs<'a, G> {
 
 #[cfg(test)]
 mod tests {
-    use super::Status::*;
-    use super::Visit::*;
-    use crate::tests::graph;
-    use crate::Graph;
+    use {
+        super::{Status::*, Visit::*},
+        crate::{Graph, tests::graph},
+    };
 
     macro_rules! dfs_test {
         ($name:ident, $graph:expr, $expected:expr) => {
